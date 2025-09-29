@@ -14,7 +14,6 @@ class SparkleLeaderboard(commands.Cog):
             "regular": "💫"
         }
 
-
     @commands.hybrid_command(name="sparkleleaderboard", aliases=["sparklelb"], description="Show server Sparkle leaderboard")
     @app_commands.describe(limit="Number of users to show (max 20)")
     async def sparkle_leaderboard(self, ctx: commands.Context, limit: int = 10):
