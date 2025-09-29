@@ -167,7 +167,7 @@ class WordBomb(commands.Cog):
         await ctx.send("✅ Game ended!")
 
     @commands.hybrid_command()
-    async def leaderboard(self, ctx):
+    async def wordbomb_leaderboard(self, ctx):
         """Show top 10 players in this server"""
         self.c.execute("""
             SELECT user_id, score 

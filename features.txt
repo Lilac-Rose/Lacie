@@ -12,3 +12,5 @@
 !warn - Warns a user after confirmation, DMs them the reason if possible, logs the infraction (Admin only)
 !mute - Mutes a user for a specified duration after confirmation, DMs them the reason if possible, logs the infraction (Admin only)
 !inf - Search or delete infractions by user ID or infraction ID (Admin only)
+
+
