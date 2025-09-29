@@ -1,0 +1,14 @@
+/ping - Replies with pong [FINISHED]
+
+--WORDBOMB-- [FINISH]
+/start - Starts a wordbomb game in the channel (Admin only)
+/end - Ends the wordbomb game in the channel (Admin only)
+/score - Check yours or another users score
+/leaderboard - Shows the top 10 users by Wordbomb score
+
+--MODERATION-- [FINISHED]
+!ban - Bans a user after confirmation, DMs them the reason if possible, logs the infraction (Admin only)
+!kick - Kicks a user after confirmation, DMs them the reason if possible, logs the infraction (Admin only)
+!warn - Warns a user after confirmation, DMs them the reason if possible, logs the infraction (Admin only)
+!mute - Mutes a user for a specified duration after confirmation, DMs them the reason if possible, logs the infraction (Admin only)
+!inf - Search or delete infractions by user ID or infraction ID (Admin only)
