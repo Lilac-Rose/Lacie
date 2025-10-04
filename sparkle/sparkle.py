@@ -36,6 +36,7 @@ class Sparkle(commands.Cog):
 
         await asyncio.to_thread(db_task)
 
+    # Percentage bug found and fixed by Alyaunderstars
     @commands.Cog.listener()
     async def on_message(self, message):
         if message.author.bot or not message.guild:
