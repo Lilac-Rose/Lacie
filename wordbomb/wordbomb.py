@@ -27,7 +27,7 @@ class WordBomb(commands.Cog):
             self.words = [word.strip().lower() for word in f.readlines() if word.strip()]
 
     def initialize_database(self):
-        """Create tables with proper constraints if they don't exist"""
+        """Initialize database schema"""
         self.c.executescript("""
         CREATE TABLE IF NOT EXISTS guilds (
             id INTEGER PRIMARY KEY,
@@ -55,12 +55,33 @@ class WordBomb(commands.Cog):
         self.db.commit()
 
     async def get_word(self):
-        """Get a random word and substring"""
-        word = random.choice(self.words)
-        word_length = len(word)
-        substring_length = min(random.randint(3, 5), word_length)
-        start = random.randint(0, word_length - substring_length)
-        return word, word[start:start+substring_length]
+        """Generate word and substring with minimum 100 matches"""
+        max_attempts = 1000
+        attempts = 0
+        
+        while attempts < max_attempts:
+            word = random.choice(self.words)
+            word_length = len(word)
+            substring_length = min(random.randint(3, 5), word_length)
+            start = random.randint(0, word_length - substring_length)
+            substring = word[start:start+substring_length]
+            
+            matching_words = await self.filter_words(substring)
+            if len(matching_words) >= 100:
+                return word, substring
+            
+            attempts += 1
+        
+        common_substrings = ['ing', 'ion', 'er', 'ed', 'es', 'tion', 'ter', 'ent', 'ant']
+        for substring in common_substrings:
+            matching_words = await self.filter_words(substring)
+            if len(matching_words) >= 100:
+                # Pick a random word containing this substring
+                word = random.choice(matching_words)
+                return word, substring
+        
+        # Ultimate fallback (should never reach here)
+        return word, substring
 
     async def filter_words(self, substring):
         """Find all words containing the substring"""
@@ -226,7 +247,6 @@ class WordBomb(commands.Cog):
             """, (new_word, new_substring, message.guild.id, message.channel.id))
             self.db.commit()
 
-            # Your preferred response format
             response = (
                 f"# 🎯・NEW SUBSTRING ・🎯\n"
                 f"# **{new_substring.upper()}**\n"
