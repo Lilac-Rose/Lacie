@@ -40,7 +40,7 @@ class Sparkle(commands.Cog):
     async def on_message(self, message):
         if message.author.bot or not message.guild:
             return
-        chance = random.randint(1, 100000)
+        chance = random.randint(1, 1000000)
         if chance == 1:
             await self._add_sparkle(message, "epic")
         elif chance <= 10:
