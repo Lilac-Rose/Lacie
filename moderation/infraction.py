@@ -26,34 +26,40 @@ class InfractionCommand(ModerationBase):
                 await ctx.send("No infractions found for that user.")
                 return
 
-            lines = []
-            header = f"{'ID':<8} | {'User':<28} | {'Moderator':<28} | {'Timestamp':<19} | {'Type':<10} | Reason"
-            separator = "-" * len(header)
-            lines.append(header)
-            lines.append(separator)
-
+            # Fetch user/mod info and prepare table rows
+            rows = []
             for row in results:
-                # Fetch user and moderator objects
                 user = await self.bot.fetch_user(row["user_id"])
                 moderator = await self.bot.fetch_user(row["moderator_id"])
 
-                # Format user and mod names
                 user_tag = f"{user.name}#{user.discriminator}"
                 mod_tag = f"{moderator.name}#{moderator.discriminator}"
-
-                # Shorten if needed for alignment
-                user_tag = user_tag[:27] + "…" if len(user_tag) > 28 else user_tag
-                mod_tag = mod_tag[:27] + "…" if len(mod_tag) > 28 else mod_tag
-
-                # Format timestamp
                 timestamp = row["timestamp"].replace("T", " ")[:19]
-
-                # Format reason (truncate if too long)
                 reason = row["reason"] or "None"
 
-                lines.append(f"{row['id']:<8} | {user_tag:<28} | {mod_tag:<28} | {timestamp:<19} | {row['type']:<10} | {reason}")
+                rows.append({
+                    "id": str(row["id"]),
+                    "user": user_tag,
+                    "moderator": mod_tag,
+                    "timestamp": timestamp,
+                    "type": row["type"],
+                    "reason": reason
+                })
 
-            # Send in code block to preserve formatting
+            # Determine max widths dynamically
+            widths = {key: max(len(key), *(len(r[key]) for r in rows)) for key in rows[0].keys()}
+
+            # Build header
+            header = " | ".join(f"{key.capitalize():{widths[key]}}" for key in rows[0].keys())
+            separator = "-" * len(header)
+
+            lines = [header, separator]
+
+            # Build rows
+            for r in rows:
+                line = " | ".join(f"{r[key]:{widths[key]}}" for key in r.keys())
+                lines.append(line)
+
             table = "```\n" + "\n".join(lines) + "\n```"
             await ctx.send(table)
 
