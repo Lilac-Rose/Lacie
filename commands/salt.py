@@ -13,9 +13,13 @@ class SaltCommand(ModerationBase):
         self.salt_targets = {}
 
     @commands.command(name="salt")
-    @ModerationBase.is_admin()
     async def salt(self, ctx, member: discord.Member, *, reason: str = None):
         """React with salt emoji to the user's next message"""
+        # Check if the author is a mod/admin
+        if not any(role.id == ModerationBase.ADMIN_ROLE_ID for role in ctx.author.roles):
+            await ctx.send("You have no power here.")
+            return
+
         guild_targets = self.salt_targets.setdefault(ctx.guild.id, {})
 
         if member.id in guild_targets:
@@ -38,8 +42,6 @@ class SaltCommand(ModerationBase):
                     await message.add_reaction(emoji)
                 except discord.HTTPException:
                     pass
-            # Optionally you could DM the user or log the reason somewhere
-            # Remove the user from the salt list after reacting
             guild_targets.pop(message.author.id)
 
 async def setup(bot: commands.Bot):
