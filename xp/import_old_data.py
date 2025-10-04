@@ -20,8 +20,13 @@ users_data = data.get("users", {})
 
 conn = sqlite3.connect(DB)
 cur = conn.cursor()
+
+# Wipe the xp table if it exists
+cur.execute("DROP TABLE IF EXISTS xp")
+
+# Recreate the table
 cur.execute("""
-CREATE TABLE IF NOT EXISTS xp (
+CREATE TABLE xp (
     user_id TEXT PRIMARY KEY,
     xp INTEGER DEFAULT 0,
     level INTEGER DEFAULT 0,
@@ -29,16 +34,17 @@ CREATE TABLE IF NOT EXISTS xp (
 )
 """)
 
+# Import old data
 for user_id, user_info in users_data.items():
     uid = str(user_id)
     xp = int(user_info.get("xp", 0))
     level = 0
     while xp >= xp_for_level(level + 1):
         level += 1
-    cur.execute("INSERT OR REPLACE INTO xp (user_id, xp, level, last_message) VALUES (?, ?, ?, 0)",
+    cur.execute("INSERT INTO xp (user_id, xp, level, last_message) VALUES (?, ?, ?, 0)",
                 (uid, xp, level))
 
 conn.commit()
 conn.close()
 
-print("✅ Import finished into xp/lifetime.db")
+print("✅ Import finished into xp/lifetime.db (previous data wiped)")
