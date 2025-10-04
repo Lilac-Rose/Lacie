@@ -8,10 +8,11 @@ import asyncio
 class SparkleLeaderboard(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # Updated emoji mapping
         self.sparkle_emojis = {
-            "epic": "✨",
+            "epic": "💫",
             "rare": "🌟",
-            "regular": "💫"
+            "regular": "✨"
         }
 
     @commands.hybrid_command(name="sparkleleaderboard", aliases=["sparklelb"], description="Show server Sparkle leaderboard")
@@ -65,7 +66,7 @@ class SparkleLeaderboard(commands.Cog):
             if rank == 1 and user:
                 embed.set_thumbnail(url=user.display_avatar.url)
 
-        embed.set_footer(text="✨ Epic | 🌟 Rare | 💫 Regular")
+        embed.set_footer(text="💫 Epic | 🌟 Rare | ✨ Regular")
         await ctx.send(embed=embed)
 
 async def setup(bot):

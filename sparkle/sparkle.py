@@ -7,10 +7,11 @@ import asyncio
 class Sparkle(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # Updated emoji mapping
         self.chances = {
-            "epic": (1, "✨", "an **epic sparkle**"),
-            "rare": (10, "🌟", "a **rare sparkle**"),
-            "regular": (1000, "💫", "a **sparkle**")
+            "epic": (100000, "💫", "an **epic sparkle**"),
+            "rare": (10000, "🌟", "a **rare sparkle**"),
+            "regular": (1000, "✨", "a **regular sparkle**")
         }
 
     async def _add_sparkle(self, message, sparkle_type):
@@ -39,7 +40,7 @@ class Sparkle(commands.Cog):
     async def on_message(self, message):
         if message.author.bot or not message.guild:
             return
-        chance = random.randint(1, 1000000)
+        chance = random.randint(1, 100000)
         if chance == 1:
             await self._add_sparkle(message, "epic")
         elif chance <= 10:

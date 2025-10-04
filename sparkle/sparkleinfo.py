@@ -22,7 +22,7 @@ class SparkleInfo(commands.Cog):
             color=discord.Color.purple()
         )
         embed.set_footer(text="Keep sending messages to try your luck!")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(SparkleInfo(bot))
