@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from moderation.loader import ModerationBase
+from moderation.loader import ModerationBase, ADMIN_ROLE_ID
 import asyncio
 
 # Custom emoji ID you provided
@@ -16,7 +16,7 @@ class SaltCommand(ModerationBase):
     async def salt(self, ctx, member: discord.Member, *, reason: str = None):
         """React with salt emoji to the user's next message"""
         # Check if the author is a mod/admin
-        if not any(role.id == ModerationBase.ADMIN_ROLE_ID for role in ctx.author.roles):
+        if not any(role.id == ADMIN_ROLE_ID for role in ctx.author.roles):
             await ctx.send("You have no power here.")
             return
 
