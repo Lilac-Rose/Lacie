@@ -14,9 +14,9 @@ class SparkleInfo(commands.Cog):
                 "Sparkles are **random reactions** that can appear on messages! "
                 "Sometimes, when you send a message, you might get a sparkle reaction and a little notification.\n\n"
                 "**Types of Sparkles:**\n"
-                "💫 **Regular Sparkle** – Appears randomly (1/1,000 chance per message)\n"
+                "✨ **Regular Sparkle** – Appears randomly (1/1,000 chance per message)\n"
                 "🌟 **Rare Sparkle** – Appears less often (1/10,000 chance per message)\n"
-                "✨ **Epic Sparkle** – Extremely rare! (1/100,000 chance per message)\n\n"
+                "💫**Epic Sparkle** – Extremely rare! (1/100,000 chance per message)\n\n"
                 "You can track your sparkles and compare with others using `/sparkleleaderboard`."
             ),
             color=discord.Color.purple()
