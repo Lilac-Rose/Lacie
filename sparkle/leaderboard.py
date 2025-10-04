@@ -57,9 +57,9 @@ class SparkleLeaderboard(commands.Cog):
             user = ctx.guild.get_member(int(user_id))
             display_name = escape_markdown(user.display_name) if user else f"Unknown User ({user_id})"
             sparkles = (
-                f"{self.sparkle_emojis['epic']} {epic} (Epic) | "
-                f"{self.sparkle_emojis['rare']} {rare} (Rare) | "
-                f"{self.sparkle_emojis['regular']} {regular} (Regular) | "
+                f"{self.sparkle_emojis['epic']} {epic} | "
+                f"{self.sparkle_emojis['rare']} {rare} | "
+                f"{self.sparkle_emojis['regular']} {regular} | "
                 f"**Total:** {total}"
             )
             embed.add_field(name=f"{rank}. {display_name}", value=sparkles, inline=False)
