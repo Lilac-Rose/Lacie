@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
-from .loader import ModerationBase
 from discord.ui import View, Button
+from .loader import ModerationBase
 
 class WarnCommand(ModerationBase):
 
@@ -12,40 +12,40 @@ class WarnCommand(ModerationBase):
         view = View(timeout=30)
         confirmed = {"value": False}
 
-        async def yes_callback(interaction):
+        async def yes_callback(interaction: discord.Interaction):
+            if interaction.user != ctx.author:
+                await interaction.response.send_message("You can’t confirm this action.", ephemeral=True)
+                return
             confirmed["value"] = True
+            await interaction.response.edit_message(content="✅ Confirmed.", view=None)
             view.stop()
-            await interaction.response.edit_message(content="Confirmed.", view=None)
 
-        async def no_callback(interaction):
+        async def no_callback(interaction: discord.Interaction):
+            if interaction.user != ctx.author:
+                await interaction.response.send_message("You can’t cancel this action.", ephemeral=True)
+                return
             confirmed["value"] = False
+            await interaction.response.edit_message(content="❌ Cancelled.", view=None)
             view.stop()
-            await interaction.response.edit_message(content="Cancelled.", view=None)
 
-        view.add_item(Button(label="Yes", style=discord.ButtonStyle.green, custom_id="yes"))
-        view.add_item(Button(label="No", style=discord.ButtonStyle.red, custom_id="no"))
+        yes_button = Button(label="Yes", style=discord.ButtonStyle.green)
+        no_button = Button(label="No", style=discord.ButtonStyle.red)
+        yes_button.callback = yes_callback
+        no_button.callback = no_callback
 
-        async def button_listener(interaction):
-            if interaction.custom_id == "yes":
-                await yes_callback(interaction)
-            else:
-                await no_callback(interaction)
+        view.add_item(yes_button)
+        view.add_item(no_button)
 
-        for item in view.children:
-            item.callback = button_listener
-
-        await ctx.send(f"Are you sure you want to warn {user.mention}? Reason: {reason}", view=view)
+        await ctx.send(f"Are you sure you want to warn {user.mention}? Reason: {reason or 'No reason provided'}", view=view)
         await view.wait()
         if not confirmed["value"]:
             return
 
-        # DM user
         try:
-            await user.send(f"You have been **warned** in {ctx.guild.name}. Reason: {reason or 'No reason provided'}")
+            await user.send(f"You have been **warned** in **{ctx.guild.name}**.\nReason: {reason or 'No reason provided'}")
         except:
             await ctx.send("Could not DM the user.")
 
-        # Log infraction
         await self.log_infraction(ctx.guild.id, user.id, ctx.author.id, "warn", reason)
         await ctx.send(f"{user.mention} has been warned.")
 
