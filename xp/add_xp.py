@@ -20,6 +20,7 @@ async def add_xp(member):
 
         gained = int(random_xp() * get_multiplier(member))
         new_xp = xp + gained
+
         cur.execute("UPDATE xp SET xp = ?, last_message = ? WHERE user_id = ?",
                     (new_xp, int(time.time()), str(member.id)))
         conn.commit()

@@ -37,11 +37,16 @@ class Rank(commands.Cog):
             multipliers_text = []
             if isinstance(user, discord.Member) and user.guild == interaction.guild:
                 multiplier = get_multiplier(user)
+                role_name = None
                 for role in user.roles:
-                    if str(role.id) in MULTIPLIERS:
-                        multipliers_text.append(f"{role.mention} – {MULTIPLIERS[str(role.id)]}x XP")
-            
-            if not multipliers_text:
+                    if str(role.id) in MULTIPLIERS and MULTIPLIERS[str(role.id)] == multiplier:
+                        role_name = role.mention
+                        break
+                if role_name:
+                    multipliers_text.append(f"{role_name} – {multiplier}x XP")
+                else:
+                    multipliers_text.append("None")
+            else:
                 multipliers_text.append("None")
 
             # progress bar

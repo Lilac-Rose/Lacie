@@ -22,32 +22,39 @@ MULTIPLIERS = {
 
 COOLDOWN = 60
 
+
 def get_multiplier(member):
-    boost = 1
+    highest = 1
     for role in member.roles:
         if str(role.id) in MULTIPLIERS:
-            boost *= MULTIPLIERS[str(role.id)]
-    return boost
+            highest = max(highest, MULTIPLIERS[str(role.id)])
+    return highest
+
 
 def xp_for_level(level: int) -> int:
     xp = (level ** 3) + (50 * level ** 2) + (100 * level)
     return int(math.floor(xp / 100) * 100)  # round down to nearest 100
 
+
 def random_xp() -> int:
     return random.randint(50, 100)
 
+
 def can_get_xp(last_message_time: int) -> bool:
     return (time.time() - last_message_time) >= COOLDOWN
+
 
 async def check_level_up(member, cur, conn, lifetime=True):
     cur.execute("SELECT xp, level FROM xp WHERE user_id = ?", (str(member.id),))
     row = cur.fetchone()
     if not row:
         return
+
     xp, level = row
     new_level = level
     while xp >= xp_for_level(new_level + 1):
         new_level += 1
+
     if new_level > level:
         cur.execute("UPDATE xp SET level = ? WHERE user_id = ?", (new_level, str(member.id)))
         conn.commit()
