@@ -27,7 +27,7 @@ class SaltCommand(ModerationBase):
             return
 
         guild_targets[member.id] = reason
-        await ctx.send(f"{member.mention} got salt thrown at them for: {reason or 'no reason provided'}")
+        await ctx.send(f"{member.mention} got salt thrown at them" + (f" for: {reason}" if reason else ""))
 
     @commands.Cog.listener()
     async def on_message(self, message):
