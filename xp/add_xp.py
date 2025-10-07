@@ -1,8 +1,16 @@
 import time
 from .database import get_db
 from .utils import get_multiplier, random_xp, can_get_xp, check_level_up
+from .exclude_channels import is_channel_excluded
 
 async def add_xp(member):
+    
+    if hasattr(member, "guild"):
+        last_message = getattr(member, "last_message", None)
+        if last_message and getattr(last_message, "channel", None):
+            if is_channel_excluded(last_message.channel.id):
+                return
+    
     for lifetime in (True, False):  # True = lifetime, False = annual
         conn, cur = get_db(lifetime)
         cur.execute("SELECT xp, level, last_message FROM xp WHERE user_id = ?", (str(member.id),))

@@ -3,7 +3,6 @@ from discord.ext import commands
 from moderation.loader import ModerationBase, ADMIN_ROLE_ID
 import asyncio
 
-# Custom emoji ID you provided
 SALT_EMOJI_ID = 1074583707459010560
 
 class SaltCommand(ModerationBase):

@@ -21,17 +21,20 @@ async def load_cogs(folder: str):
     """Load all cogs in the folder except utility files"""
     non_cog_files = {"add_xp.py", "database.py", "utils.py", "__init__.py",
                      "import_old_data.py", "repair_db.py", "reset_db.py"}
-
     for file in glob.glob(f"{folder}/*.py"):
         filename = os.path.basename(file)
         if filename in non_cog_files:
             print(f"Skipping {filename} (utility file)")
             continue
-
         module_name = f"{folder}.{os.path.splitext(filename)[0]}"
         try:
-            await bot.load_extension(module_name)
-            print(f"Loaded {module_name}")
+            # Try to reload if already loaded, otherwise load fresh
+            if module_name in bot.extensions:
+                await bot.reload_extension(module_name)
+                print(f"Reloaded {module_name}")
+            else:
+                await bot.load_extension(module_name)
+                print(f"Loaded {module_name}")
         except Exception as e:
             print(f"Failed to load {module_name}: {e}")
             traceback.print_exc()
