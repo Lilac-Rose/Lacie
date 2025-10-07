@@ -8,7 +8,7 @@ class Leaderboard(commands.Cog):
         self.bot = bot
 
     @app_commands.command(
-        name="leaderboard",
+        name="top",
         description="Show the server leaderboard"
     )
     @app_commands.describe(
