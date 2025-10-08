@@ -67,8 +67,8 @@ class Rank(commands.Cog):
             bar = "█" * filled + "░" * (bar_length - filled)
 
             # estimate messages left
-            min_msgs = math.ceil(needed / 100)
-            max_msgs = math.ceil(needed / 50)
+            min_msgs = math.ceil(math.ceil(needed / 100) / multiplier)
+            max_msgs = math.ceil(math.ceil(needed / 50) / multiplier)
 
             embed = discord.Embed(
                 description=f"✨ **XP** `{xp:,}` (lv. {level})\n"
