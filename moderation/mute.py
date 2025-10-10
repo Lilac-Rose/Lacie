@@ -107,6 +107,11 @@ class MuteCommand(ModerationBase):
         db_path = os.path.join(os.path.dirname(__file__), "moderation.db")
         conn = sqlite3.connect(db_path)
         c = conn.cursor()
+        c.execute("SELECT 1 FROM mutes WHERE user_id = ? AND guild_id = ?", (user_id, guild_id))
+        exists = c.fetchone()
+        if not exists:
+            conn.close()
+            return
         c.execute("DELETE FROM mutes WHERE user_id = ? AND guild_id = ?", (user_id, guild_id))
         conn.commit()
         conn.close()
