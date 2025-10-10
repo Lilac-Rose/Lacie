@@ -1,7 +1,8 @@
 import discord
 from discord.ext import commands
 from discord.ui import View, Button
-import asyncio
+import sqlite3
+import os
 from .loader import ModerationBase
 
 MUTE_ROLE_ID = 982702037517090836
@@ -11,7 +12,6 @@ class UnmuteCommand(ModerationBase):
     @commands.command(name="unmute")
     @ModerationBase.is_admin()
     async def unmute(self, ctx, user: discord.Member):
-        """Unmute a user with confirmation and log infraction"""
         view = View(timeout=30)
         confirmed = {"value": False}
 
@@ -31,11 +31,10 @@ class UnmuteCommand(ModerationBase):
             await interaction.response.edit_message(content="❌ Cancelled.", view=None)
             view.stop()
 
-        yes_button = Button(label="Yes", style=discord.ButtonStyle.green)
-        no_button = Button(label="No", style=discord.ButtonStyle.red)
+        yes_button = discord.ui.Button(label="Yes", style=discord.ButtonStyle.green)
+        no_button = discord.ui.Button(label="No", style=discord.ButtonStyle.red)
         yes_button.callback = yes_callback
         no_button.callback = no_callback
-
         view.add_item(yes_button)
         view.add_item(no_button)
 
@@ -50,7 +49,13 @@ class UnmuteCommand(ModerationBase):
             return
 
         if mute_role in user.roles:
-            await user.remove_roles(mute_role, reason="Unmute issued by command")
+            await user.remove_roles(mute_role, reason="Manual unmute issued")
+            db_path = os.path.join(os.path.dirname(__file__), "moderation.db")
+            conn = sqlite3.connect(db_path)
+            c = conn.cursor()
+            c.execute("DELETE FROM mutes WHERE user_id = ? AND guild_id = ?", (user.id, ctx.guild.id))
+            conn.commit()
+            conn.close()
             try:
                 await user.send(f"You have been **unmuted** in **{ctx.guild.name}**.")
             except:
