@@ -41,12 +41,14 @@ class Sparkle(commands.Cog):
     async def on_message(self, message):
         if message.author.bot or not message.guild:
             return
-        chance = random.randint(1, 1000000)
-        if chance == 1:
+        
+        msg_id_str = str(message.id)
+
+        if msg_id_str.endswith("00000"):  # 1 in 100,000
             await self._add_sparkle(message, "epic")
-        elif chance <= 10:
+        elif msg_id_str.endswith("0000"):  # 1 in 10,000
             await self._add_sparkle(message, "rare")
-        elif chance <= 1000:
+        elif msg_id_str.endswith("000"):  # 1 in 1,000
             await self._add_sparkle(message, "regular")
 
 async def setup(bot):

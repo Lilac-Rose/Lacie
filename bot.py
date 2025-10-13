@@ -15,7 +15,7 @@ load_dotenv()
 TOKEN = os.getenv("TOKEN")
 ADMIN_ROLE_ID = int(os.getenv("ADMIN_ROLE_ID"))
 
-bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
+bot = commands.Bot(command_prefix="!", intents=discord.Intents.all(), help_command=None)
 
 async def load_cogs(folder: str):
     """Load all cogs in the folder except utility files"""
