@@ -2,7 +2,6 @@ import discord
 from discord.ext import commands
 import json
 import os
-import time
 from dotenv import load_dotenv
 
 load_dotenv()

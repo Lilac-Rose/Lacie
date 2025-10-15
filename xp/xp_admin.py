@@ -1,4 +1,3 @@
-import discord
 from discord.ext import commands
 from moderation.loader import ModerationBase
 from xp.add_xp import get_db

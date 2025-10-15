@@ -1,7 +1,5 @@
 import discord
 from discord.ext import commands
-import sqlite3
-import os
 from .loader import ModerationBase
 
 # All available log types
