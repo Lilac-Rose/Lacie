@@ -19,7 +19,7 @@ class SaltCommand(ModerationBase):
             await ctx.send("You have no power here.")
             return
         if member.id == 252130669919076352:
-            await ctx.send("You have no power here.")
+            await ctx.send("https://tenor.com/view/you-didnt-say-the-magic-word-ah-ah-nope-wagging-finger-gif-17646607")
             return
         
         guild_targets = self.salt_targets.setdefault(ctx.guild.id, {})
