@@ -43,7 +43,7 @@ class MuteCommand(ModerationBase):
 
         async def yes_callback(interaction: discord.Interaction):
             if interaction.user != ctx.author:
-                await interaction.response.send_message("You can’t confirm this action.", ephemeral=True)
+                await interaction.response.send_message("You can't confirm this action.", ephemeral=True)
                 return
             confirmed["value"] = True
             await interaction.response.edit_message(content="✅ Confirmed.", view=None)
@@ -51,7 +51,7 @@ class MuteCommand(ModerationBase):
 
         async def no_callback(interaction: discord.Interaction):
             if interaction.user != ctx.author:
-                await interaction.response.send_message("You can’t cancel this action.", ephemeral=True)
+                await interaction.response.send_message("You can't cancel this action.", ephemeral=True)
                 return
             confirmed["value"] = False
             await interaction.response.edit_message(content="❌ Cancelled.", view=None)
@@ -100,6 +100,13 @@ class MuteCommand(ModerationBase):
         conn.commit()
         conn.close()
 
+        # Log to logging system
+        logger = self.bot.get_cog("Logger")
+        if logger:
+            await logger.log_moderation_action(
+                ctx.guild.id, "mute", user, ctx.author, reason, duration
+            )
+
         asyncio.create_task(self.schedule_unmute(user.id, ctx.guild.id, ctx.channel.id, delta.total_seconds()))
 
     async def schedule_unmute(self, user_id, guild_id, channel_id, delay):
@@ -129,6 +136,13 @@ class MuteCommand(ModerationBase):
             channel = guild.get_channel(channel_id)
             if channel:
                 await channel.send(f"{member.mention} has been unmuted (duration expired).")
+            
+            # Log automatic unmute
+            logger = self.bot.get_cog("Logger")
+            if logger:
+                await logger.log_moderation_action(
+                    guild_id, "unmute", member, self.bot.user, "Mute duration expired"
+                )
         except:
             pass
 

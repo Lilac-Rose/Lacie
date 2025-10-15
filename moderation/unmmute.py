@@ -8,7 +8,6 @@ from .loader import ModerationBase
 MUTE_ROLE_ID = 982702037517090836
 
 class UnmuteCommand(ModerationBase):
-
     @commands.command(name="unmute")
     @ModerationBase.is_admin()
     async def unmute(self, ctx, user: discord.Member):
@@ -17,7 +16,7 @@ class UnmuteCommand(ModerationBase):
 
         async def yes_callback(interaction: discord.Interaction):
             if interaction.user != ctx.author:
-                await interaction.response.send_message("You can’t confirm this action.", ephemeral=True)
+                await interaction.response.send_message("You can't confirm this action.", ephemeral=True)
                 return
             confirmed["value"] = True
             await interaction.response.edit_message(content="✅ Confirmed.", view=None)
@@ -25,7 +24,7 @@ class UnmuteCommand(ModerationBase):
 
         async def no_callback(interaction: discord.Interaction):
             if interaction.user != ctx.author:
-                await interaction.response.send_message("You can’t cancel this action.", ephemeral=True)
+                await interaction.response.send_message("You can't cancel this action.", ephemeral=True)
                 return
             confirmed["value"] = False
             await interaction.response.edit_message(content="❌ Cancelled.", view=None)
@@ -60,8 +59,16 @@ class UnmuteCommand(ModerationBase):
                 await user.send(f"You have been **unmuted** in **{ctx.guild.name}**.")
             except:
                 await ctx.send("Could not DM the user.")
+
             await self.log_infraction(ctx.guild.id, user.id, ctx.author.id, "unmute", "Manual unmute issued")
             await ctx.send(f"{user.mention} has been unmuted.")
+            
+            # Log to logging system
+            logger = self.bot.get_cog("Logger")
+            if logger:
+                await logger.log_moderation_action(
+                    ctx.guild.id, "unmute", user, ctx.author, "Manual unmute issued"
+                )
         else:
             await ctx.send(f"{user.mention} is not currently muted.")
 

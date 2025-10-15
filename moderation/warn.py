@@ -4,7 +4,6 @@ from discord.ui import View, Button
 from .loader import ModerationBase
 
 class WarnCommand(ModerationBase):
-
     @commands.command(name="warn")
     @ModerationBase.is_admin()
     async def warn(self, ctx, user: discord.Member, *, reason: str = None):
@@ -14,7 +13,7 @@ class WarnCommand(ModerationBase):
 
         async def yes_callback(interaction: discord.Interaction):
             if interaction.user != ctx.author:
-                await interaction.response.send_message("You can’t confirm this action.", ephemeral=True)
+                await interaction.response.send_message("You can't confirm this action.", ephemeral=True)
                 return
             confirmed["value"] = True
             await interaction.response.edit_message(content="✅ Confirmed.", view=None)
@@ -22,7 +21,7 @@ class WarnCommand(ModerationBase):
 
         async def no_callback(interaction: discord.Interaction):
             if interaction.user != ctx.author:
-                await interaction.response.send_message("You can’t cancel this action.", ephemeral=True)
+                await interaction.response.send_message("You can't cancel this action.", ephemeral=True)
                 return
             confirmed["value"] = False
             await interaction.response.edit_message(content="❌ Cancelled.", view=None)
@@ -32,7 +31,6 @@ class WarnCommand(ModerationBase):
         no_button = Button(label="No", style=discord.ButtonStyle.red)
         yes_button.callback = yes_callback
         no_button.callback = no_callback
-
         view.add_item(yes_button)
         view.add_item(no_button)
 
@@ -48,6 +46,13 @@ class WarnCommand(ModerationBase):
 
         await self.log_infraction(ctx.guild.id, user.id, ctx.author.id, "warn", reason)
         await ctx.send(f"{user.mention} has been warned.")
+        
+        # Log to logging system
+        logger = self.bot.get_cog("Logger")
+        if logger:
+            await logger.log_moderation_action(
+                ctx.guild.id, "warn", user, ctx.author, reason
+            )
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WarnCommand(bot))
