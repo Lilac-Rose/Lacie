@@ -42,9 +42,9 @@ class Bitcrush(commands.Cog):
         user = user or interaction.user
         print(f"[bitcrush] user={user}, bpp={bpp}")
 
-        if bpp < 1 or bpp > 23:
+        if bpp < 1 or bpp > 8:
             print("[bitcrush] Invalid bpp value")
-            await interaction.response.send_message("Please choose a bit depth between 1 and 23.", ephemeral=True)
+            await interaction.response.send_message("Please choose a bit depth between 1 and 8.", ephemeral=True)
             return
 
         try:
