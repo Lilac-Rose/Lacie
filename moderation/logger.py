@@ -430,12 +430,9 @@ class Logger(commands.Cog):
         
         await self.send_log(role.guild.id, "role_delete", embed)
     
-    async def log_moderation_action(self, guild_id: int, action_type: str, user: discord.User, 
-                                    moderator: discord.User, reason: Optional[str] = None, 
-                                    duration: Optional[str] = None):
+    async def log_moderation_action(self, guild_id: int, action_type: str, user: discord.User, moderator: discord.User, reason: Optional[str] = None, duration: Optional[str] = None):
         """
         Public method to log moderation actions from commands.
-        Call this from your moderation commands.
         """
         color_map = {
             "warn": discord.Color.yellow(),
