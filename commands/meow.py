@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-class Ping(commands.Cog):
+class Meow(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
@@ -11,4 +11,4 @@ class Ping(commands.Cog):
         await interaction.response.send_message("Meowwwww~")
 
 async def setup(bot: commands.Bot):
-    await bot.add_cog(Ping(bot))
+    await bot.add_cog(Meow(bot))
