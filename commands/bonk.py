@@ -17,6 +17,10 @@ class Bonk(commands.Cog):
             if not os.path.exists(self.bonk_path):
                 await interaction.followup.send("Bonk image not found!", ephemeral=True)
                 return
+
+            if user.id == interaction.user.id:
+                await interaction.followup.send("You cannot bonk yourself", ephemeral=True)
+                return
             
             file = discord.File(self.bonk_path, filename="bonk.png")
             await interaction.followup.send(
