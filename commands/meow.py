@@ -8,7 +8,7 @@ class Meow(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="meow")
-    async def ping(self, interaction: discord.Interaction):
+    async def meow(self, interaction: discord.Interaction):
 
         meow_list=["Meowwwww~", "Purrrrrr", "Nyaaaaaa", "Meow Meow", "Nya!", "Meow :3"]
         meow_index = random.randrange(0,5)
