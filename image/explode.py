@@ -23,13 +23,13 @@ class Explode(commands.Cog):
 
     def explode_avatar(self, avatar_bytes: bytes) -> bytes:
         avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
-        explosion = Image.open(self.explosion_path)  # ❌ removed .convert("RGBA") here
+        explosion = Image.open(self.explosion_path)
 
         avatar_size = avatar.size
         frames = []
 
         for frame in ImageSequence.Iterator(explosion):
-            frame = frame.convert("RGBA")  # ✅ conversion now happens per-frame
+            frame = frame.convert("RGBA")
             frame_resized = frame.resize(avatar_size, Image.Resampling.LANCZOS)
             combined = Image.new("RGBA", avatar_size)
             combined.paste(avatar, (0, 0))
