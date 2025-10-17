@@ -13,6 +13,7 @@ class Suggestion(commands.Cog):
         self.db_path = os.path.join(os.path.dirname(__file__), "suggestions.db")
 
     async def cog_load(self):
+        # Connect to database
         self.db = await aiosqlite.connect(self.db_path)
         await self.db.execute("""
             CREATE TABLE IF NOT EXISTS suggestions (
@@ -31,7 +32,7 @@ class Suggestion(commands.Cog):
     @app_commands.command(name="suggest", description="Submit a suggestion")
     async def suggest(self, interaction: discord.Interaction, idea: str):
         try:
-            # Insert suggestion into DB first
+            # Insert suggestion into DB
             await self.db.execute(
                 "INSERT INTO suggestions (user_id, suggestion, status, channel_id) VALUES (?, ?, ?, ?)",
                 (interaction.user.id, idea, "Pending", interaction.channel_id)
@@ -41,12 +42,11 @@ class Suggestion(commands.Cog):
             async with self.db.execute("SELECT last_insert_rowid()") as cursor:
                 suggestion_id = (await cursor.fetchone())[0]
 
-            # Respond to interaction immediately
             await interaction.response.send_message(
                 f"✅ Suggestion submitted! (ID: **{suggestion_id}**)\n> {idea}"
             )
 
-            # Send DM to admin in background
+            # Send DM to admin with persistent buttons
             try:
                 admin = await self.bot.fetch_user(ADMIN_ID)
                 embed = discord.Embed(
@@ -62,14 +62,13 @@ class Suggestion(commands.Cog):
                 await admin.send(embed=embed, view=view)
             except Exception as e:
                 print(f"Failed to send DM to admin: {e}")
-                
+
         except Exception as e:
             print(f"Error in suggest command: {e}")
             if not interaction.response.is_done():
                 await interaction.response.send_message(f"❌ An error occurred: {e}", ephemeral=False)
             else:
                 await interaction.followup.send(f"❌ An error occurred: {e}", ephemeral=False)
-
 
     @app_commands.command(name="suggestion_complete", description="Mark an approved suggestion as completed")
     async def suggestion_complete(self, interaction: discord.Interaction, suggestion_id: int):
@@ -108,7 +107,6 @@ class Suggestion(commands.Cog):
         if channel:
             await channel.send(f"🎉 Suggestion **#{suggestion_id}** (`{suggestion_text}`) has been marked as **completed!**")
 
-
     @app_commands.command(name="suggestion_list", description="List all suggestions (admin only)")
     async def suggestion_list(self, interaction: discord.Interaction):
         if interaction.user.id != ADMIN_ID:
@@ -134,18 +132,38 @@ class Suggestion(commands.Cog):
 
 
 class SuggestionButtons(discord.ui.View):
-    def __init__(self, bot, suggestion_id, user_id, suggestion_text, channel_id):
-        super().__init__(timeout=None)  # Buttons never expire
+    def __init__(self, bot, suggestion_id=None, user_id=None, suggestion_text=None, channel_id=None):
+        super().__init__(timeout=None)
         self.bot = bot
         self.suggestion_id = suggestion_id
         self.user_id = user_id
         self.suggestion_text = suggestion_text
         self.channel_id = channel_id
 
-    @discord.ui.button(label="Approve ✅", style=discord.ButtonStyle.success)
-    async def approve(self, interaction: discord.Interaction, button: discord.ui.Button):
+        approve_btn = discord.ui.Button(
+            label="Approve ✅",
+            style=discord.ButtonStyle.success,
+            custom_id=f"suggest_approve_{suggestion_id or 'dummy'}"
+        )
+        approve_btn.callback = self.approve
+        self.add_item(approve_btn)
+
+        deny_btn = discord.ui.Button(
+            label="Deny ❌",
+            style=discord.ButtonStyle.danger,
+            custom_id=f"suggest_deny_{suggestion_id or 'dummy'}"
+        )
+        deny_btn.callback = self.deny
+        self.add_item(deny_btn)
+
+
+    async def approve(self, interaction: discord.Interaction):
         if interaction.user.id != ADMIN_ID:
             await interaction.response.send_message("❌ You can't approve suggestions.", ephemeral=True)
+            return
+
+        if not self.suggestion_id:
+            await interaction.response.send_message("⚠️ This button is no longer active.", ephemeral=True)
             return
 
         db_path = os.path.join(os.path.dirname(__file__), "suggestions.db")
@@ -170,10 +188,13 @@ class SuggestionButtons(discord.ui.View):
             item.disabled = True
         await interaction.message.edit(view=self)
 
-    @discord.ui.button(label="Deny ❌", style=discord.ButtonStyle.danger)
-    async def deny(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def deny(self, interaction: discord.Interaction):
         if interaction.user.id != ADMIN_ID:
             await interaction.response.send_message("❌ You can't deny suggestions.", ephemeral=True)
+            return
+
+        if not self.suggestion_id:
+            await interaction.response.send_message("⚠️ This button is no longer active.", ephemeral=True)
             return
 
         db_path = os.path.join(os.path.dirname(__file__), "suggestions.db")
