@@ -68,6 +68,8 @@ async def on_ready():
     await load_cogs("sparkle")
     await load_cogs("image")
     await load_cogs("suggestion")
+    await load_cogs("birthday")
+
 
 
     # Sync slash commands after loading cogs
@@ -97,7 +99,8 @@ async def reload(ctx):
     await load_cogs("sparkle")
     await load_cogs("image")
     await load_cogs("suggestion")
-
+    await load_cogs("birthday")
+    
     try:
         synced = await bot.tree.sync()
         await ctx.send(f"Cogs reloaded successfully! Synced {len(synced)} slash commands.")
