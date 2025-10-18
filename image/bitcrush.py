@@ -31,20 +31,32 @@ class Bitcrush(commands.Cog):
     @app_commands.command(name="bitcrush", description="Bitcrush a user's avatar to a lower bits-per-pixel value.")
     @app_commands.describe(
         user="The user whose avatar to bitcrush (defaults to you)",
-        bpp="Bits per pixel (1–23, default 8)"
+        bpp="Bits per pixel (1–8, default 8)",
+        avatar_type="Choose between server or global avatar"
     )
-    async def bitcrush(self, interaction: discord.Interaction, bpp: int = 8, user: discord.User = None):
+    @app_commands.choices(
+        avatar_type=[
+            app_commands.Choice(name="Server Avatar", value="server"),
+            app_commands.Choice(name="Global Avatar", value="global")
+        ]
+    )
+    async def bitcrush(self, interaction: discord.Interaction, bpp: int = 8, user: discord.User = None, avatar_type: app_commands.Choice[str] = None):
         user = user or interaction.user
-
+        
         if bpp < 1 or bpp > 8:
             await interaction.response.send_message("Please choose a bit depth between 1 and 8.", ephemeral=True)
             return
 
         try:
             await interaction.response.defer(thinking=True)
-
-            avatar_url = user.display_avatar.with_format("png").with_size(512)
-
+            
+            # Determine which avatar to use
+            use_global = avatar_type and avatar_type.value == "global"
+            if isinstance(user, discord.Member) and not use_global and user.avatar:
+                avatar_url = user.display_avatar.with_format("png").with_size(512)
+            else:
+                avatar_url = user.avatar.with_format("png").with_size(512) if user.avatar else user.default_avatar.with_format("png").with_size(512)
+            
             # Ensure session exists
             if not self.session or self.session.closed:
                 self.session = aiohttp.ClientSession()
@@ -55,7 +67,6 @@ class Bitcrush(commands.Cog):
                 image_bytes = await resp.read()
 
             crushed_bytes = await asyncio.to_thread(self.bitcrush_image, image_bytes, bpp)
-
             file = discord.File(io.BytesIO(crushed_bytes), filename=f"bitcrushed_{bpp}bit.png")
 
             await interaction.followup.send(

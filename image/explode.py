@@ -9,10 +9,10 @@ import traceback
 import os
 
 class Explode(commands.Cog):
-    def __init__(self,bot):
+    def __init__(self, bot):
         self.bot = bot
         self.session = None
-        self.explosion_path = os.path.join(os.path.dirname(__file__),"..", "media","explosion-deltarune.gif")
+        self.explosion_path = os.path.join(os.path.dirname(__file__), "..", "media", "explosion-deltarune.gif")
 
     async def cog_load(self):
         self.session = aiohttp.ClientSession()
@@ -24,7 +24,6 @@ class Explode(commands.Cog):
     def explode_avatar(self, avatar_bytes: bytes) -> bytes:
         avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
         explosion = Image.open(self.explosion_path)
-
         avatar_size = avatar.size
         frames = []
 
@@ -48,19 +47,31 @@ class Explode(commands.Cog):
         )
         out.seek(0)
         return out.getvalue()
-
-    
+   
     @app_commands.command(name="explode", description="Make a user's avatar explode.")
     @app_commands.describe(
-        user="The user whose avatar to explide (defaults to you)"
+        user="The user whose avatar to explode (defaults to you)",
+        avatar_type="Choose between server or global avatar"
     )
-    async def explode(self, interaction: discord.Interaction, user: discord.User = None):
+    @app_commands.choices(
+        avatar_type=[
+            app_commands.Choice(name="Server Avatar", value="server"),
+            app_commands.Choice(name="Global Avatar", value="global")
+        ]
+    )
+    async def explode(self, interaction: discord.Interaction, user: discord.User = None, avatar_type: app_commands.Choice[str] = None):
         user = user or interaction.user
+
         try:
             await interaction.response.defer(thinking=True)
-
-            avatar_url = user.display_avatar.with_format("png").with_size(256)
-
+            
+            # Determine which avatar to use
+            use_global = avatar_type and avatar_type.value == "global"
+            if isinstance(user, discord.Member) and not use_global and user.avatar:
+                avatar_url = user.display_avatar.with_format("png").with_size(256)
+            else:
+                avatar_url = user.avatar.with_format("png").with_size(256) if user.avatar else user.default_avatar.with_format("png").with_size(256)
+            
             if not self.session or self.session.closed:
                 self.session = aiohttp.ClientSession()
 
@@ -70,15 +81,15 @@ class Explode(commands.Cog):
                 avatar_bytes = await resp.read()
 
             exploded_bytes = await asyncio.to_thread(self.explode_avatar, avatar_bytes)
-
             file = discord.File(io.BytesIO(exploded_bytes), filename="exploded.gif")
+
             await interaction.followup.send(f"{user.display_name} just got exploded!", file=file)
 
         except Exception as e:
             traceback.print_exc()
             if not interaction.response.is_done():
                 await interaction.response.send_message(
-                    "An error occured while processing the explosion.", ephemeral=True
+                    "An error occurred while processing the explosion.", ephemeral=True
                 )
             else:
                 await interaction.followup.send(

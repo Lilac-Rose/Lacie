@@ -29,16 +29,28 @@ class Inverse(commands.Cog):
 
     @app_commands.command(name="inverse", description="Invert the colors of a user's avatar.")
     @app_commands.describe(
-        user="The user whose avatar to invert (defaults to you)"
+        user="The user whose avatar to invert (defaults to you)",
+        avatar_type="Choose between server or global avatar"
     )
-    async def inverse(self, interaction: discord.Interaction, user: discord.User = None):
+    @app_commands.choices(
+        avatar_type=[
+            app_commands.Choice(name="Server Avatar", value="server"),
+            app_commands.Choice(name="Global Avatar", value="global")
+        ]
+    )
+    async def inverse(self, interaction: discord.Interaction, user: discord.User = None, avatar_type: app_commands.Choice[str] = None):
         user = user or interaction.user
 
         try:
             await interaction.response.defer(thinking=True)
-
-            avatar_url = user.display_avatar.with_format("png").with_size(512)
-
+            
+            # Determine which avatar to use
+            use_global = avatar_type and avatar_type.value == "global"
+            if isinstance(user, discord.Member) and not use_global and user.avatar:
+                avatar_url = user.display_avatar.with_format("png").with_size(512)
+            else:
+                avatar_url = user.avatar.with_format("png").with_size(512) if user.avatar else user.default_avatar.with_format("png").with_size(512)
+            
             # Ensure session exists
             if not self.session or self.session.closed:
                 self.session = aiohttp.ClientSession()
@@ -49,7 +61,6 @@ class Inverse(commands.Cog):
                 image_bytes = await resp.read()
 
             inverted_bytes = await asyncio.to_thread(self.invert_image, image_bytes)
-
             file = discord.File(io.BytesIO(inverted_bytes), filename="inverted.png")
 
             await interaction.followup.send(
