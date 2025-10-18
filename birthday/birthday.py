@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import asyncio
 import pytz
 import os
@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 ADMIN_ROLE_ID = int(os.getenv("ADMIN_ROLE_ID"), 0)
+BIRTHDAY_ROLE_ID = 1113751318918602762
 
 
 class Birthday(commands.Cog):
@@ -18,9 +19,11 @@ class Birthday(commands.Cog):
         self.db_path = os.path.join(os.path.dirname(__file__), "birthdays.db")
         self._init_db()
         self.check_birthdays.start()
+        self.remove_birthday_roles.start()
     
     def cog_unload(self):
         self.check_birthdays.cancel()
+        self.remove_birthday_roles.cancel()
 
     def _init_db(self):
         """Initialize SQLite database."""
@@ -37,6 +40,14 @@ class Birthday(commands.Cog):
                   CREATE TABLE IF NOT EXISTS guild_settings (
                   guild_id INTEGER PRIMARY KEY,
                   channel_id INTEGER
+                  )
+            """)
+        c.execute("""
+                  CREATE TABLE IF NOT EXISTS active_birthday_roles (
+                  user_id INTEGER,
+                  guild_id INTEGER,
+                  granted_at TEXT NOT NULL,
+                  PRIMARY KEY (user_id, guild_id)
                   )
             """)
         conn.commit()
@@ -271,7 +282,7 @@ class Birthday(commands.Cog):
 
     @tasks.loop(minutes=1)
     async def check_birthdays(self):
-        now_utc = datetime.now(timezone.utc).replace(second = 0, microsecond = 0)
+        now_utc = datetime.now(timezone.utc).replace(second=0, microsecond=0)
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
         c.execute("SELECT user_id, birthday, timezone FROM birthdays")
@@ -297,17 +308,69 @@ class Birthday(commands.Cog):
                         if not row:
                             continue
                         channel_id = row[0]
-                        channel= guild.get_channel(channel_id)
+                        channel = guild.get_channel(channel_id)
+                        
                         if channel:
                             try:
+                                # Send birthday message
                                 await channel.send(f"🎉 Happy Birthday, {member.mention}! 🎂")
+                                
+                                # Grant birthday role
+                                role = guild.get_role(BIRTHDAY_ROLE_ID)
+                                if role and role not in member.roles:
+                                    await member.add_roles(role)
+                                    
+                                    # Record role grant in database
+                                    granted_at = datetime.now(timezone.utc).isoformat()
+                                    c.execute("""
+                                        INSERT INTO active_birthday_roles (user_id, guild_id, granted_at)
+                                        VALUES (?, ?, ?)
+                                        ON CONFLICT(user_id, guild_id) DO UPDATE SET granted_at=excluded.granted_at
+                                    """, (user_id, guild.id, granted_at))
+                                    conn.commit()
                             except Exception:
                                 pass
 
         conn.close()
     
+    @tasks.loop(minutes=5)
+    async def remove_birthday_roles(self):
+        """Remove birthday roles after 24 hours."""
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        c.execute("SELECT user_id, guild_id, granted_at FROM active_birthday_roles")
+        active_roles = c.fetchall()
+        
+        now = datetime.now(timezone.utc)
+        
+        for user_id, guild_id, granted_at_str in active_roles:
+            granted_at = datetime.fromisoformat(granted_at_str)
+            
+            # Check if 24 hours have passed
+            if now - granted_at >= timedelta(hours=24):
+                guild = self.bot.get_guild(guild_id)
+                if guild:
+                    member = guild.get_member(user_id)
+                    if member:
+                        role = guild.get_role(BIRTHDAY_ROLE_ID)
+                        if role and role in member.roles:
+                            try:
+                                await member.remove_roles(role)
+                            except Exception:
+                                pass
+                
+                # Remove from database
+                c.execute("DELETE FROM active_birthday_roles WHERE user_id=? AND guild_id=?", (user_id, guild_id))
+                conn.commit()
+        
+        conn.close()
+
     @check_birthdays.before_loop
     async def before_check_birthdays(self):
+        await self.bot.wait_until_ready()
+    
+    @remove_birthday_roles.before_loop
+    async def before_remove_birthday_roles(self):
         await self.bot.wait_until_ready()
 
 async def setup(bot):
