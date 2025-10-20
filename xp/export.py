@@ -46,14 +46,12 @@ class ExportXP(commands.Cog):
             app_commands.Choice(name="Annual", value="annual")
         ]
     )
+    @ModerationBase.is_admin()
     async def export_xp(self, interaction: discord.Interaction, xp_type: app_commands.Choice[str]):
         try:
             # Defer immediately
             await interaction.response.defer()
 
-            if not ModerationBase.is_admin():
-                await interaction.followup.send("You do not have permission to run this command")
-                return
             
             print(f"Export started for {xp_type.value}")
             

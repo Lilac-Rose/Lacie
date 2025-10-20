@@ -38,13 +38,60 @@ class ModerationBase(commands.Cog):
 
     @staticmethod
     def is_admin():
-        """Decorator that checks if the command author has the admin role."""
-        async def predicate(ctx: commands.Context):
-            if not any(role.id == ADMIN_ROLE_ID for role in ctx.author.roles):
-                await ctx.send("You do not have permission to use this command.")
+        """Decorator that works for both prefix and slash commands."""
+        async def predicate(target):
+            # Handle both ctx (prefix) and interaction (slash)
+            user = getattr(target, "author", None) or getattr(target, "user", None)
+
+            # Identify if it's a slash or prefix command
+            is_interaction = hasattr(target, "response")
+
+            # Determine the correct send method
+            async def send_message(msg, ephemeral=False):
+                if is_interaction:
+                    try:
+                        if not target.response.is_done():
+                            await target.response.send_message(msg, ephemeral=ephemeral)
+                        else:
+                            await target.followup.send(msg, ephemeral=ephemeral)
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        await target.send(msg)
+                    except Exception:
+                        pass
+
+            # Role-based check
+            if not hasattr(user, "roles"):
+                await send_message("Unable to check permissions in this context.", ephemeral=is_interaction)
                 return False
+
+            has_admin_role = any(role.id == ADMIN_ROLE_ID for role in user.roles)
+            if not has_admin_role:
+                await send_message("You do not have permission to use this command.", ephemeral=is_interaction)
+                # ❗ Important: explicitly raise to stop execution
+                from discord.app_commands import CheckFailure
+                raise CheckFailure("User lacks admin permissions.")
+
             return True
-        return commands.check(predicate)
+
+        # Register for both command types
+        import inspect
+        from discord import app_commands
+        from discord.ext import commands
+
+        # Return a hybrid decorator
+        def decorator(func):
+            # Add prefix check
+            func = commands.check(predicate)(func)
+            # Add slash check
+            func = app_commands.check(predicate)(func)
+            return func
+
+        return decorator
+
+
 
     async def log_infraction(self, guild_id: int, user_id: int, mod_id: int, type_: str, reason: str | None):
         """Log an infraction to the database."""
