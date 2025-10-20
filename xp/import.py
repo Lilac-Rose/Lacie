@@ -71,7 +71,7 @@ class ImportXP(commands.Cog):
         attachment: discord.Attachment
     ):
         try:
-            # Defer immediately (not ephemeral so everyone can see)
+            # Defer immediately
             await interaction.response.defer()
             print(f"Import started for {xp_type.value}")
             

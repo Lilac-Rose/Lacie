@@ -47,7 +47,7 @@ class ExportXP(commands.Cog):
     )
     async def export_xp(self, interaction: discord.Interaction, xp_type: app_commands.Choice[str]):
         try:
-            # Defer immediately (not ephemeral so everyone can see)
+            # Defer immediately
             await interaction.response.defer()
             print(f"Export started for {xp_type.value}")
             
