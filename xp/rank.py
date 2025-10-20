@@ -48,6 +48,8 @@ class Rank(commands.Cog):
             remaining_cd = COOLDOWN - (time.time() - last_msg)
             cooldown = f"{int(remaining_cd)}s" if remaining_cd > 0 else "None!"
 
+            multiplier = 1.0
+
             # multiplier text only for lifetime
             multipliers_text = []
             if lifetime and isinstance(user, discord.Member) and user.guild == interaction.guild:
