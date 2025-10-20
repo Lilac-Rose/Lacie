@@ -1,4 +1,4 @@
-import discord
+"""import discord
 from discord.ext import commands
 from discord import app_commands
 import random
@@ -16,5 +16,5 @@ class Magic8ball(commands.Cog):
 
         await interaction.response.send_message(f"🎱 Question: {question}\nAnswer: {responses[response_index]}")
 
-async def setup(bot: commands.Bot):
-    await bot.add_cog(Magic8ball(bot))
+ async def setup(bot: commands.Bot):
+    await bot.add_cog(Magic8ball(bot))"""
