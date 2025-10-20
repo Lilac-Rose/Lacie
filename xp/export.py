@@ -6,6 +6,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from xp.database import get_db
+from moderation.loader import ModerationBase
 
 class ExportXP(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -49,6 +50,11 @@ class ExportXP(commands.Cog):
         try:
             # Defer immediately
             await interaction.response.defer()
+
+            if not ModerationBase.is_admin():
+                await interaction.followup.send("You do not have permission to run this command")
+                return
+            
             print(f"Export started for {xp_type.value}")
             
             lifetime = xp_type.value == "lifetime"

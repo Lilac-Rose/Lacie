@@ -7,6 +7,8 @@ import asyncio
 import pytz
 import os
 from dotenv import load_dotenv
+from moderation.loader import ModerationBase
+
 
 load_dotenv()
 ADMIN_ROLE_ID = int(os.getenv("ADMIN_ROLE_ID"), 0)
@@ -184,7 +186,7 @@ class Birthday(commands.Cog):
     @app_commands.describe(channel="Channel where birthday announcements will be sent.")
     async def setbirthdaychannel(self, interaction: discord.Interaction, channel: discord.TextChannel):
         member = interaction.user
-        if not any(role.id == ADMIN_ROLE_ID for role in member.roles):
+        if not ModerationBase.is_admin():
             await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
             return
         

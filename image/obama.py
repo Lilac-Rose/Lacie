@@ -49,10 +49,14 @@ class Obamaify(commands.Cog):
         return buf
 
     @app_commands.command(name="obamify", description="Turn your avatar into a tile-based Obama mosaic")
-    @app_commands.describe(tile_count="Number of tiles per row/column (default 32)")
+    @app_commands.describe(tile_count="Number of tiles per row/column (default 32), 1-256")
     async def obamify(self, interaction: discord.Interaction, tile_count: int = 32, user: discord.User = None):
         await interaction.response.defer()
         user = user or interaction.user
+
+        if tile_count > 256 or tile_count < 1:
+            await interaction.followup.send("Tilecount must be 1-256")
+            return
 
         if not os.path.exists(self.obama_path):
             await interaction.followup.send("Error: obama.jpg not found.")

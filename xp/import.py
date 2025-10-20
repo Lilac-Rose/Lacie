@@ -73,6 +73,11 @@ class ImportXP(commands.Cog):
         try:
             # Defer immediately
             await interaction.response.defer()
+
+            if not ModerationBase.is_admin():
+                await interaction.followup.send("You do not have permission to run this command")
+                return
+             
             print(f"Import started for {xp_type.value}")
             
             lifetime = xp_type.value == "lifetime"
