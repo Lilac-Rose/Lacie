@@ -37,7 +37,8 @@ class Leaderboard(commands.Cog):
         description="Show the server leaderboard"
     )
     @app_commands.describe(
-        board_type="Choose which leaderboard to view"
+        board_type="Choose which leaderboard to view",
+        show_offline="Show users who aren't in the server"
     )
     @app_commands.choices(
         board_type=[
@@ -45,18 +46,14 @@ class Leaderboard(commands.Cog):
             app_commands.Choice(name="Annual XP", value="annual")
         ]
     )
-
     async def leaderboard(
         self,
         interaction: discord.Interaction,
-        board_type: app_commands.Choice[str] = None
+        board_type: app_commands.Choice[str] = None,
+        show_offline: bool = False
     ):
-        if board_type is None:
-            board_type_value = "lifetime"
-            board_display_name = "Lifetime"
-        else:
-            board_type_value = board_type.value
-            board_display_name = board_type.name
+        board_type_value = board_type.value if board_type else "lifetime"
+        board_display_name = board_type.name if board_type else "Lifetime"
 
         use_lifetime_db = board_type_value == "lifetime"
         conn, cur = get_db(use_lifetime_db)
@@ -69,6 +66,18 @@ class Leaderboard(commands.Cog):
             return await interaction.response.send_message("No leaderboard data yet!", ephemeral=True)
 
         user_id = str(interaction.user.id)
+
+        # Filter rows for non-members if show_offline is False
+        if not show_offline:
+            all_rows = [
+                row for row in all_rows
+                if interaction.guild.get_member(int(row[0])) is not None
+            ]
+
+        if not all_rows:
+            return await interaction.response.send_message(
+                "No visible leaderboard entries with the current settings.", ephemeral=True
+            )
 
         per_page = 10
         total_pages = math.ceil(len(all_rows) / per_page)
@@ -84,21 +93,27 @@ class Leaderboard(commands.Cog):
                 color=discord.Color.blurple()
             )
 
-            if page_num == 0:
-                top_user = interaction.guild.get_member(int(page_rows[0][0]))
-                if top_user:
-                    embed.set_thumbnail(url=top_user.display_avatar.url)
+            if page_num == 0 and page_rows:
+                top_member = interaction.guild.get_member(int(page_rows[0][0]))
+                if top_member:
+                    embed.set_thumbnail(url=top_member.display_avatar.url)
 
+            description_lines = []
             for idx, (uid, xp, level) in enumerate(page_rows, start=start_idx + 1):
-                user = interaction.guild.get_member(int(uid))
-                name = user.display_name if user else f"User {uid}"
-                name_display = f"**{name}**" if str(uid) == user_id else name
-                embed.add_field(
-                    name=f"{idx}. {name_display}",
-                    value=f"Level {level} | {xp:,} XP",
-                    inline=False
-                )
+                member = interaction.guild.get_member(int(uid))
+                if member:
+                    mention_text = f"<@{uid}>"
+                    # Highlight current user with bold
+                    if str(uid) == user_id:
+                        line = f"**{idx}. {mention_text} - Level {level} | {xp:,} XP**"
+                    else:
+                        line = f"{idx}. {mention_text} - Level {level} | {xp:,} XP"
+                    description_lines.append(line)
+                elif show_offline:
+                    line = f"{idx}. User {uid} - Level {level} | {xp:,} XP"
+                    description_lines.append(line)
 
+            embed.description = "\n".join(description_lines)
             embeds.append(embed)
 
         view = LeaderboardView(embeds)

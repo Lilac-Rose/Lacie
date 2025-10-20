@@ -182,6 +182,20 @@ class Birthday(commands.Cog):
 
         await interaction.response.send_message(f"🎂 Birthday set to '{date}' in timezone '{timezone}'!", ephemeral=True)
 
+    @app_commands.command(name="removebirhtday", description="Remove your saved birthday.")
+    async def removebirthday(self, interaction: discord.Interaction):
+        conn = sqlite3.connect(self.db_path)
+        c = conn.cursor()
+        c.execute("DELETE FROM birthdays WHERE user_id = ?", (interaction.user.id,))
+        changes = conn.total_changes
+        conn.commit()
+        conn.close()
+
+        if changes > 0:
+            await interaction.response.send_message("Your birthday has been removed.", ephemeral=True)
+        else:
+            await interaction.response.send_message("You don't have a birthday set.", ephemeral=True)
+
     @app_commands.command(name="setbirthdaychannel", description="Set the channel for birthday announcements.")
     @app_commands.describe(channel="Channel where birthday announcements will be sent.")
     async def setbirthdaychannel(self, interaction: discord.Interaction, channel: discord.TextChannel):
