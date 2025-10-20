@@ -182,7 +182,7 @@ class Birthday(commands.Cog):
 
         await interaction.response.send_message(f"🎂 Birthday set to '{date}' in timezone '{timezone}'!", ephemeral=True)
 
-    @app_commands.command(name="removebirhtday", description="Remove your saved birthday.")
+    @app_commands.command(name="removebirthday", description="Remove your saved birthday.")
     async def removebirthday(self, interaction: discord.Interaction):
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
