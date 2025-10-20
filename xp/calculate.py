@@ -31,6 +31,7 @@ class CalculateCommand(commands.Cog):
 
         # Determine which database to use
         use_lifetime = True if (board_type is None or board_type.value == "lifetime") else False
+        board_name = "Lifetime" if use_lifetime else "Annual"
 
         conn, cur = get_db(lifetime=use_lifetime)
         cur.execute("SELECT xp, level, last_message FROM xp WHERE user_id = ?", (str(user.id),))
@@ -39,7 +40,7 @@ class CalculateCommand(commands.Cog):
 
         if not row:
             await interaction.response.send_message(
-                f"{user.mention} has no XP yet on the **{board_type.value if board_type else 'Lifetime'}** board.",
+                f"{user.mention} has no XP yet on the **{board_name}** board.",
                 ephemeral=True
             )
             return
@@ -48,7 +49,7 @@ class CalculateCommand(commands.Cog):
 
         if level <= current_level:
             await interaction.response.send_message(
-                f"{user.mention} is already level {current_level} on the **{board_type.value if board_type else 'Lifetime'}** board. Please choose a higher target level.",
+                f"{user.mention} is already level {current_level} on the **{board_name}** board. Please choose a higher target level.",
                 ephemeral=True
             )
             return
@@ -89,16 +90,16 @@ class CalculateCommand(commands.Cog):
             cooldown_remaining = COOLDOWN - time_since_last
             cooldown_status = f"\n⏳ Cooldown: {int(cooldown_remaining)}s remaining"
 
-        response = f"""**Level {level} Target**
-        **Current XP:** {current_xp_fmt} (Level {current_level})
-        **Target XP:** {target_xp_fmt}
-        **Remaining XP:** {remaining_xp_fmt}
+        response = f"""**{board_name} Level {level} Target**
+                    **Current XP:** {current_xp_fmt} (Level {current_level})
+                    **Target XP:** {target_xp_fmt}
+                    **Remaining XP:** {remaining_xp_fmt}
 
-        **XP per message:** {min_xp_per_msg} - {max_xp_per_msg}
-        **Messages remaining:** {min_messages_fmt} - {max_messages_fmt} (avg. {avg_messages_fmt})
-        **Time remaining:** {days:.1f} days{cooldown_status}
+                    **XP per message:** {min_xp_per_msg} - {max_xp_per_msg}
+                    **Messages remaining:** {min_messages_fmt} - {max_messages_fmt} (avg. {avg_messages_fmt})
+                    **Time remaining:** {days:.1f} days{cooldown_status}
 
-        {bar} ({progress:.2f}%)"""
+                    {bar} ({progress:.2f}%)"""
 
         embed = discord.Embed(
             description=response,
