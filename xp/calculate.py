@@ -12,25 +12,34 @@ class CalculateCommand(commands.Cog):
     @app_commands.command(name="calculate", description="Calculate XP needed to reach a target level")
     @app_commands.describe(
         level="Target level to calculate",
-        user="User to check (defaults to you)"
+        user="User to check (defaults to you)",
+        board_type="Choose which XP board to view"
     )
+    @app_commands.choices(board_type=[
+        app_commands.Choice(name="Lifetime", value="lifetime"),
+        app_commands.Choice(name="Annual", value="annual")
+    ])
     async def calculate(
         self,
         interaction: discord.Interaction,
         level: int,
-        user: discord.Member = None
+        user: discord.Member = None,
+        board_type: app_commands.Choice[str] = None
     ):
         if user is None:
             user = interaction.user
 
-        conn, cur = get_db(lifetime=True)
+        # Determine which database to use
+        use_lifetime = True if (board_type is None or board_type.value == "lifetime") else False
+
+        conn, cur = get_db(lifetime=use_lifetime)
         cur.execute("SELECT xp, level, last_message FROM xp WHERE user_id = ?", (str(user.id),))
         row = cur.fetchone()
         conn.close()
 
         if not row:
             await interaction.response.send_message(
-                f"{user.mention} has no XP yet.",
+                f"{user.mention} has no XP yet on the **{board_type.value if board_type else 'Lifetime'}** board.",
                 ephemeral=True
             )
             return
@@ -39,7 +48,7 @@ class CalculateCommand(commands.Cog):
 
         if level <= current_level:
             await interaction.response.send_message(
-                f"{user.mention} is already level {current_level}. Please choose a higher target level.",
+                f"{user.mention} is already level {current_level} on the **{board_type.value if board_type else 'Lifetime'}** board. Please choose a higher target level.",
                 ephemeral=True
             )
             return
@@ -49,7 +58,7 @@ class CalculateCommand(commands.Cog):
 
         multiplier = get_multiplier(user, apply_multiplier=True)
 
-        min_xp_per_msg = int(50* multiplier)
+        min_xp_per_msg = int(50 * multiplier)
         max_xp_per_msg = int(100 * multiplier)
         avg_xp_per_msg = (min_xp_per_msg + max_xp_per_msg) / 2
 
@@ -63,7 +72,7 @@ class CalculateCommand(commands.Cog):
         progress = (current_xp / target_xp) * 100
 
         bar_length = 30
-        filled = int((progress/100) * bar_length)
+        filled = int((progress / 100) * bar_length)
         bar = "█" * filled + "░" * (bar_length - filled)
 
         current_xp_fmt = f"{current_xp:,}"
@@ -77,13 +86,13 @@ class CalculateCommand(commands.Cog):
         cooldown_ready = can_get_xp(last_message)
         cooldown_status = ""
         if not cooldown_ready:
-            cooldown_reamining = COOLDOWN - time_since_last
-            cooldown_status = f"\n⏳ Cooldown: {int(cooldown_reamining)}s reamining"
+            cooldown_remaining = COOLDOWN - time_since_last
+            cooldown_status = f"\n⏳ Cooldown: {int(cooldown_remaining)}s remaining"
 
         response = f"""**Level {level} Target**
-        **Curent XP:** {current_xp_fmt} (Level {current_level})
+        **Current XP:** {current_xp_fmt} (Level {current_level})
         **Target XP:** {target_xp_fmt}
-        **Reamining XP:** {remaining_xp_fmt}
+        **Remaining XP:** {remaining_xp_fmt}
 
         **XP per message:** {min_xp_per_msg} - {max_xp_per_msg}
         **Messages remaining:** {min_messages_fmt} - {max_messages_fmt} (avg. {avg_messages_fmt})
@@ -98,6 +107,7 @@ class CalculateCommand(commands.Cog):
         embed.set_author(name=user.display_name, icon_url=user.display_avatar.url)
 
         await interaction.response.send_message(embed=embed)
+
 
 async def setup(bot):
     await bot.add_cog(CalculateCommand(bot))
