@@ -102,15 +102,10 @@ class Leaderboard(commands.Cog):
             for idx, (uid, xp, level) in enumerate(page_rows, start=start_idx + 1):
                 member = interaction.guild.get_member(int(uid))
                 if member:
-                    mention_text = f"<@{uid}>"
-                    # Highlight current user with bold
-                    if str(uid) == user_id:
-                        line = f"**{idx}. {mention_text} - Level {level} | {xp:,} XP**"
-                    else:
-                        line = f"{idx}. {mention_text} - Level {level} | {xp:,} XP"
+                    line = f"{idx}. {member.mention} · Level {level} · {xp:,} XP"
                     description_lines.append(line)
                 elif show_offline:
-                    line = f"{idx}. User {uid} - Level {level} | {xp:,} XP"
+                    line = f"{idx}. User {uid} · Level {level} · {xp:,} XP"
                     description_lines.append(line)
 
             embed.description = "\n".join(description_lines)
