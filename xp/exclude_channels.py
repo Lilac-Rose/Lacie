@@ -3,9 +3,9 @@ from discord.ext import commands
 import json
 import os
 from dotenv import load_dotenv
+from moderation.loader import ModerationBase
 
 load_dotenv()
-ADMIN_ROLE_ID = int(os.getenv("ADMIN_ROLE_ID"))
 
 EXCLUDED_FILE = os.path.join(os.path.dirname(__file__), "excluded_channels.json")
 
@@ -49,10 +49,9 @@ class ExcludeChannel(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    def is_admin(self, member):
-        return any(role.id == ADMIN_ROLE_ID for role in member.roles)
     
     @commands.command(name="excludechannel")
+    @ModerationBase.is_admin()
     async def exclude_channel(self, ctx, channel: discord.TextChannel = None):
         """Exclude a channel from XP gain."""
         if not self.is_admin(ctx.author):
@@ -67,10 +66,9 @@ class ExcludeChannel(commands.Cog):
             await ctx.send(f"{channel.mention} is already excluded.")
 
     @commands.command(name="includechannel")
+    @ModerationBase.is_admin()
     async def include_channel(self, ctx, channel: discord.TextChannel = None):
         """Remove a channel from the XP exclusion list."""
-        if not self.is_admin(ctx.author):
-            return await ctx.send("You do not have permission to use this command.")
         
         if not channel:
             return await ctx.send("Please specify a channel, e.g. '!includechannel #chat")
