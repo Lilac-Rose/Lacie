@@ -91,8 +91,6 @@ class ModerationBase(commands.Cog):
 
         return decorator
 
-
-
     async def log_infraction(self, guild_id: int, user_id: int, mod_id: int, type_: str, reason: str | None):
         """Log an infraction to the database."""
         self.c.execute("""

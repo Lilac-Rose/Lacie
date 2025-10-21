@@ -9,11 +9,9 @@ import os
 from dotenv import load_dotenv
 from moderation.loader import ModerationBase
 
-
 load_dotenv()
 ADMIN_ROLE_ID = int(os.getenv("ADMIN_ROLE_ID"), 0)
 BIRTHDAY_ROLE_ID = 1113751318918602762
-
 
 class Birthday(commands.Cog):
     def __init__(self, bot):

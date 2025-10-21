@@ -8,7 +8,7 @@ import os
 class Ping(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db_path = os.path.join(os.path.dirname(__file__), "suggestions.db")  # or any db file you use
+        self.db_path = os.path.join(os.path.dirname(__file__), "suggestions.db")
 
     @app_commands.command(name="ping", description="Check the bot's latency")
     async def ping(self, interaction: discord.Interaction):

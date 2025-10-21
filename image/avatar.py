@@ -25,7 +25,6 @@ class Avatar(commands.Cog):
             avatar_url = target.avatar.url
             avatar_type = "Global Avatar"
 
-
         embed = discord.Embed(
             title=f"{target.display_name}'s {avatar_type}",
             color=discord.Color.blurple()
