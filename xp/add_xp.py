@@ -11,6 +11,8 @@ async def add_xp(member):
             if is_channel_excluded(last_message.channel.id):
                 return
     
+    base_xp = random_xp()
+
     for lifetime in (True, False):  # True = lifetime, False = annual
         conn, cur = get_db(lifetime)
         cur.execute("SELECT xp, level, last_message FROM xp WHERE user_id = ?", (str(member.id),))
@@ -29,7 +31,7 @@ async def add_xp(member):
             )
 
         # Only apply multiplier for lifetime XP
-        gained = int(random_xp() * get_multiplier(member, apply_multiplier=lifetime))
+        gained = int(base_xp * get_multiplier(member, apply_multiplier=lifetime))
         new_xp = xp + gained
 
         cur.execute(
