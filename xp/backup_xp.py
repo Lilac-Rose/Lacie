@@ -16,7 +16,7 @@ class BackupXP(commands.Cog):
     @app_commands.command(name="backup_xp", description="Backup both lifetime and annual XP databases")
     @ModerationBase.is_admin()
     async def backup_xp(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer(ephemeral=False)
 
         # Define source files
         lifetime_db = os.path.join(self.base_dir, "lifetime.db")
