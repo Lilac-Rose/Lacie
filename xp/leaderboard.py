@@ -10,10 +10,19 @@ class LeaderboardView(View):
         super().__init__(timeout=60)
         self.embed_pages = embed_pages
         self.current_page = 0
+        self.update_button_states()
 
     async def update_message(self, interaction: discord.Interaction):
+        self.update_button_states()
         embed = self.embed_pages[self.current_page]
         await interaction.response.edit_message(embed=embed, view=self)
+
+    def update_button_states(self):
+        # Disable "Previous" if on first page
+        self.previous.disabled = self.current_page == 0
+        # Disable "Next" if on last page
+        self.next.disabled = self.current_page == len(self.embed_pages) - 1
+
 
     @discord.ui.button(label="⬅️ Previous", style=discord.ButtonStyle.secondary)
     async def previous(self, interaction: discord.Interaction, button: Button):
@@ -26,6 +35,17 @@ class LeaderboardView(View):
         if self.current_page < len(self.embed_pages) - 1:
             self.current_page += 1
         await self.update_message(interaction)
+
+    async def on_timeout(self):
+        for child in self.children:
+            if isinstance(child, Button):
+                child.disabled = True
+
+        if hasattr(self, "message") and self.message:
+            try:
+                await self.message.edit(view=self)
+            except discord.NotFound:
+                pass
 
 
 class Leaderboard(commands.Cog):
@@ -113,6 +133,8 @@ class Leaderboard(commands.Cog):
 
         view = LeaderboardView(embeds)
         await interaction.response.send_message(embed=embeds[0], view=view)
+
+        view.message = await interaction.original_response()
 
 
 async def setup(bot):
