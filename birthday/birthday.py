@@ -214,16 +214,16 @@ class Birthday(commands.Cog):
 
         await interaction.response.send_message(f"Birthday announcements will be sent in {channel.mention}")
 
-    @app_commands.command(name="listbirthdays", description="List all birthdays or birthdays for a specific month.")
-    @app_commands.describe(month="Optional: Specify a month (1-12) to see birthdays for that month")
-    async def listbirthdays(self, interaction: discord.Interaction, month: int = None):
-        if month is not None and (month < 1 or month > 12):
+    @app_commands.command(name="listbirthdays", description="List all birthdays for a specific month.")
+    @app_commands.describe(month="Specify a month (1-12) to see birthdays for that month")
+    async def listbirthdays(self, interaction: discord.Interaction, month: int):
+        if month < 1 or month > 12:
             await interaction.response.send_message("Invalid month! Please use a number between 1 and 12.", ephemeral=True)
             return
 
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
-        c.execute("SELECT user_id, birthday from birthdays")
+        c.execute("SELECT user_id, birthday FROM birthdays")
         rows = c.fetchall()
         conn.close()
 
@@ -232,67 +232,35 @@ class Birthday(commands.Cog):
             return
 
         now = datetime.now(timezone.utc)
-
-        if month is not None:
-            # Filter by specific month
-            birthdays_list = []
-            for user_id, date_str in rows:
-                bday_month, day = map(int, date_str.split("-"))
-                if bday_month == month:
-                    display_date = datetime(now.year, bday_month, day, tzinfo=timezone.utc)
-                    birthdays_list.append((user_id, display_date, day))
-            
-            if not birthdays_list:
-                month_name = datetime(now.year, month, 1).strftime('%B')
-                await interaction.response.send_message(f"No birthdays in {month_name}!", ephemeral=True)
-                return
-            
-            # Sort by day of month
-            birthdays_list.sort(key=lambda x: x[2])
-            month_name = datetime(now.year, month, 1).strftime('%B')
-            
-            lines = []
-            for user_id, date, _ in birthdays_list:
-                user = interaction.guild.get_member(user_id)
-                name = user.display_name if user else f"User {user_id}"
-                lines.append(f"**{name}** - {date.strftime('%B %d')}")
-            
-            embed = discord.Embed(
-                title=f"🎂 Birthdays in {month_name}",
-                description="\n".join(lines),
-                color=discord.Color.magenta()
-            )
-            await interaction.response.send_message(embed=embed)
-        else:
-            # Show all birthdays organized by month
-            birthdays_by_month = {}
-            for user_id, date_str in rows:
-                bday_month, day = map(int, date_str.split("-"))
-                if bday_month not in birthdays_by_month:
-                    birthdays_by_month[bday_month] = []
+        birthdays_list = []
+        for user_id, date_str in rows:
+            bday_month, day = map(int, date_str.split("-"))
+            if bday_month == month:
                 display_date = datetime(now.year, bday_month, day, tzinfo=timezone.utc)
-                birthdays_by_month[bday_month].append((user_id, display_date, day))
-            
-            # Sort each month by day
-            for month_num in birthdays_by_month:
-                birthdays_by_month[month_num].sort(key=lambda x: x[2])
-            
-            # Build the embed description
-            lines = []
-            for month_num in sorted(birthdays_by_month.keys()):
-                month_name = datetime(now.year, month_num, 1).strftime('%B')
-                lines.append(f"\n**{month_name}**")
-                for user_id, date, _ in birthdays_by_month[month_num]:
-                    user = interaction.guild.get_member(user_id)
-                    name = user.display_name if user else f"User {user_id}"
-                    lines.append(f"  • {name} - {date.strftime('%B %d')}")
-            
-            embed = discord.Embed(
-                title="🎂 All Birthdays",
-                description="\n".join(lines),
-                color=discord.Color.magenta()
-            )
-            await interaction.response.send_message(embed=embed)
+                birthdays_list.append((user_id, display_date, day))
+        
+        if not birthdays_list:
+            month_name = datetime(now.year, month, 1).strftime('%B')
+            await interaction.response.send_message(f"No birthdays in {month_name}!", ephemeral=True)
+            return
+        
+        # Sort by day of month
+        birthdays_list.sort(key=lambda x: x[2])
+        month_name = datetime(now.year, month, 1).strftime('%B')
+        
+        lines = []
+        for user_id, date, _ in birthdays_list:
+            user = interaction.guild.get_member(user_id)
+            name = user.display_name if user else f"User {user_id}"
+            lines.append(f"**{name}** - {date.strftime('%B %d')}")
+        
+        embed = discord.Embed(
+            title=f"🎂 Birthdays in {month_name}",
+            description="\n".join(lines),
+            color=discord.Color.magenta()
+        )
+        await interaction.response.send_message(embed=embed)
+
 
     @tasks.loop(minutes=1)
     async def check_birthdays(self):
