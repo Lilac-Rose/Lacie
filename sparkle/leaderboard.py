@@ -33,7 +33,7 @@ class SparkleLeaderboard(commands.Cog):
                        (epic + rare + regular) as total
                 FROM sparkles
                 WHERE server_id = ? AND user_id IN ({placeholders})
-                ORDER BY total DESC
+                ORDER BY RANDOM()
                 LIMIT ?
             """
             params = [str(ctx.guild.id), *guild_member_ids, limit]
@@ -49,8 +49,8 @@ class SparkleLeaderboard(commands.Cog):
             return
 
         embed = discord.Embed(
-            title=f"{escape_markdown(ctx.guild.name)} Sparkle Leaderboard",
-            color=discord.Color.gold()
+            title=f"{escape_markdown(ctx.guild.name)} Random Sparkle List",
+            color=discord.Color.random()
         )
 
         for rank, (user_id, epic, rare, regular, total) in enumerate(results, 1):
