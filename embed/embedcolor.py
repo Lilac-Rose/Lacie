@@ -28,7 +28,7 @@ class EmbedColor(commands.Cog):
 
     def get_user_color(self, user:discord.User) -> discord.Color:
         db = self.get_db()
-        cursor = db.curosr()
+        cursor = db.cursor()
         cursor.execute("SELECT color FROM user_embed_colors WHERE user_id = ?", (user.id,))
         result = cursor.fetchone()
         db.close()
@@ -39,7 +39,7 @@ class EmbedColor(commands.Cog):
     @app_commands.command(name="setcolor", description="Set your preferred embed color (hex, e.g. #ff66cc).")
     async def setcolor(self, interaction: discord.Interaction, hex_color: str):
         if not hex_color.startswith("#") or len(hex_color) != 7:
-            await interaction.response.send_message("Please provide a vlid hex color in the format: `#rrggbb`.", ephemeral=True)
+            await interaction.response.send_message("Please provide a valid hex color in the format: `#rrggbb`.", ephemeral=True)
             return
         try:
             int(hex_color[1:], 16)
@@ -55,7 +55,7 @@ class EmbedColor(commands.Cog):
             ON CONFLICT(user_id) DO UPDATE SET color=excluded.color
         """, (interaction.user.id, hex_color[1:]))
         db.commit()
-        db.close
+        db.close()
 
         await interaction.response.send_message(f"Your embed color has been set to `{hex_color}`")
 
