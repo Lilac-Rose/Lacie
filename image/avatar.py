@@ -27,7 +27,7 @@ class Avatar(commands.Cog):
 
         embed = discord.Embed(
             title=f"{target.display_name}'s {avatar_type}",
-            color=discord.Color.blurple()
+            color=self.bot.get_cog("EmbedColor").get_user_color(interaction.user)
         )
         embed.set_image(url=avatar_url)
         embed.add_field(name="Direct Link", value=f"[Open Avatar]({avatar_url})")

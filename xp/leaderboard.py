@@ -107,7 +107,7 @@ class Leaderboard(commands.Cog):
 
             embed = discord.Embed(
                 title=f"{board_display_name} Leaderboard (Page {page_num + 1}/{total_pages})",
-                color=discord.Color.blurple()
+                color=self.bot.get_cog("EmbedColor").get_user_color(interaction.user)
             )
 
             if page_num == 0 and page_rows:

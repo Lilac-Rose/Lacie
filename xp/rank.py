@@ -32,26 +32,43 @@ class Rank(commands.Cog):
             lifetime = board_type_value == "lifetime"
 
             conn, cur = get_db(lifetime)
+
+            # Fetch XP data for the requested user
             cur.execute("SELECT xp, level, last_message FROM xp WHERE user_id = ?", (str(user.id),))
             row = cur.fetchone()
-            conn.close()
 
             if not row:
+                conn.close()
                 await interaction.response.send_message(f"{user.display_name} has no XP yet.", ephemeral=True)
                 return
 
             xp, level, last_msg = row
+
+            # Determine the user's leaderboard rank
+            cur.execute("SELECT user_id FROM xp ORDER BY xp DESC")
+            all_users = [r[0] for r in cur.fetchall()]
+            conn.close()
+
+            try:
+                rank_position = all_users.index(str(user.id)) + 1
+            except ValueError:
+                rank_position = None
+
+            total_users = len(all_users)
+            rank_text = f"#{rank_position:,} / {total_users:,}" if rank_position else "Unranked"
+
+            # XP and progression
             next_level_xp = xp_for_level(level + 1)
             needed = next_level_xp - xp
 
-            # cooldown
+            # Cooldown
             remaining_cd = COOLDOWN - (time.time() - last_msg)
             cooldown = f"{int(remaining_cd)}s" if remaining_cd > 0 else "None!"
 
             multiplier = 1.0
-
-            # multiplier text only for lifetime
             multipliers_text = []
+
+            # Multiplier text (Lifetime only)
             if lifetime and isinstance(user, discord.Member) and user.guild == interaction.guild:
                 multiplier = get_multiplier(user, apply_multiplier=True)
                 role_name = None
@@ -61,22 +78,27 @@ class Rank(commands.Cog):
                         break
                 multipliers_text.append(f"{role_name} – {multiplier}x XP" if role_name else "None")
 
-            # progress bar
+            # Progress bar
             percent = (xp - xp_for_level(level)) / (next_level_xp - xp_for_level(level))
             percent = max(0, min(1, percent))
             bar_length = 20
             filled = int(percent * bar_length)
             bar = "█" * filled + "░" * (bar_length - filled)
 
-            # estimate messages left
+            # Estimated messages left
             min_msgs = math.ceil(math.ceil(needed / 100) / multiplier)
             max_msgs = math.ceil(math.ceil(needed / 50) / multiplier)
 
+            # Embed
             embed = discord.Embed(
-                description=f"✨ **XP** `{xp:,}` (lv. {level})\n"
-                            f"➡️ **Next level** `{next_level_xp:,}` ({needed:,} more)\n"
-                            f"🕒 **Cooldown** {cooldown}",
-                color=discord.Color.purple()
+                title=f"{'Lifetime' if lifetime else 'Annual'} XP Rank",
+                description=(
+                    f"🏅 **Rank:** {rank_text}\n"
+                    f"✨ **XP:** `{xp:,}` (lv. {level})\n"
+                    f"➡️ **Next level:** `{next_level_xp:,}` ({needed:,} more)\n"
+                    f"🕒 **Cooldown:** {cooldown}"
+                ),
+                color=self.bot.get_cog("EmbedColor").get_user_color(interaction.user)
             )
 
             if lifetime and multipliers_text:
@@ -88,6 +110,8 @@ class Rank(commands.Cog):
                 value=f"{min_msgs}-{max_msgs} messages to go!",
                 inline=False
             )
+
+            embed.set_footer(text=f"Viewing {board_type_value.title()} board")
 
             await interaction.response.send_message(embed=embed)
 

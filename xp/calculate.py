@@ -103,7 +103,7 @@ class CalculateCommand(commands.Cog):
 
         embed = discord.Embed(
             description=response,
-            color=discord.Color.blue()
+            color=self.bot.get_cog("EmbedColor").get_user_color(interaction.user)
         )
         embed.set_author(name=user.display_name, icon_url=user.display_avatar.url)
 

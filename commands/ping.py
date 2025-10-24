@@ -33,7 +33,7 @@ class Ping(commands.Cog):
 
         embed = discord.Embed(
             title="Pong!",
-            color=discord.Color.green()
+            color=self.bot.get_cog("EmbedColor").get_user_color(interaction.user)
         )
         embed.add_field(name="WebSocket Latency", value=f"{ws_latency}ms", inline=True)
         embed.add_field(name="API Latency", value=f"{api_latency}ms", inline=True)
