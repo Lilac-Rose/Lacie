@@ -18,11 +18,8 @@ class LeaderboardView(View):
         await interaction.response.edit_message(embed=embed, view=self)
 
     def update_button_states(self):
-        # Disable "Previous" if on first page
         self.previous.disabled = self.current_page == 0
-        # Disable "Next" if on last page
         self.next.disabled = self.current_page == len(self.embed_pages) - 1
-
 
     @discord.ui.button(label="⬅️ Previous", style=discord.ButtonStyle.secondary)
     async def previous(self, interaction: discord.Interaction, button: Button):
@@ -58,7 +55,7 @@ class Leaderboard(commands.Cog):
     )
     @app_commands.describe(
         board_type="Choose which leaderboard to view",
-        show_offline="Show users who aren't in the server"
+        show_absent="Include members who are no longer in the server"
     )
     @app_commands.choices(
         board_type=[
@@ -70,7 +67,7 @@ class Leaderboard(commands.Cog):
         self,
         interaction: discord.Interaction,
         board_type: app_commands.Choice[str] = None,
-        show_offline: bool = False
+        show_absent: bool = False
     ):
         board_type_value = board_type.value if board_type else "annual"
         board_display_name = board_type.name if board_type else "Annual"
@@ -87,8 +84,8 @@ class Leaderboard(commands.Cog):
 
         user_id = str(interaction.user.id)
 
-        # Filter rows for non-members if show_offline is False
-        if not show_offline:
+        # Filter rows for non-members if show_absent is False
+        if not show_absent:
             all_rows = [
                 row for row in all_rows
                 if interaction.guild.get_member(int(row[0])) is not None
@@ -123,10 +120,11 @@ class Leaderboard(commands.Cog):
                 member = interaction.guild.get_member(int(uid))
                 if member:
                     line = f"{idx}. {member.mention} · Level {level} · {xp:,} XP"
-                    description_lines.append(line)
-                elif show_offline:
+                elif show_absent:
                     line = f"{idx}. User {uid} · Level {level} · {xp:,} XP"
-                    description_lines.append(line)
+                else:
+                    continue
+                description_lines.append(line)
 
             embed.description = "\n".join(description_lines)
             embeds.append(embed)

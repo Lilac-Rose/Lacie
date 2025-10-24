@@ -6,8 +6,19 @@ from .loader import ModerationBase
 class BanCommand(ModerationBase):
     @commands.command(name="ban")
     @ModerationBase.is_admin()
-    async def ban(self, ctx, user: discord.Member, *, reason: str = None):
-        """Ban a user with confirmation and log infraction"""
+    async def ban(self, ctx, user: discord.User | discord.Member | str, *, reason: str = None):
+        """Ban a user (even if not in the server) with confirmation and log infraction"""
+        # Convert raw ID or mention to user object if needed
+        if isinstance(user, str):
+            # Try to parse mention or raw ID
+            user_id = user.strip("<@!>")
+            try:
+                user = await self.bot.fetch_user(int(user_id))
+            except Exception:
+                await ctx.send("Could not find that user. Please provide a valid mention or ID.")
+                return
+
+        # Ask for confirmation
         view = View(timeout=30)
         confirmed = {"value": False}
 
@@ -34,26 +45,33 @@ class BanCommand(ModerationBase):
         view.add_item(yes_button)
         view.add_item(no_button)
 
-        await ctx.send(f"Are you sure you want to ban {user.mention}? Reason: {reason or 'No reason provided'}", view=view)
+        await ctx.send(f"Are you sure you want to ban {user.mention if hasattr(user, 'mention') else user}? Reason: {reason or 'No reason provided'}", view=view)
         await view.wait()
         if not confirmed["value"]:
             return
 
+        # Attempt to DM user
         try:
-            await user.send(f"You have been **banned** from **{ctx.guild.name}**.\nReason: {reason or 'No reason provided'}")
+            if isinstance(user, discord.User):
+                await user.send(f"You have been **banned** from **{ctx.guild.name}**.\nReason: {reason or 'No reason provided'}")
         except:
             await ctx.send("Could not DM the user.")
 
-        await ctx.guild.ban(user, reason=reason)
-        await ctx.send(f"{user.mention} has been banned.")
+        # Perform the ban
+        try:
+            await ctx.guild.ban(discord.Object(id=user.id), reason=reason)
+            await ctx.send(f"{user.mention if hasattr(user, 'mention') else user} has been banned.")
+        except Exception as e:
+            await ctx.send(f"Failed to ban user: `{e}`")
+            return
+
+        # Log infraction
         await self.log_infraction(ctx.guild.id, user.id, ctx.author.id, "ban", reason)
-        
-        # Log to logging system
+
+        # Log to logging system if available
         logger = self.bot.get_cog("Logger")
         if logger:
-            await logger.log_moderation_action(
-                ctx.guild.id, "ban", user, ctx.author, reason
-            )
+            await logger.log_moderation_action(ctx.guild.id, "ban", user, ctx.author, reason)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(BanCommand(bot))
