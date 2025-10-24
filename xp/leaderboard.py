@@ -69,8 +69,8 @@ class Leaderboard(commands.Cog):
         board_type: app_commands.Choice[str] = None,
         show_absent: bool = False
     ):
-        board_type_value = board_type.value if board_type else "annual"
-        board_display_name = board_type.name if board_type else "Annual"
+        board_type_value = board_type.value if board_type else "lifetime"
+        board_display_name = board_type.name if board_type else "Lifetime"
 
         use_lifetime_db = board_type_value == "lifetime"
         conn, cur = get_db(use_lifetime_db)
