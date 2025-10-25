@@ -10,7 +10,6 @@ class BanCommand(ModerationBase):
         """Ban a user (even if not in the server) with confirmation and log infraction"""
         # Convert raw ID or mention to user object if needed
         if isinstance(user, str):
-            # Try to parse mention or raw ID
             user_id = user.strip("<@!>")
             try:
                 user = await self.bot.fetch_user(int(user_id))
@@ -45,7 +44,12 @@ class BanCommand(ModerationBase):
         view.add_item(yes_button)
         view.add_item(no_button)
 
-        await ctx.send(f"Are you sure you want to ban {user.mention if hasattr(user, 'mention') else user}? Reason: {reason or 'No reason provided'}", view=view)
+        await ctx.send(
+            f"Are you sure you want to ban {user.mention if hasattr(user, 'mention') else user}? "
+            f"Reason: {reason or 'No reason provided'}",
+            view=view
+        )
+
         await view.wait()
         if not confirmed["value"]:
             return
@@ -53,7 +57,11 @@ class BanCommand(ModerationBase):
         # Attempt to DM user
         try:
             if isinstance(user, discord.User):
-                await user.send(f"You have been **banned** from **{ctx.guild.name}**.\nReason: {reason or 'No reason provided'}")
+                await user.send(
+                    f"You have been **banned** from **{ctx.guild.name}**.\n"
+                    f"Reason: {reason or 'No reason provided'}\n\n"
+                    f"If you believe this ban was unfair, you can appeal by messaging me `!appeal`."
+                )
         except:
             await ctx.send("Could not DM the user.")
 

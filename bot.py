@@ -70,6 +70,7 @@ async def on_ready():
     await load_cogs("suggestion")
     await load_cogs("birthday")
     await load_cogs("embed")
+    await load_cogs("profiles")
 
     # Sync slash commands after loading cogs
     try:
@@ -100,6 +101,7 @@ async def reload(ctx):
     await load_cogs("suggestion")
     await load_cogs("birthday")
     await load_cogs("embed")
+    await load_cogs("profiles")
     
     try:
         synced = await bot.tree.sync()

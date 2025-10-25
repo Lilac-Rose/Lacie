@@ -1,0 +1,87 @@
+import discord
+from discord.ext import commands
+import asyncio
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+BOT_TOKEN = os.getenv('TOKEN')
+# Staff channel ID
+STAFF_CHANNEL_ID = 1211600723436109885
+
+# Create bot instance
+intents = discord.Intents.default()
+intents.message_content = True
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+@bot.event
+async def on_ready():
+    print(f'Logged in as {bot.user.name}')
+    
+    # Get the staff channel
+    channel = bot.get_channel(STAFF_CHANNEL_ID)
+    if channel:
+        # Create embed with moderation guide
+        embed = discord.Embed(
+            title="Staff Moderation Commands Guide",
+            description="Quick reference for all moderation commands",
+            color=0x00ff00
+        )
+        
+        # Add command fields
+        embed.add_field(
+            name="Warn",
+            value="`!warn <user_id> <reason>`\nIssue a formal warning",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="Mute", 
+            value="`!mute <user_id> <duration> <reason>`\nTemporarily mute a user\n**Duration format:** 1w, 5d, 12h, 30m",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="Unmute",
+            value="`!unmute <user_id>`\nRemove mute from user",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="Kick",
+            value="`!kick <user_id> <reason>`\nRemove user from server",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="Ban", 
+            value="`!ban <user_id> <reason>`\nPermanently ban user",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="Clean Ban",
+            value="`!cleanban <user_id> <reason>`\nBan user and delete all their messages from last 7 days",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="Infraction Management",
+            value="`!inf search <user_id>` - Search user infractions\n`!inf list` - List all server infractions\n`!inf delete <infraction_id>` - Delete specific infraction",
+            inline=False
+        )
+        
+        await channel.send(embed=embed)
+        print("Guide sent successfully!")
+    else:
+        print("Could not find staff channel!")
+    
+    await bot.close()
+
+# Run the bot
+async def main():
+    await bot.start(BOT_TOKEN)
+
+if __name__ == "__main__":
+    asyncio.run(main())

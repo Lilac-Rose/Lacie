@@ -55,7 +55,7 @@ class Leaderboard(commands.Cog):
     )
     @app_commands.describe(
         board_type="Choose which leaderboard to view",
-        show_absent="Include members who are no longer in the server"
+        show_absent="Include members who are no longer in the server (default: False)"
     )
     @app_commands.choices(
         board_type=[
@@ -69,6 +69,8 @@ class Leaderboard(commands.Cog):
         board_type: app_commands.Choice[str] = None,
         show_absent: bool = False
     ):
+        await interaction.response.defer(thinking=True)
+        
         board_type_value = board_type.value if board_type else "lifetime"
         board_display_name = board_type.name if board_type else "Lifetime"
 
@@ -80,11 +82,11 @@ class Leaderboard(commands.Cog):
         conn.close()
 
         if not all_rows:
-            return await interaction.response.send_message("No leaderboard data yet!", ephemeral=True)
+            return await interaction.followup.send("No leaderboard data yet!", ephemeral=True)
 
         user_id = str(interaction.user.id)
 
-        # Filter rows for non-members if show_absent is False
+        # Filter out absent users UNLESS show_absent is True
         if not show_absent:
             all_rows = [
                 row for row in all_rows
@@ -92,7 +94,7 @@ class Leaderboard(commands.Cog):
             ]
 
         if not all_rows:
-            return await interaction.response.send_message(
+            return await interaction.followup.send(
                 "No visible leaderboard entries with the current settings.", ephemeral=True
             )
 
@@ -121,6 +123,7 @@ class Leaderboard(commands.Cog):
                 if member:
                     line = f"{idx}. {member.mention} · Level {level} · {xp:,} XP"
                 elif show_absent:
+                    # Only show absent users if show_absent is True
                     line = f"{idx}. User {uid} · Level {level} · {xp:,} XP"
                 else:
                     continue
@@ -130,7 +133,7 @@ class Leaderboard(commands.Cog):
             embeds.append(embed)
 
         view = LeaderboardView(embeds)
-        await interaction.response.send_message(embed=embeds[0], view=view)
+        await interaction.followup.send(embed=embeds[0], view=view)
 
         view.message = await interaction.original_response()
 
