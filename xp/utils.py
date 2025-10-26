@@ -1,79 +1,57 @@
-import math, random, time
+import math, random, time, json
 from discord.utils import get
+from pathlib import Path
+CONFIG_PATH = Path("/home/lilacrose/lilacrose.dev2.0/bots/lacie/xp_config.json")
 
-# Role rewards for leveling up (only apply to lifetime XP)
-ROLE_REWARDS = {
-    2: 963498974222885054,
-    8: 1372088164377694208,
-    100: 1296055376009101384,
-    150: 1296056209543008287,
-    200: 1296056657784340480,
-}
-
-# XP multipliers by role (only apply to lifetime XP)
-MULTIPLIERS = {
-    "1038402681376612413": 1.25,
-    "1213171315259736155": 1.25,
-    "881560923494547477": 1.5,
-    "1008830505166323742": 1.5,
-    "880055414434201600": 1.5,
-    "931234149774270524": 2,
-    "1238966782962958377": 2.5,
-    "1113751318918602762": 3,
-}
-
-# Cooldown in seconds between XP gains
-COOLDOWN = 60
-
+def load_config():
+    with CONFIG_PATH.open() as f:
+        return json.load(f)
 
 def get_multiplier(member, apply_multiplier=True):
-    """Return XP multiplier from roles, or 1 if multiplier shouldn't be applied."""
     if not apply_multiplier:
         return 1
-
+    config = load_config()
+    multipliers = config["MULTIPLIERS"]
     highest = 1
     for role in member.roles:
-        if str(role.id) in MULTIPLIERS:
-            highest = max(highest, MULTIPLIERS[str(role.id)])
+        if str(role.id) in multipliers:
+            highest = max(highest, multipliers[str(role.id)])
     return highest
 
-
 def xp_for_level(level: int) -> int:
-    """Calculate total XP required for a given level."""
-    xp = (level ** 3) + (50 * level ** 2) + (100 * level)
-    return int(math.floor(xp / 100) * 100)  # round down to nearest 100
-
+    config = load_config()
+    curve = config.get("XP_CURVE", {"base": 1, "square": 50, "linear": 100, "divisor": 100})
+    
+    xp = (level ** 3 * curve["base"]) + (level ** 2 * curve["square"]) + (level * curve["linear"])
+    xp = xp / curve["divisor"]
+    return int(math.floor(xp / 100) * 100)
 
 def random_xp() -> int:
-    """Random XP awarded per message."""
-    return random.randint(50, 100)
-
+    config = load_config()
+    xp_range = config.get("RANDOM_XP", {"min": 50, "max": 100})
+    return random.randint(xp_range["min"], xp_range["max"])
 
 def can_get_xp(last_message_time: int) -> bool:
-    """Check if enough time has passed since last XP gain."""
-    return (time.time() - last_message_time) >= COOLDOWN
-
+    config = load_config()
+    cooldown = config["COOLDOWN"]
+    return (time.time() - last_message_time) >= cooldown
 
 async def check_level_up(member, cur, conn, lifetime=True):
-    """Check if user leveled up and give rewards (only for lifetime XP)."""
+    config = load_config()
+    role_rewards = {int(k): v for k,v in config["ROLE_REWARDS"].items()}
     cur.execute("SELECT xp, level FROM xp WHERE user_id = ?", (str(member.id),))
     row = cur.fetchone()
     if not row:
         return
-
     xp, level = row
     new_level = level
     while xp >= xp_for_level(new_level + 1):
         new_level += 1
-
     if new_level > level:
         cur.execute("UPDATE xp SET level = ? WHERE user_id = ?", (new_level, str(member.id)))
         conn.commit()
-
-        # Only assign role rewards for lifetime XP
         if lifetime:
-            from discord.utils import get
-            for lvl, role_id in ROLE_REWARDS.items():
+            for lvl, role_id in role_rewards.items():
                 if new_level >= lvl:
                     role = get(member.guild.roles, id=role_id)
                     if role:

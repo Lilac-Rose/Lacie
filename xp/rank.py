@@ -5,7 +5,7 @@ import traceback
 from discord.ext import commands
 from discord import app_commands
 from .database import get_db
-from .utils import xp_for_level, MULTIPLIERS, COOLDOWN, get_multiplier
+from .utils import xp_for_level, get_multiplier, load_config
 
 class Rank(commands.Cog):
     def __init__(self, bot):
@@ -30,6 +30,11 @@ class Rank(commands.Cog):
             user = user or interaction.user
             board_type_value = board_type.value if board_type else "lifetime"
             lifetime = board_type_value == "lifetime"
+
+            # Load config fresh every time
+            config = load_config()
+            MULTIPLIERS = config["MULTIPLIERS"]
+            COOLDOWN = config["COOLDOWN"]
 
             conn, cur = get_db(lifetime)
 

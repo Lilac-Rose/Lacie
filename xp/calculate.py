@@ -2,7 +2,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from .database import get_db
-from .utils import xp_for_level, can_get_xp, get_multiplier, COOLDOWN
+from .utils import xp_for_level, can_get_xp, get_multiplier, load_config
 import time
 
 class CalculateCommand(commands.Cog):
@@ -28,6 +28,11 @@ class CalculateCommand(commands.Cog):
     ):
         if user is None:
             user = interaction.user
+
+        # Load config fresh
+        config = load_config()
+        COOLDOWN = config["COOLDOWN"]
+        random_xp_config = config.get("RANDOM_XP", {"min": 50, "max": 100})
 
         # Determine which database to use
         use_lifetime = True if (board_type is None or board_type.value == "lifetime") else False
@@ -59,8 +64,8 @@ class CalculateCommand(commands.Cog):
 
         multiplier = get_multiplier(user, apply_multiplier=True)
 
-        min_xp_per_msg = int(50 * multiplier)
-        max_xp_per_msg = int(100 * multiplier)
+        min_xp_per_msg = int(random_xp_config["min"] * multiplier)
+        max_xp_per_msg = int(random_xp_config["max"] * multiplier)
         avg_xp_per_msg = (min_xp_per_msg + max_xp_per_msg) / 2
 
         max_messages = int(remaining_xp / min_xp_per_msg)
