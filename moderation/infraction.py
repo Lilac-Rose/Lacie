@@ -7,10 +7,18 @@ class InfractionCommand(ModerationBase):
 
     @commands.command(name="inf")
     @ModerationBase.is_admin()
-    async def inf(self, ctx, action: str, user_id: int = None, inf_id: int = None):
-        if action.lower() == "search":
-            if not user_id:
+    async def inf(self, ctx, action: str, *args):
+        action = action.lower()
+
+        if action == "search":
+            if not args:
                 await ctx.send("You must provide a user ID to search.")
+                return
+
+            try:
+                user_id = int(args[0])
+            except ValueError:
+                await ctx.send("Invalid user ID.")
                 return
 
             try:
@@ -25,8 +33,7 @@ class InfractionCommand(ModerationBase):
                 await ctx.send(f"Database error: {e}")
                 return
 
-        elif action.lower() == "list":
-            # Fetch all infractions for the guild
+        elif action == "list":
             try:
                 self.c.execute("""
                     SELECT id, user_id, type, reason, moderator_id, timestamp
@@ -43,9 +50,15 @@ class InfractionCommand(ModerationBase):
                 await ctx.send("No infractions found in this server.")
                 return
 
-        elif action.lower() == "delete":
-            if not inf_id:
+        elif action == "delete":
+            if not args:
                 await ctx.send("You must provide an infraction ID to delete.")
+                return
+
+            try:
+                inf_id = int(args[0])
+            except ValueError:
+                await ctx.send("Invalid infraction ID.")
                 return
 
             self.c.execute("DELETE FROM infractions WHERE id=? AND guild_id=?", (inf_id, ctx.guild.id))
