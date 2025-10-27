@@ -33,6 +33,11 @@ class InfractionCommand(ModerationBase):
                 await ctx.send(f"Database error: {e}")
                 return
 
+            if not results:
+                await ctx.send("This user has no infractions.")
+                return
+
+
         elif action == "list":
             try:
                 self.c.execute("""
