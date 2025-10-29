@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from moderation.loader import ModerationBase, ADMIN_ROLE_ID
 import asyncio
+import random
 
 SALT_EMOJI_ID = 1074583707459010560
 
@@ -20,8 +21,11 @@ class SaltCommand(ModerationBase):
             return
         
         if member.id == 252130669919076352:
-            await ctx.send("https://tenor.com/view/you-didnt-say-the-magic-word-ah-ah-nope-wagging-finger-gif-17646607")
-            return
+
+            chance = random.randrange(1,101)
+            if chance != 1:
+                await ctx.send("https://tenor.com/view/you-didnt-say-the-magic-word-ah-ah-nope-wagging-finger-gif-17646607")
+                return
 
         if member.id == ctx.author.id:
             await ctx.send("You cant salt yourself")
