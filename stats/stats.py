@@ -91,7 +91,6 @@ class Stats(commands.Cog):
                 stats = await self.gather_stats()
                 async with aiofiles.open(self.stats_file, 'w') as f:
                     await f.write(json.dumps(stats, indent=2, default=str))
-                print(f"Updated stats file at {datetime.now()}")
             except Exception as e:
                 print(f"Error updating stats file: {e}")
             

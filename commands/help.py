@@ -194,7 +194,7 @@ class HelpView(discord.ui.View):
         else:
             embed.description = "No commands found in this category."
 
-        embed.set_footer(text=f"Use the buttons to navigate • Total: {len(self.cog_commands.get(cog_name, []))} commands")
+        embed.set_footer(text=f"Use the buttons to navigate • Total: {len(set(self.cog_commands.get(cog_name, [])))} commands")
 
         return embed
     
@@ -213,15 +213,14 @@ class Help(commands.Cog):
             await interaction.response.defer(thinking=True)
 
             cog_commands = {}
-
-            # Map to group cogs by their folder
-            cog_folder_map = {}
             
+            # Track primary command names to avoid duplicates from aliases
+            seen_commands = {}
+
+            # Process slash commands
             for command in self.bot.tree.get_commands():
                 cog = command.binding
                 if cog:
-                    cog_class_name = cog.__class__.__name__.lower()
-                    
                     # Get the folder from the cog's module path
                     module = cog.__class__.__module__
                     folder = module.split('.')[0] if '.' in module else "other"
@@ -229,22 +228,24 @@ class Help(commands.Cog):
                     if folder == "events":
                         continue
                     
-                    # Map folder names to our display categories
                     if folder not in cog_commands:
                         cog_commands[folder] = []
                     
                     cmd_desc = command.description or "No description"
                     cog_commands[folder].append(f"`/{command.name}` - {cmd_desc}")
                 else:
-                    # Handle commands without a cog binding
                     if "other" not in cog_commands:
                         cog_commands["other"] = []
                     cmd_desc = command.description or "No description"
                     cog_commands["other"].append(f"`/{command.name}` - {cmd_desc}")
 
+            # Process prefix commands (only show the primary command, not aliases)
             for cmd_name, command in self.bot.all_commands.items():
+                # Skip if this is an alias (check if command.name != cmd_name)
+                if command.name != cmd_name:
+                    continue
+                
                 if command.cog:
-                    # Get folder from cog's module
                     module = command.cog.__class__.__module__
                     folder = module.split('.')[0] if '.' in module else "other"
                 else:
@@ -257,7 +258,13 @@ class Help(commands.Cog):
                     cog_commands[folder] = []
 
                 cmd_desc = command.help or command.brief or "No description"
-                cog_commands[folder].append(f"`!{cmd_name}` - {cmd_desc}")
+                
+                # Show aliases in the description if they exist
+                alias_text = ""
+                if command.aliases:
+                    alias_text = f" (aliases: {', '.join(f'!{a}' for a in command.aliases)})"
+                
+                cog_commands[folder].append(f"`!{command.name}`{alias_text} - {cmd_desc}")
 
             view = HelpView(self.bot, cog_commands)
             embed = view.create_home_embed(interaction)
@@ -265,7 +272,7 @@ class Help(commands.Cog):
             # Debug: Print what cogs were found
             print(f"DEBUG: Found cogs: {list(cog_commands.keys())}")
             for cog_name, cmds in cog_commands.items():
-                print(f"  {cog_name}: {len(cmds)} commands")
+                print(f"  {cog_name}: {len(set(cmds))} unique commands")
 
             await interaction.followup.send(embed=embed, view=view)
 
@@ -282,7 +289,6 @@ class Help(commands.Cog):
             try:
                 await interaction.followup.send(embed=error_embed)
             except:
-                # If followup fails, try responding directly
                 try:
                     await interaction.response.send_message(embed=error_embed)
                 except:

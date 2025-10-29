@@ -4,6 +4,7 @@ import sqlite3
 import os
 from datetime import datetime, timezone
 from typing import Optional
+import traceback
 
 class Logger(commands.Cog):
     """Core logging system that listens to Discord events and logs them"""
@@ -38,24 +39,34 @@ class Logger(commands.Cog):
                   (guild_id, log_type))
         result = c.fetchone()
         conn.close()
+        print(f"[DEBUG] get_log_channel({guild_id}, {log_type}) -> {result}")
         return result[0] if result else None
     
     async def send_log(self, guild_id: int, log_type: str, embed: discord.Embed):
         """Send a log embed to the configured channel"""
+        print(f"[DEBUG] send_log called: guild_id={guild_id}, log_type={log_type}")
+        
         channel_id = self.get_log_channel(guild_id, log_type)
         if not channel_id:
+            print(f"[DEBUG] No channel configured for {log_type} in guild {guild_id}")
             return
         
+        print(f"[DEBUG] Looking for channel {channel_id}")
         channel = self.bot.get_channel(channel_id)
         if not channel:
+            print(f"[DEBUG] Channel {channel_id} not found via bot.get_channel")
             return
         
+        print(f"[DEBUG] Found channel: {channel.name} ({channel.id})")
+        
         try:
-            await channel.send(embed=embed)
-        except discord.Forbidden:
-            print(f"Missing permissions to send log in channel {channel_id}")
+            msg = await channel.send(embed=embed)
+            print(f"[DEBUG] Successfully sent log message {msg.id} to {channel.name}")
+        except discord.Forbidden as e:
+            print(f"[ERROR] Missing permissions to send log in channel {channel_id}: {e}")
         except Exception as e:
-            print(f"Error sending log: {e}")
+            print(f"[ERROR] Error sending log: {e}")
+            traceback.print_exc()
     
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
@@ -142,21 +153,58 @@ class Logger(commands.Cog):
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member):
         """Log member joins"""
-        embed = discord.Embed(
-            title="Member Joined",
-            description=f"{member.mention} {member}",
-            color=discord.Color.green(),
-            timestamp = datetime.now(timezone.utc)
-        )
+        print(f"[DEBUG] ========================================")
+        print(f"[DEBUG] on_member_join triggered!")
+        print(f"[DEBUG] Member: {member} ({member.id})")
+        print(f"[DEBUG] Guild: {member.guild.name} ({member.guild.id})")
+        print(f"[DEBUG] Bot user: {self.bot.user}")
+        print(f"[DEBUG] ========================================")
         
-        account_age = (datetime.utcnow() - member.created_at).days
-        embed.add_field(name="Account Created", value=f"{member.created_at.strftime('%Y-%m-%d %H:%M:%S UTC')}\n({account_age} days ago)", inline=False)
-        embed.add_field(name="Member Count", value=member.guild.member_count, inline=True)
-        
-        embed.set_thumbnail(url=member.display_avatar.url)
-        embed.set_footer(text=f"User ID: {member.id}")
-        
-        await self.send_log(member.guild.id, "member_join", embed)
+        try:
+            embed = discord.Embed(
+                title="Member Joined",
+                description=f"{member.mention} {member}",
+                color=discord.Color.green(),
+                timestamp=datetime.now(timezone.utc)
+            )
+            
+            account_age = (datetime.now(timezone.utc) - member.created_at).days
+            embed.add_field(
+                name="Account Created",
+                value=f"{member.created_at.strftime('%Y-%m-%d %H:%M:%S UTC')}\n({account_age} days ago)",
+                inline=False
+            )
+            embed.add_field(name="Member Count", value=member.guild.member_count, inline=True)
+            
+            embed.set_thumbnail(url=member.display_avatar.url)
+            embed.set_footer(text=f"User ID: {member.id}")
+
+            print(f"[DEBUG] Embed created successfully")
+            print(f"[DEBUG] About to call send_log...")
+            
+            await self.send_log(member.guild.id, "member_join", embed)
+            
+            print(f"[DEBUG] send_log completed")
+
+        except Exception as e:
+            error_text = f"⚠️ **Error while logging member join:**\n`{type(e).__name__}: {e}`"
+
+            print(f"[ERROR] ========================================")
+            print(f"[ERROR] Failed to log member join for {member}")
+            print(f"[ERROR] Exception: {type(e).__name__}: {e}")
+            print(f"[ERROR] ========================================")
+            traceback.print_exc()
+
+            # Attempt to send the error to the designated debug channel
+            try:
+                channel = member.guild.get_channel(1424145004976275617)
+                if channel:
+                    await channel.send(error_text)
+                    print(f"[DEBUG] Sent error to debug channel")
+                else:
+                    print("[ERROR] Could not find error logging channel (1424145004976275617).")
+            except Exception as send_err:
+                print(f"[ERROR] Failed to send error message to debug channel: {send_err}")
     
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):

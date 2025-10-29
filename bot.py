@@ -72,6 +72,7 @@ async def on_ready():
     await load_cogs("embed")
     await load_cogs("profiles")
     await load_cogs("events")
+    await load_cogs("stats")
 
     # Sync slash commands after loading cogs
     try:
