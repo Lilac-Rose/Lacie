@@ -17,10 +17,12 @@ class ColorRoles(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    @app_commands.command(name="setcolor", description="Choose your color role.")
+    color_group = app_commands.Group(name="color", description="Manage your color role")
+
+    @color_group.command(name="set", description="Choose your color role.")
     @app_commands.describe(color="The color role you'd like to have.")
     @app_commands.choices(color=[app_commands.Choice(name=name, value=name) for name in COLOR_ROLES])
-    async def setcolor(self, interaction: discord.Interaction, color: app_commands.Choice[str]):
+    async def set_color(self, interaction: discord.Interaction, color: app_commands.Choice[str]):
         await interaction.response.defer(ephemeral=True)
         try:
             guild = interaction.guild
@@ -43,12 +45,41 @@ class ColorRoles(commands.Cog):
                 ephemeral=True
             )
         except Exception as e:
-            print(f"[ERROR] /setcolor\n{traceback.format_exc()}")
+            print(f"[ERROR] /color set\n{traceback.format_exc()}")
             msg = f"❌ Error: `{e}`" if DEBUG else "❌ Something went wrong."
             await interaction.followup.send(msg, ephemeral=True)
 
-    @app_commands.command(name="listcolors", description="Show all available color images (visual palette).")
-    async def listcolors(self, interaction: discord.Interaction):
+    @color_group.command(name="remove", description="Remove your current color role.")
+    async def remove_color(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        try:
+            guild = interaction.guild
+            member = interaction.user
+            if not isinstance(member, discord.Member):
+                member = guild.get_member(interaction.user.id) or await guild.fetch_member(interaction.user.id)
+
+            color_roles = [r for r in member.roles if r.name in COLOR_ROLES]
+            
+            if not color_roles:
+                await interaction.followup.send(
+                    "ℹ️ You don't have any color role to remove.",
+                    ephemeral=True
+                )
+                return
+
+            await member.remove_roles(*color_roles, reason="User removed color role")
+            removed_names = ", ".join([r.name for r in color_roles])
+            await interaction.followup.send(
+                f"✅ Removed your color role(s): **{removed_names}**",
+                ephemeral=True
+            )
+        except Exception as e:
+            print(f"[ERROR] /color remove\n{traceback.format_exc()}")
+            msg = f"❌ Error: `{e}`" if DEBUG else "❌ Something went wrong."
+            await interaction.followup.send(msg, ephemeral=True)
+
+    @color_group.command(name="list", description="Show all available color images (visual palette).")
+    async def list_colors(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
         try:
             # Get absolute path to project root (parent of commands/)
@@ -70,7 +101,7 @@ class ColorRoles(commands.Cog):
             file1 = discord.File(color_image_files[0], filename=color_image_files[0].name)
             embed1 = discord.Embed(
                 title="🎨 Available Color Roles (Part 1)",
-                description="Use `/setcolor` to pick one!",
+                description="Use `/color set` to pick one!",
                 color=discord.Color.purple()
             )
             embed1.set_image(url=f"attachment://{color_image_files[0].name}")
@@ -90,8 +121,8 @@ class ColorRoles(commands.Cog):
                 await interaction.followup.send(embed=embed2, file=file2, ephemeral=False)
                 
         except Exception as e:
-            print(f"[ERROR] /listcolors\n{traceback.format_exc()}")
-            msg = f"❌ Error in `/listcolors`: `{e}`" if DEBUG else "❌ Something went wrong loading color images."
+            print(f"[ERROR] /color list\n{traceback.format_exc()}")
+            msg = f"❌ Error in `/color list`: `{e}`" if DEBUG else "❌ Something went wrong loading color images."
             await interaction.followup.send(msg, ephemeral=True)
 
 async def setup(bot):
