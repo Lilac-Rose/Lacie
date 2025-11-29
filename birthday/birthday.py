@@ -246,11 +246,8 @@ class Birthday(commands.Cog):
 
     @birthday_group.command(name="channel", description="Set the channel for birthday announcements")
     @app_commands.describe(channel="Channel where birthday announcements will be sent")
-    async def set_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
-        if not ModerationBase.is_admin():
-            await interaction.response.send_message("You do not have permission to use this command.", ephemeral=True)
-            return
-        
+    @ModerationBase.is_admin()
+    async def set_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):        
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
         c.execute("""
