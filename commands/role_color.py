@@ -65,7 +65,7 @@ class ColorRoles(commands.Cog):
             if not isinstance(member, discord.Member):
                 member = guild.get_member(interaction.user.id) or await guild.fetch_member(interaction.user.id)
 
-            color_roles = [r for r in member.roles if r.name in COLOR_ROLES]
+            color_roles = [r for r in member.roles if r.name in COLOR_ROLE_NAMES]
             
             if not color_roles:
                 await interaction.followup.send(
@@ -85,7 +85,7 @@ class ColorRoles(commands.Cog):
             msg = f"❌ Error: `{e}`" if DEBUG else "❌ Something went wrong."
             await interaction.followup.send(msg, ephemeral=True)
 
-    @color_group.command(name="list", description="Show all available color images (visual palette).")
+    @color_group.command(name="list", description="Show all available role colors")
     async def list_colors(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
         try:
@@ -94,38 +94,53 @@ class ColorRoles(commands.Cog):
             if not media_dir.exists():
                 raise FileNotFoundError(f"Media folder not found: {media_dir}")
             
-            # Look for specific color image files only
-            color_image_files = []
-            for filename in ["colorimage1.png", "colorimage2.png"]:
-                img_path = media_dir / filename
-                if img_path.exists():
-                    color_image_files.append(img_path)
+            # Look for the generated color image
+            img_path = media_dir / "colorimage.png"
             
-            if not color_image_files:
-                raise FileNotFoundError(f"Color images not found in {media_dir}")
-            
-            # Send first embed with first image
-            file1 = discord.File(color_image_files[0], filename=color_image_files[0].name)
-            embed1 = discord.Embed(
-                title="🎨 Available Color Roles (Part 1)",
-                description="Use `/color set` to pick one!",
-                color=discord.Color.purple()
-            )
-            embed1.set_image(url=f"attachment://{color_image_files[0].name}")
-            
-            await interaction.followup.send(embed=embed1, file=file1, ephemeral=False)
-            
-            # Send second embed with second image if it exists
-            if len(color_image_files) > 1:
-                file2 = discord.File(color_image_files[1], filename=color_image_files[1].name)
-                embed2 = discord.Embed(
-                    title="🎨 Available Color Roles (Part 2)",
-                    description="More colors to choose from!",
+            if not img_path.exists():
+                # Fallback to old images if colorimage.png doesn't exist
+                color_image_files = []
+                for filename in ["colorimage1.png", "colorimage2.png"]:
+                    fallback_path = media_dir / filename
+                    if fallback_path.exists():
+                        color_image_files.append(fallback_path)
+                
+                if not color_image_files:
+                    await interaction.followup.send(
+                        "⚠️ No color images found. An admin needs to run `!generateimages` first.",
+                        ephemeral=True
+                    )
+                    return
+                
+                # Send old format with multiple images
+                file1 = discord.File(color_image_files[0], filename=color_image_files[0].name)
+                embed1 = discord.Embed(
+                    title="🎨 Available Color Roles (Part 1)",
+                    description="Use `/color set` to pick one!",
                     color=discord.Color.purple()
                 )
-                embed2.set_image(url=f"attachment://{color_image_files[1].name}")
+                embed1.set_image(url=f"attachment://{color_image_files[0].name}")
+                await interaction.followup.send(embed=embed1, file=file1, ephemeral=False)
                 
-                await interaction.followup.send(embed=embed2, file=file2, ephemeral=False)
+                if len(color_image_files) > 1:
+                    file2 = discord.File(color_image_files[1], filename=color_image_files[1].name)
+                    embed2 = discord.Embed(
+                        title="🎨 Available Color Roles (Part 2)",
+                        description="More colors to choose from!",
+                        color=discord.Color.purple()
+                    )
+                    embed2.set_image(url=f"attachment://{color_image_files[1].name}")
+                    await interaction.followup.send(embed=embed2, file=file2, ephemeral=False)
+            else:
+                # Send the generated colorimage.png
+                file = discord.File(img_path, filename="colorimage.png")
+                embed = discord.Embed(
+                    title="🎨 Available Color Roles",
+                    description="Use `/color set` to pick one!",
+                    color=discord.Color.purple()
+                )
+                embed.set_image(url="attachment://colorimage.png")
+                await interaction.followup.send(embed=embed, file=file, ephemeral=False)
                 
         except Exception as e:
             print(f"[ERROR] /color list\n{traceback.format_exc()}")
