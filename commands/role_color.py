@@ -3,15 +3,22 @@ from discord import app_commands
 from discord.ext import commands
 from pathlib import Path
 import traceback
+from PIL import Image, ImageDraw, ImageFont
+import os
+import io
+from math import floor, ceil
+from moderation.loader import ModerationBase, ADMIN_ROLE_ID
 
 DEBUG = True
 
-COLOR_ROLES = [
+COLOR_ROLE_NAMES = [
     "Turquoise", "Green Sea", "Emerald", "Nephritis", "River", "Belize",
     "Amethyst", "Wisteria", "Linen", "Alizarin", "Pomegranate", "Tangerine",
     "Rose", "Carrot", "Orange", "Sun Flower", "Pumpkin", "Light Gray",
     "Dark Air", "White"
 ]
+
+FONTS_PATH = os.path.join(os.path.dirname(__file__), "..", "fonts")
 
 class ColorRoles(commands.Cog):
     def __init__(self, bot):
@@ -21,7 +28,7 @@ class ColorRoles(commands.Cog):
 
     @color_group.command(name="set", description="Choose your color role.")
     @app_commands.describe(color="The color role you'd like to have.")
-    @app_commands.choices(color=[app_commands.Choice(name=name, value=name) for name in COLOR_ROLES])
+    @app_commands.choices(color=[app_commands.Choice(name=name, value=name) for name in COLOR_ROLE_NAMES])
     async def set_color(self, interaction: discord.Interaction, color: app_commands.Choice[str]):
         await interaction.response.defer(ephemeral=True)
         try:
@@ -35,7 +42,7 @@ class ColorRoles(commands.Cog):
                 await interaction.followup.send(f"⚠️ The role **{color.value}** doesn't exist on this server.", ephemeral=True)
                 return
 
-            previous = [r for r in member.roles if r.name in COLOR_ROLES]
+            previous = [r for r in member.roles if r.name in COLOR_ROLE_NAMES]
             if previous:
                 await member.remove_roles(*previous, reason="Changing color role")
 
