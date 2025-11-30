@@ -4,7 +4,7 @@ from discord.ext import commands
 from pathlib import Path
 import traceback
 
-DEBUG = True
+DEBUG = False
 
 COLOR_ROLES = [
     "Turquoise", "Green Sea", "Emerald", "Nephritis", "River", "Belize",
