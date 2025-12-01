@@ -116,6 +116,7 @@ async def reload(ctx):
     await load_cogs("events")
     await load_cogs("wordle")
     await load_cogs("reminders")
+    await load_cogs("stats")
     
     try:
         synced = await bot.tree.sync()
