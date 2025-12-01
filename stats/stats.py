@@ -35,7 +35,7 @@ class Stats(commands.Cog):
             'those', 'am', 'not', 'so', 'too', 'very', 'just', 'now', 'then',
             'here', 'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both',
             'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor',
-            'only', 'own', 'same', 'than', 'too', 'very', 's', 't', 'don', 'don\'t',
+            'only', 'own', 'same', 'than', 'too', 'very', 's', 't', 'don', 'don\'t', 'like',
             # URL-related words
             'http', 'https', 'www', 'com', 'org', 'net', 'io', 'gif', 'png', 'jpg',
             'jpeg', 'tenor', 'giphy', 'imgur', 'discord', 'cdn', 'media', 'attachments'
