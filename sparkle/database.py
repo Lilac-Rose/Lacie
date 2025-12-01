@@ -4,8 +4,10 @@ import os
 DB_PATH = os.path.join(os.path.dirname(__file__), "sparkle.db")
 
 def get_db():
-    """Return a SQLite3 connection."""
+    """Return a SQLite3 connection with initialized tables."""
     conn = sqlite3.connect(DB_PATH)
+    
+    # Create sparkles table
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sparkles (
             server_id TEXT,
@@ -16,5 +18,24 @@ def get_db():
             PRIMARY KEY (server_id, user_id)
         )
     """)
+    
+    # Create sparkle_events table for tracking individual sparkle occurrences
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS sparkle_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            server_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            sparkle_type TEXT NOT NULL,
+            message_id TEXT NOT NULL,
+            timestamp INTEGER NOT NULL
+        )
+    """)
+    
+    # Create index for faster queries
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_sparkle_events_server 
+        ON sparkle_events(server_id, timestamp)
+    """)
+    
     conn.commit()
     return conn
