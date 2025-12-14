@@ -56,6 +56,39 @@ class ColorRoles(commands.Cog):
             msg = f"❌ Error: `{e}`" if DEBUG else "❌ Something went wrong."
             await interaction.followup.send(msg, ephemeral=True)
 
+    @color_group.command(name="setfor", description="[ADMIN] Set a color role for another user.")
+    @app_commands.describe(
+        user="The user to set the color for.",
+        color="The color role to assign."
+    )
+    @app_commands.choices(color=[app_commands.Choice(name=name, value=name) for name in COLOR_ROLE_NAMES])
+    @ModerationBase.is_admin()
+    async def set_color_for(self, interaction: discord.Interaction, user: discord.Member, color: app_commands.Choice[str]):
+        await interaction.response.defer(ephemeral=False)
+        try:
+            guild = interaction.guild
+            
+            selected_role = discord.utils.get(guild.roles, name=color.value)
+            if not selected_role:
+                await interaction.followup.send(f"⚠️ The role **{color.value}** doesn't exist on this server.", ephemeral=True)
+                return
+
+            # Remove any existing color roles
+            previous = [r for r in user.roles if r.name in COLOR_ROLE_NAMES]
+            if previous:
+                await user.remove_roles(*previous, reason=f"Admin {interaction.user} changing color role")
+
+            # Add the new color role
+            await user.add_roles(selected_role, reason=f"Admin {interaction.user} set color role")
+            await interaction.followup.send(
+                f"✅ Set **{selected_role.name}** color role for {user.mention}!",
+                ephemeral=False
+            )
+        except Exception as e:
+            print(f"[ERROR] /color setfor\n{traceback.format_exc()}")
+            msg = f"❌ Error: `{e}`" if DEBUG else "❌ Something went wrong."
+            await interaction.followup.send(msg, ephemeral=True)
+
     @color_group.command(name="remove", description="Remove your current color role.")
     async def remove_color(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
@@ -82,6 +115,32 @@ class ColorRoles(commands.Cog):
             )
         except Exception as e:
             print(f"[ERROR] /color remove\n{traceback.format_exc()}")
+            msg = f"❌ Error: `{e}`" if DEBUG else "❌ Something went wrong."
+            await interaction.followup.send(msg, ephemeral=True)
+
+    @color_group.command(name="removefor", description="[ADMIN] Remove color role(s) from another user.")
+    @app_commands.describe(user="The user to remove color roles from.")
+    @ModerationBase.is_admin()
+    async def remove_color_for(self, interaction: discord.Interaction, user: discord.Member):
+        await interaction.response.defer(ephemeral=False)
+        try:
+            color_roles = [r for r in user.roles if r.name in COLOR_ROLE_NAMES]
+            
+            if not color_roles:
+                await interaction.followup.send(
+                    f"ℹ️ {user.mention} doesn't have any color role to remove.",
+                    ephemeral=False
+                )
+                return
+
+            await user.remove_roles(*color_roles, reason=f"Admin {interaction.user} removed color role")
+            removed_names = ", ".join([r.name for r in color_roles])
+            await interaction.followup.send(
+                f"✅ Removed color role(s) from {user.mention}: **{removed_names}**",
+                ephemeral=False
+            )
+        except Exception as e:
+            print(f"[ERROR] /color removefor\n{traceback.format_exc()}")
             msg = f"❌ Error: `{e}`" if DEBUG else "❌ Something went wrong."
             await interaction.followup.send(msg, ephemeral=True)
 
