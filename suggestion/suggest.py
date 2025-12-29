@@ -63,7 +63,7 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
 
 class SuggestionButtons(discord.ui.View):
     def __init__(self, bot, suggestion_id=None, user_id=None, suggestion_text=None, channel_id=None, admin_message_id: Optional[int] = None, disabled: bool = False):
-        super().__init__(timeout=None)
+        super().__init__(timeout=None)  # timeout=None makes it persistent
         self.bot = bot
         self.suggestion_id = suggestion_id
         self.user_id = user_id
@@ -71,8 +71,9 @@ class SuggestionButtons(discord.ui.View):
         self.channel_id = channel_id
         self.admin_message_id = admin_message_id
 
-        approve_cid = f"suggest_approve_{suggestion_id}_{admin_message_id or 0}"
-        deny_cid = f"suggest_deny_{suggestion_id}_{admin_message_id or 0}"
+        # Use consistent custom_ids that include the suggestion_id
+        approve_cid = f"suggest_approve_{suggestion_id}"
+        deny_cid = f"suggest_deny_{suggestion_id}"
 
         approve_btn = discord.ui.Button(label="Approve ✅", style=discord.ButtonStyle.success, custom_id=approve_cid, disabled=disabled)
         approve_btn.callback = self.approve
@@ -108,6 +109,7 @@ class SuggestionButtons(discord.ui.View):
         if channel:
             await channel.send(f"✅ Suggestion **#{self.suggestion_id}** (`{self.suggestion_text}`) has been **approved!**")
 
+        # Disable buttons after approval
         if self.admin_message_id:
             try:
                 admin_user = await self.bot.fetch_user(ADMIN_ID)
@@ -194,15 +196,21 @@ class Suggestion(commands.Cog):
         """)
         await self.db.commit()
 
+        # Re-register persistent views for all pending suggestions
         async with self.db.execute("SELECT id, user_id, suggestion, channel_id, admin_message_id FROM suggestions WHERE status = ?", ("Pending",)) as cursor:
             rows = await cursor.fetchall()
 
         for sid, uid, suggestion_text, channel_id, admin_msg_id in rows:
-            v = SuggestionButtons(self.bot, suggestion_id=sid, user_id=uid, suggestion_text=suggestion_text, channel_id=channel_id, admin_message_id=admin_msg_id)
-            try:
-                self.bot.add_view(v)
-            except Exception:
-                pass
+            view = SuggestionButtons(
+                self.bot, 
+                suggestion_id=sid, 
+                user_id=uid, 
+                suggestion_text=suggestion_text, 
+                channel_id=channel_id, 
+                admin_message_id=admin_msg_id
+            )
+            self.bot.add_view(view, message_id=admin_msg_id)
+            print(f"Re-registered view for suggestion #{sid} (message {admin_msg_id})")
 
     async def cog_unload(self):
         if self.db:
@@ -242,10 +250,17 @@ class Suggestion(commands.Cog):
                 await self.db.execute("UPDATE suggestions SET admin_message_id = ? WHERE id = ?", (sent.id, suggestion_id))
                 await self.db.commit()
 
-                try:
-                    self.bot.add_view(SuggestionButtons(self.bot, suggestion_id, interaction.user.id, idea, interaction.channel_id, admin_message_id=sent.id))
-                except Exception:
-                    pass
+                # Register the persistent view with the message_id
+                persistent_view = SuggestionButtons(
+                    self.bot, 
+                    suggestion_id, 
+                    interaction.user.id, 
+                    idea, 
+                    interaction.channel_id, 
+                    admin_message_id=sent.id
+                )
+                self.bot.add_view(persistent_view, message_id=sent.id)
+                print(f"Registered persistent view for suggestion #{suggestion_id} (message {sent.id})")
 
             except Exception as e:
                 print(f"Failed to send DM to admin: {e}")
