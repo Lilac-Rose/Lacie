@@ -106,7 +106,7 @@ class SparkleCommands(commands.Cog):
                        (epic + rare + regular) as total
                 FROM sparkles
                 WHERE server_id = ? AND user_id IN ({placeholders})
-                ORDER BY total DESC
+                ORDER BY RANDOM() DESC
                 LIMIT ?
                 """,
                 [str(interaction.guild.id), *guild_member_ids, limit]

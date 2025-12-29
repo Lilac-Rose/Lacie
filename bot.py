@@ -6,6 +6,7 @@ import asyncio
 import glob
 import traceback
 from xp.database import get_db as get_xp_db
+from moderation.loader import ModerationBase
 
 # Import sparkle DB to ensure it exists
 from sparkle.database import get_db as get_sparkle_db
@@ -101,7 +102,7 @@ async def on_command_error(ctx, error):
     traceback.print_exc()
 
 @bot.command(name="reload")
-@commands.has_role(ADMIN_ROLE_ID)
+@ModerationBase.is_admin()
 async def reload(ctx):
     """Reload commands cogs and sync slash commands"""
     await load_cogs("commands")
