@@ -269,7 +269,7 @@ class Suggestion(commands.Cog):
             print(f"Error in suggest command: {e}")
             await interaction.followup.send(f"❌ An error occurred: {e}")
 
-    suggestion = app_commands.Group(name="suggestion", description="Manage suggestions")
+    suggestion = app_commands.hybrid_group(name="suggestion", description="Manage suggestions")
 
     @suggestion.command(name="view", description="View full details of a suggestion")
     async def suggestion_view(self, interaction: discord.Interaction, suggestion_id: int):
