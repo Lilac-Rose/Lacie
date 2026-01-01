@@ -74,8 +74,8 @@ class Leaderboard(commands.Cog):
     ):
         await interaction.response.defer(thinking=True)
         
-        board_type_value = board_type.value if board_type else "lifetime"
-        board_display_name = board_type.name if board_type else "Lifetime XP"
+        board_type_value = board_type.value if board_type else "annual"
+        board_display_name = board_type.name if board_type else "Annual XP"
 
         conn, cur = get_db(board_type_value)
 
