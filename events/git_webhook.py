@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Multiple channels to send commit notifications to
 COMMIT_CHANNEL_IDS = [876777562599194644, 1437941632849940563, 1424145004976275617]
 USER_ID_TO_PING = 771709136051372032
 WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
