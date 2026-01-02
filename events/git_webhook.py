@@ -9,7 +9,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 COMMIT_CHANNEL_IDS = [876777562599194644, 1437941632849940563, 1424145004976275617]
-USER_ID_TO_PING = 771709136051372032
 WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
 WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", 5000))
 
@@ -165,7 +164,7 @@ class GitWebhook(commands.Cog):
         # Send to all Discord channels
         for channel in channels:
             try:
-                await channel.send(f"<@{USER_ID_TO_PING}>", embed=embed)
+                await channel.send(embed=embed)
             except Exception as e:
                 print(f"❌ Failed to send to channel {channel.id}: {e}")
     
@@ -226,7 +225,7 @@ class GitWebhook(commands.Cog):
         # Send to all Discord channels
         for channel in channels:
             try:
-                await channel.send(f"<@{USER_ID_TO_PING}>", embed=embed)
+                await channel.send(embed=embed)
             except Exception as e:
                 print(f"❌ Failed to send to channel {channel.id}: {e}")
 
