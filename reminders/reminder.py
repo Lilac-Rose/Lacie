@@ -78,7 +78,8 @@ class ReminderCog(commands.Cog):
             await db.commit()
 
         # Format the time nicely
-        time_str = remind_at.strftime("%Y-%m-%d %H:%M UTC")
+        unix_time = datetime.now(timezone.utc).timestamp() + delta
+        time_str = f"<t:{unix_time}:R>"
         await interaction.response.send_message(
             f"✅ Reminder set! I'll DM you about **'{message}'** at {time_str} ({timeframe} from now).",
             ephemeral=True
@@ -106,7 +107,8 @@ class ReminderCog(commands.Cog):
 
         for reminder_id, message, remind_at in rows:
             remind_time = datetime.fromisoformat(remind_at)
-            time_str = remind_time.strftime("%Y-%m-%d %H:%M UTC")
+            unix_time = datetime.now(timezone.utc).timestamp()
+            time_str = f"<t:{unix_time}:R>"
             
             # Calculate time remaining
             now = datetime.now(timezone.utc)
