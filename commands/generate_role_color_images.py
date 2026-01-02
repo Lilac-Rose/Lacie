@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw, ImageFont
 import os
 import io
 from math import floor, ceil
-from moderation.loader import ModerationBase, ADMIN_ROLE_ID
+from moderation.loader import ModerationBase
 import importlib
 import sys
 
@@ -31,7 +31,7 @@ class ColorImageGen(commands.Cog):
         self.FONTS_PATH = role_color_module.FONTS_PATH
 
     @commands.command(name="generateimages")
-    @commands.has_role(ADMIN_ROLE_ID)
+    @ModerationBase.is_admin()
     async def generate_list(self, ctx):
         # Reload config to get latest values
         self._reload_config()
