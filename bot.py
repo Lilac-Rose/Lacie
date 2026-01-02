@@ -14,7 +14,6 @@ from sparkle.database import get_db as get_sparkle_db
 load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
-ADMIN_ROLE_ID = int(os.getenv("ADMIN_ROLE_ID"))
 
 bot = commands.Bot(
     command_prefix="!", 

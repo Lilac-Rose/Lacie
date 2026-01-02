@@ -5,9 +5,15 @@ from dotenv import load_dotenv
 from datetime import datetime
 
 load_dotenv()
-ADMIN_ROLE_ID = int(os.getenv("ADMIN_ROLE_ID"))
+
+# Load multiple admin role IDs from env (comma-separated)
+ADMIN_ROLE_IDS = {
+    int(role_id.strip())
+    for role_id in os.getenv("ADMIN_ROLE_IDS", "").split(",")
+    if role_id.strip().isdigit()
+}
+
 lilac_id = 252130669919076352
-is_Lilac = False
 
 class ModerationBase(commands.Cog):
     """Base cog for moderation commands with shared DB and utilities"""
@@ -42,13 +48,9 @@ class ModerationBase(commands.Cog):
     def is_admin():
         """Decorator that works for both prefix and slash commands."""
         async def predicate(target):
-            # Handle both ctx (prefix) and interaction (slash)
             user = getattr(target, "author", None) or getattr(target, "user", None)
-
-            # Identify if it's a slash or prefix command
             is_interaction = hasattr(target, "response")
 
-            # Determine the correct send method
             async def send_message(msg, ephemeral=False):
                 if is_interaction:
                     try:
@@ -64,38 +66,42 @@ class ModerationBase(commands.Cog):
                     except Exception:
                         pass
 
-            # Role-based check
             if not hasattr(user, "roles"):
                 await send_message("Unable to check permissions in this context.", ephemeral=is_interaction)
                 return False
-            
-            is_Lilac = (user.id == lilac_id)
 
-            has_admin_role = any(role.id == ADMIN_ROLE_ID for role in user.roles)
-            if not (has_admin_role or is_Lilac):
+            is_lilac = user.id == lilac_id
+
+            has_admin_role = any(
+                role.id in ADMIN_ROLE_IDS
+                for role in user.roles
+            )
+
+            if not (has_admin_role or is_lilac):
                 await send_message("You do not have permission to use this command.", ephemeral=is_interaction)
-                # ❗ Important: explicitly raise to stop execution
                 from discord.app_commands import CheckFailure
                 raise CheckFailure("User lacks admin permissions.")
 
             return True
 
-        # Register for both command types
-        import inspect
         from discord import app_commands
         from discord.ext import commands
 
-        # Return a hybrid decorator
         def decorator(func):
-            # Add prefix check
             func = commands.check(predicate)(func)
-            # Add slash check
             func = app_commands.check(predicate)(func)
             return func
 
         return decorator
 
-    async def log_infraction(self, guild_id: int, user_id: int, mod_id: int, type_: str, reason: str | None):
+    async def log_infraction(
+        self,
+        guild_id: int,
+        user_id: int,
+        mod_id: int,
+        type_: str,
+        reason: str | None
+    ):
         """Log an infraction to the database."""
         self.c.execute("""
             INSERT INTO infractions (user_id, guild_id, type, reason, moderator_id, timestamp)
