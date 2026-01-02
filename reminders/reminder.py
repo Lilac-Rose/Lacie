@@ -63,27 +63,31 @@ class ReminderCog(commands.Cog):
         message="What to remind you about"
     )
     async def reminder_set(self, interaction: discord.Interaction, timeframe: str, message: str):
-        """Example: /reminder set 1h Take a break"""
         try:
-            delta = parse_timeframe(timeframe)
-        except ValueError as e:
-            return await interaction.response.send_message(str(e), ephemeral=True)
+            try:
+                delta = parse_timeframe(timeframe)
+            except ValueError as e:
+                return await interaction.response.send_message(str(e), ephemeral=True)
 
-        remind_at = datetime.now(timezone.utc) + delta
-        async with aiosqlite.connect(self.db_path) as db:
-            await db.execute(
-                "INSERT INTO reminders (user_id, message, remind_at) VALUES (?, ?, ?)",
-                (interaction.user.id, message, remind_at.isoformat()),
+            remind_at = datetime.now(timezone.utc) + delta
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute(
+                    "INSERT INTO reminders (user_id, message, remind_at) VALUES (?, ?, ?)",
+                    (interaction.user.id, message, remind_at.isoformat()),
+                )
+                await db.commit()
+
+            # Format the time nicely
+            unix_time = int(remind_at.timestamp())
+            time_str = f"<t:{unix_time}:R>"
+            await interaction.response.send_message(
+                f"✅ Reminder set! I'll DM you about **'{message}'** {time_str}.",
+                ephemeral=True
             )
-            await db.commit()
-
-        # Format the time nicely
-        unix_time = datetime.now(timezone.utc).timestamp() + delta
-        time_str = f"<t:{unix_time}:R>"
-        await interaction.response.send_message(
-            f"✅ Reminder set! I'll DM you about **'{message}'** at {time_str} ({timeframe} from now).",
-            ephemeral=True
-        )
+        except Exception as e:
+            print(f"Error in reminder_set: {e}")
+            if not interaction.response.is_done():
+                await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
 
     @reminder_group.command(name="list", description="View your active reminders")
     async def reminder_list(self, interaction: discord.Interaction):
@@ -107,7 +111,7 @@ class ReminderCog(commands.Cog):
 
         for reminder_id, message, remind_at in rows:
             remind_time = datetime.fromisoformat(remind_at)
-            unix_time = datetime.now(timezone.utc).timestamp()
+            unix_time = int(remind_time.timestamp())
             time_str = f"<t:{unix_time}:R>"
             
             # Calculate time remaining
