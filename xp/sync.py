@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from moderation.loader import ModerationBase, ADMIN_ROLE_ID
+from moderation.loader import ModerationBase
 from .database import get_db
 from .utils import load_config, xp_for_level
 from discord.utils import get
@@ -70,19 +70,14 @@ class XPSync(commands.Cog):
             # Determine target user
             target_user = user if user else interaction.user
             
-            # If syncing someone else, check admin role first (before fetching member)
+            # If syncing someone else, check admin permission
             if user and user.id != interaction.user.id:
+                # Use the is_admin decorator's check manually
                 try:
-                    requester = interaction.guild.get_member(interaction.user.id)
-                    if not requester:
-                        requester = await interaction.guild.fetch_member(interaction.user.id)
-                except Exception as e:
-                    print(f"[SYNC] Error fetching requester: {e}")
-                    return await interaction.followup.send("❌ Could not verify your permissions.", ephemeral=True)
-
-                has_admin_role = any(role.id == ADMIN_ROLE_ID for role in requester.roles)
-                if not has_admin_role:
-                    return await interaction.followup.send("❌ You don't have permission to sync roles for other users.", ephemeral=True)
+                    await ModerationBase.is_admin()(lambda: None).__wrapped__(interaction)
+                except Exception:
+                    # The decorator already sends the error message
+                    return
 
             # Fetch target member
             try:
@@ -91,10 +86,10 @@ class XPSync(commands.Cog):
                     print(f"[SYNC] Member not in cache, fetching from API")
                     target_member = await interaction.guild.fetch_member(target_user.id)
             except discord.NotFound:
-                return await interaction.followup.send(f"❌ {target_user.mention} is not in this server.", ephemeral=True)
+                return await interaction.followup.send(f"{target_user.mention} is not in this server.", ephemeral=True)
             except discord.HTTPException as e:
                 print(f"[SYNC] HTTP error fetching member: {e}")
-                return await interaction.followup.send(f"❌ Error fetching member: {e}", ephemeral=True)
+                return await interaction.followup.send(f"Error fetching member: {e}", ephemeral=True)
 
             print(f"[SYNC] Starting role sync for {target_member.id}")
             
@@ -106,7 +101,7 @@ class XPSync(commands.Cog):
                 )
             except asyncio.TimeoutError:
                 print(f"[SYNC] Timeout during role sync for {target_member.id}")
-                return await interaction.followup.send("❌ Role sync took too long. Please try again or contact an admin.", ephemeral=True)
+                return await interaction.followup.send("Role sync took too long. Please try again or contact an admin.", ephemeral=True)
 
             print(f"[SYNC] Completed sync for {target_member.id}: Level {level}, Roles added: {roles_added}")
 
@@ -115,12 +110,12 @@ class XPSync(commands.Cog):
                 await interaction.followup.send(f"{target_member.mention} has no lifetime XP recorded.")
             elif roles_added:
                 await interaction.followup.send(
-                    f"✅ Synced roles for {target_member.mention} (Level {level})\n"
+                    f"Synced roles for {target_member.mention} (Level {level})\n"
                     f"**Roles added:** {', '.join(roles_added)}"
                 )
             else:
                 await interaction.followup.send(
-                    f"✅ {target_member.mention} (Level {level}) already has all eligible role rewards."
+                    f"{target_member.mention} (Level {level}) already has all eligible role rewards."
                 )
                 
         except discord.NotFound:
@@ -130,7 +125,7 @@ class XPSync(commands.Cog):
             print(f"[SYNC] Unexpected error in sync command: {e}")
             traceback.print_exc()
             try:
-                await interaction.followup.send(f"❌ Error syncing roles: {str(e)[:100]}", ephemeral=True)
+                await interaction.followup.send(f"Error syncing roles: {str(e)[:100]}", ephemeral=True)
             except Exception as followup_error:
                 print(f"[SYNC] Could not send error message: {followup_error}")
 

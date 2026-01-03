@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from moderation.loader import ModerationBase, ADMIN_ROLE_ID
+from moderation.loader import ModerationBase
 import asyncio
 import random
 

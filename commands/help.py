@@ -1,9 +1,3 @@
-"""
-Custom help command that works as both !help and /help
-Supports searching for specific commands
-Place in commands/ folder
-"""
-
 import discord
 from discord.ext import commands
 from discord import app_commands
