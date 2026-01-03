@@ -5,13 +5,15 @@ from .loader import ModerationBase
 import os
 import sqlite3
 import json
+import asyncio
+from functools import partial
 
 
 class LockCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.db_path = os.path.join(os.path.dirname(__file__), "moderation.db")
-        self.conn = sqlite3.connect(self.db_path)
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.c = self.conn.cursor()
         self.initialize_db()
@@ -30,7 +32,22 @@ class LockCog(commands.Cog):
         """)
         self.conn.commit()
 
-    def store_permissions(self, channel):
+    async def _run_in_executor(self, func, *args):
+        """Run a blocking function in a thread pool executor."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, partial(func, *args))
+
+    def _store_permissions_sync(self, channel_id, overwrites_data):
+        """Synchronous database write operation."""
+        overwrites_json = json.dumps(overwrites_data)
+        self.c.execute("""
+        INSERT OR REPLACE INTO locked_channels 
+        (channel_id, overwrites_json)
+        VALUES (?, ?)
+        """, (channel_id, overwrites_json))
+        self.conn.commit()
+
+    async def store_permissions(self, channel):
         """Store all channel permission overwrites in the database as JSON BEFORE locking."""
         overwrites_data = {}
         
@@ -43,27 +60,30 @@ class LockCog(commands.Cog):
                 'deny': deny.value
             }
         
-        overwrites_json = json.dumps(overwrites_data)
-        
-        self.c.execute("""
-        INSERT OR REPLACE INTO locked_channels 
-        (channel_id, overwrites_json)
-        VALUES (?, ?)
-        """, (channel.id, overwrites_json))
-        self.conn.commit()
+        # Run database operation in thread pool
+        await self._run_in_executor(self._store_permissions_sync, channel.id, overwrites_data)
 
-    def get_stored_permissions(self, channel):
-        """Retrieve stored permissions from the database."""
+    def _get_stored_permissions_sync(self, channel_id):
+        """Synchronous database read operation."""
         self.c.execute("""
         SELECT overwrites_json
         FROM locked_channels WHERE channel_id = ?
-        """, (channel.id,))
+        """, (channel_id,))
         row = self.c.fetchone()
         
         if not row:
             return None
         
-        overwrites_data = json.loads(row['overwrites_json'])
+        return json.loads(row['overwrites_json'])
+
+    async def get_stored_permissions(self, channel):
+        """Retrieve stored permissions from the database."""
+        # Run database operation in thread pool
+        overwrites_data = await self._run_in_executor(self._get_stored_permissions_sync, channel.id)
+        
+        if not overwrites_data:
+            return None
+        
         restored_overwrites = {}
         
         for target_id, data in overwrites_data.items():
@@ -84,10 +104,14 @@ class LockCog(commands.Cog):
         
         return restored_overwrites
 
-    def remove_stored_permissions(self, channel_id):
-        """Remove stored permissions from the database."""
+    def _remove_stored_permissions_sync(self, channel_id):
+        """Synchronous database delete operation."""
         self.c.execute("DELETE FROM locked_channels WHERE channel_id = ?", (channel_id,))
         self.conn.commit()
+
+    async def remove_stored_permissions(self, channel_id):
+        """Remove stored permissions from the database."""
+        await self._run_in_executor(self._remove_stored_permissions_sync, channel_id)
 
     @commands.command(name="checkperms")
     @ModerationBase.is_admin()
@@ -99,7 +123,7 @@ class LockCog(commands.Cog):
         perms = channel.permissions_for(ctx.guild.me)
         bot_top_role = ctx.guild.me.top_role
         
-        msg = f"Bot permissions in {channel.name}:\n"
+        msg = f"Bot permissions in #{channel.name}:\n"
         msg += f"Manage Channels: {perms.manage_channels}\n"
         msg += f"Manage Roles: {perms.manage_roles}\n"
         msg += f"Administrator: {perms.administrator}\n"
@@ -111,14 +135,12 @@ class LockCog(commands.Cog):
         ritual_member_role = ctx.guild.get_role(ritual_member_id)
         
         msg += f"\nRole Hierarchy Check:\n"
-        msg += f"- @everyone position: {everyone_role.position}\n"
+        msg += f"- everyone position: {everyone_role.position}\n"
         if ritual_member_role:
             msg += f"- Ritual Member role position: {ritual_member_role.position} ({ritual_member_role.name})\n"
             msg += f"- Can bot manage Ritual Member role? {bot_top_role.position > ritual_member_role.position}\n"
         else:
             msg += f"- Ritual Member role (ID: {ritual_member_id}): NOT FOUND\n"
-        
-        msg += f"- Can bot manage @everyone? {bot_top_role.position > everyone_role.position}\n"
         
         msg += f"\nChannel overwrites:\n"
         for target, overwrite in channel.overwrites.items():
@@ -156,16 +178,13 @@ class LockCog(commands.Cog):
                 return await ctx.send(f"Could not find Ritual Member role with ID {ritual_member_id}!\n\nFirst 10 roles in server:\n{role_list}", allowed_mentions=discord.AllowedMentions.none())
             
             # Check role hierarchy - bot's role must be HIGHER than the roles it's trying to modify
-            if bot_top_role.position <= everyone_role.position:
-                await ctx.message.add_reaction("❌")
-                return await ctx.send(f"My role ({bot_top_role.name}) must be HIGHER than @everyone role to manage permissions!", allowed_mentions=discord.AllowedMentions.none())
-            
+            # Note: We don't check 'everyone' since it's always position 0 and manageable
             if bot_top_role.position <= ritual_member_role.position:
                 await ctx.message.add_reaction("❌")
                 return await ctx.send(f"My role ({bot_top_role.name}) must be HIGHER than {ritual_member_role.name} role to manage permissions!", allowed_mentions=discord.AllowedMentions.none())
             
-            # Store ALL original permissions BEFORE making any changes
-            self.store_permissions(channel)
+            # Store ALL original permissions BEFORE making any changes (runs in thread pool)
+            await self.store_permissions(channel)
             
             # Try to clear overwrites one by one with error handling
             failed_targets = []
@@ -185,7 +204,7 @@ class LockCog(commands.Cog):
                 await channel.set_permissions(everyone_role, overwrite=everyone_overwrite, reason=f"Channel locked by {ctx.author}")
             except discord.Forbidden as e:
                 await ctx.message.add_reaction("❌")
-                return await ctx.send(f"Cannot modify @everyone permissions! My role needs to be higher in hierarchy.", allowed_mentions=discord.AllowedMentions.none())
+                return await ctx.send(f"Cannot modify 'everyone' role permissions! Missing permissions.", allowed_mentions=discord.AllowedMentions.none())
             
             # Allow Ritual Member role to talk
             try:
@@ -206,7 +225,7 @@ class LockCog(commands.Cog):
             
             # Try to send in channel
             try:
-                await ctx.send(f"{channel.name} has been locked! Only {ritual_member_role.name} can talk.", allowed_mentions=discord.AllowedMentions.none())
+                await ctx.send(f"#{channel.name} has been locked! Only {ritual_member_role.name} can talk.", allowed_mentions=discord.AllowedMentions.none())
             except:
                 pass
                 
@@ -233,8 +252,8 @@ class LockCog(commands.Cog):
             if channel is None:
                 channel = ctx.channel
             
-            # Check if we have stored permissions for this channel
-            stored_overwrites = self.get_stored_permissions(channel)
+            # Check if we have stored permissions for this channel (runs in thread pool)
+            stored_overwrites = await self.get_stored_permissions(channel)
             
             if stored_overwrites is None:
                 await ctx.message.add_reaction("❌")
@@ -257,15 +276,15 @@ class LockCog(commands.Cog):
                 except discord.Forbidden:
                     failed_targets.append(target.name if hasattr(target, 'name') else str(target.id))
             
-            # Remove from database
-            self.remove_stored_permissions(channel.id)
+            # Remove from database (runs in thread pool)
+            await self.remove_stored_permissions(channel.id)
             
             # React with checkmark
             await ctx.message.add_reaction("✅")
             
             # Try to send in channel
             try:
-                msg = f"{channel.name} has been unlocked!"
+                msg = f"#{channel.name} has been unlocked!"
                 if failed_targets:
                     msg += f"\nNote: Could not restore permissions for: {', '.join(failed_targets[:5])}"
                     if len(failed_targets) > 5:

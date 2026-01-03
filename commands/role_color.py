@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw, ImageFont
 import os
 import io
 from math import floor, ceil
-from moderation.loader import ModerationBase, ADMIN_ROLE_ID
+from moderation.loader import ModerationBase
 
 DEBUG = False
 
@@ -33,27 +33,62 @@ class ColorRoles(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         try:
             guild = interaction.guild
+            if not guild:
+                await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+                return
+            
             member = interaction.user
             if not isinstance(member, discord.Member):
-                member = guild.get_member(interaction.user.id) or await guild.fetch_member(interaction.user.id)
+                try:
+                    member = await guild.fetch_member(interaction.user.id)
+                except discord.NotFound:
+                    await interaction.followup.send("Could not find your member profile.", ephemeral=True)
+                    return
 
             selected_role = discord.utils.get(guild.roles, name=color.value)
             if not selected_role:
-                await interaction.followup.send(f"⚠️ The role **{color.value}** doesn't exist on this server.", ephemeral=True)
+                await interaction.followup.send(f"The role **{color.value}** doesn't exist on this server.", ephemeral=True)
                 return
 
+            # Check bot permissions
+            bot_member = guild.me
+            if not bot_member.guild_permissions.manage_roles:
+                await interaction.followup.send("I don't have permission to manage roles.", ephemeral=True)
+                return
+            
+            if selected_role >= bot_member.top_role:
+                await interaction.followup.send("I cannot assign this role because it's higher than or equal to my highest role.", ephemeral=True)
+                return
+
+            # Remove previous color roles
             previous = [r for r in member.roles if r.name in COLOR_ROLE_NAMES]
             if previous:
-                await member.remove_roles(*previous, reason="Changing color role")
+                try:
+                    await member.remove_roles(*previous, reason="Changing color role")
+                except discord.Forbidden:
+                    await interaction.followup.send("I don't have permission to remove your current color roles.", ephemeral=True)
+                    return
+                except discord.HTTPException as e:
+                    await interaction.followup.send(f"Failed to remove previous roles: {str(e)}", ephemeral=True)
+                    return
 
-            await member.add_roles(selected_role, reason="User selected a color role")
+            # Add new color role
+            try:
+                await member.add_roles(selected_role, reason="User selected a color role")
+            except discord.Forbidden:
+                await interaction.followup.send("I don't have permission to assign this role.", ephemeral=True)
+                return
+            except discord.HTTPException as e:
+                await interaction.followup.send(f"Failed to assign role: {str(e)}", ephemeral=True)
+                return
+            
             await interaction.followup.send(
-                f"✅ You now have the **{selected_role.name}** color role!",
+                f"You now have the **{selected_role.name}** color role!",
                 ephemeral=True
             )
         except Exception as e:
             print(f"[ERROR] /color set\n{traceback.format_exc()}")
-            msg = f"❌ Error: `{e}`" if DEBUG else "❌ Something went wrong."
+            msg = f"Error: `{e}`" if DEBUG else "Something went wrong."
             await interaction.followup.send(msg, ephemeral=True)
 
     @color_group.command(name="setfor", description="[ADMIN] Set a color role for another user.")
@@ -67,26 +102,54 @@ class ColorRoles(commands.Cog):
         await interaction.response.defer(ephemeral=False)
         try:
             guild = interaction.guild
+            if not guild:
+                await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+                return
             
             selected_role = discord.utils.get(guild.roles, name=color.value)
             if not selected_role:
-                await interaction.followup.send(f"⚠️ The role **{color.value}** doesn't exist on this server.", ephemeral=True)
+                await interaction.followup.send(f"The role **{color.value}** doesn't exist on this server.", ephemeral=True)
+                return
+
+            # Check bot permissions
+            bot_member = guild.me
+            if not bot_member.guild_permissions.manage_roles:
+                await interaction.followup.send("I don't have permission to manage roles.", ephemeral=True)
+                return
+            
+            if selected_role >= bot_member.top_role:
+                await interaction.followup.send("I cannot assign this role because it's higher than or equal to my highest role.", ephemeral=True)
                 return
 
             # Remove any existing color roles
             previous = [r for r in user.roles if r.name in COLOR_ROLE_NAMES]
             if previous:
-                await user.remove_roles(*previous, reason=f"Admin {interaction.user} changing color role")
+                try:
+                    await user.remove_roles(*previous, reason=f"Admin {interaction.user} changing color role")
+                except discord.Forbidden:
+                    await interaction.followup.send(f"I don't have permission to remove roles from {user.mention}.", ephemeral=True)
+                    return
+                except discord.HTTPException as e:
+                    await interaction.followup.send(f"Failed to remove previous roles: {str(e)}", ephemeral=True)
+                    return
 
             # Add the new color role
-            await user.add_roles(selected_role, reason=f"Admin {interaction.user} set color role")
+            try:
+                await user.add_roles(selected_role, reason=f"Admin {interaction.user} set color role")
+            except discord.Forbidden:
+                await interaction.followup.send(f"I don't have permission to assign roles to {user.mention}.", ephemeral=True)
+                return
+            except discord.HTTPException as e:
+                await interaction.followup.send(f"Failed to assign role: {str(e)}", ephemeral=True)
+                return
+            
             await interaction.followup.send(
-                f"✅ Set **{selected_role.name}** color role for {user.mention}!",
+                f"Set **{selected_role.name}** color role for {user.mention}!",
                 ephemeral=False
             )
         except Exception as e:
             print(f"[ERROR] /color setfor\n{traceback.format_exc()}")
-            msg = f"❌ Error: `{e}`" if DEBUG else "❌ Something went wrong."
+            msg = f"Error: `{e}`" if DEBUG else "Something went wrong."
             await interaction.followup.send(msg, ephemeral=True)
 
     @color_group.command(name="remove", description="Remove your current color role.")
@@ -94,28 +157,50 @@ class ColorRoles(commands.Cog):
         await interaction.response.defer(ephemeral=True)
         try:
             guild = interaction.guild
+            if not guild:
+                await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+                return
+            
             member = interaction.user
             if not isinstance(member, discord.Member):
-                member = guild.get_member(interaction.user.id) or await guild.fetch_member(interaction.user.id)
+                try:
+                    member = await guild.fetch_member(interaction.user.id)
+                except discord.NotFound:
+                    await interaction.followup.send("Could not find your member profile.", ephemeral=True)
+                    return
 
             color_roles = [r for r in member.roles if r.name in COLOR_ROLE_NAMES]
             
             if not color_roles:
                 await interaction.followup.send(
-                    "ℹ️ You don't have any color role to remove.",
+                    "You don't have any color role to remove.",
                     ephemeral=True
                 )
                 return
 
-            await member.remove_roles(*color_roles, reason="User removed color role")
+            # Check bot permissions
+            bot_member = guild.me
+            if not bot_member.guild_permissions.manage_roles:
+                await interaction.followup.send("I don't have permission to manage roles.", ephemeral=True)
+                return
+
+            try:
+                await member.remove_roles(*color_roles, reason="User removed color role")
+            except discord.Forbidden:
+                await interaction.followup.send("I don't have permission to remove your color roles.", ephemeral=True)
+                return
+            except discord.HTTPException as e:
+                await interaction.followup.send(f"Failed to remove roles: {str(e)}", ephemeral=True)
+                return
+            
             removed_names = ", ".join([r.name for r in color_roles])
             await interaction.followup.send(
-                f"✅ Removed your color role(s): **{removed_names}**",
+                f"Removed your color role(s): **{removed_names}**",
                 ephemeral=True
             )
         except Exception as e:
             print(f"[ERROR] /color remove\n{traceback.format_exc()}")
-            msg = f"❌ Error: `{e}`" if DEBUG else "❌ Something went wrong."
+            msg = f"Error: `{e}`" if DEBUG else "Something went wrong."
             await interaction.followup.send(msg, ephemeral=True)
 
     @color_group.command(name="removefor", description="[ADMIN] Remove color role(s) from another user.")
@@ -124,24 +209,43 @@ class ColorRoles(commands.Cog):
     async def remove_color_for(self, interaction: discord.Interaction, user: discord.Member):
         await interaction.response.defer(ephemeral=False)
         try:
+            guild = interaction.guild
+            if not guild:
+                await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+                return
+            
             color_roles = [r for r in user.roles if r.name in COLOR_ROLE_NAMES]
             
             if not color_roles:
                 await interaction.followup.send(
-                    f"ℹ️ {user.mention} doesn't have any color role to remove.",
+                    f"{user.mention} doesn't have any color role to remove.",
                     ephemeral=False
                 )
                 return
 
-            await user.remove_roles(*color_roles, reason=f"Admin {interaction.user} removed color role")
+            # Check bot permissions
+            bot_member = guild.me
+            if not bot_member.guild_permissions.manage_roles:
+                await interaction.followup.send("I don't have permission to manage roles.", ephemeral=True)
+                return
+
+            try:
+                await user.remove_roles(*color_roles, reason=f"Admin {interaction.user} removed color role")
+            except discord.Forbidden:
+                await interaction.followup.send(f"I don't have permission to remove roles from {user.mention}.", ephemeral=True)
+                return
+            except discord.HTTPException as e:
+                await interaction.followup.send(f"Failed to remove roles: {str(e)}", ephemeral=True)
+                return
+            
             removed_names = ", ".join([r.name for r in color_roles])
             await interaction.followup.send(
-                f"✅ Removed color role(s) from {user.mention}: **{removed_names}**",
+                f"Removed color role(s) from {user.mention}: **{removed_names}**",
                 ephemeral=False
             )
         except Exception as e:
             print(f"[ERROR] /color removefor\n{traceback.format_exc()}")
-            msg = f"❌ Error: `{e}`" if DEBUG else "❌ Something went wrong."
+            msg = f"Error: `{e}`" if DEBUG else "Something went wrong."
             await interaction.followup.send(msg, ephemeral=True)
 
     @color_group.command(name="list", description="Show all available role colors")
@@ -166,7 +270,7 @@ class ColorRoles(commands.Cog):
                 
                 if not color_image_files:
                     await interaction.followup.send(
-                        "⚠️ No color images found. An admin needs to run `!generateimages` first.",
+                        "No color images found. An admin needs to run `!generateimages` first.",
                         ephemeral=True
                     )
                     return
@@ -174,7 +278,7 @@ class ColorRoles(commands.Cog):
                 # Send old format with multiple images
                 file1 = discord.File(color_image_files[0], filename=color_image_files[0].name)
                 embed1 = discord.Embed(
-                    title="🎨 Available Color Roles (Part 1)",
+                    title="Available Color Roles (Part 1)",
                     description="Use `/color set` to pick one!",
                     color=discord.Color.purple()
                 )
@@ -184,7 +288,7 @@ class ColorRoles(commands.Cog):
                 if len(color_image_files) > 1:
                     file2 = discord.File(color_image_files[1], filename=color_image_files[1].name)
                     embed2 = discord.Embed(
-                        title="🎨 Available Color Roles (Part 2)",
+                        title="Available Color Roles (Part 2)",
                         description="More colors to choose from!",
                         color=discord.Color.purple()
                     )
@@ -194,7 +298,7 @@ class ColorRoles(commands.Cog):
                 # Send the generated colorimage.png
                 file = discord.File(img_path, filename="colorimage.png")
                 embed = discord.Embed(
-                    title="🎨 Available Color Roles",
+                    title="Available Color Roles",
                     description="Use `/color set` to pick one!",
                     color=discord.Color.purple()
                 )
@@ -203,7 +307,7 @@ class ColorRoles(commands.Cog):
                 
         except Exception as e:
             print(f"[ERROR] /color list\n{traceback.format_exc()}")
-            msg = f"❌ Error in `/color list`: `{e}`" if DEBUG else "❌ Something went wrong loading color images."
+            msg = f"Error in `/color list`: `{e}`" if DEBUG else "Something went wrong loading color images."
             await interaction.followup.send(msg, ephemeral=True)
 
 async def setup(bot):
