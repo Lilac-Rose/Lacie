@@ -1,21 +1,12 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from moderation.loader import ModerationBase
+from moderation.loader import ModerationBase, ADMIN_ROLE_IDS, lilac_id
 from .database import get_db
 from .utils import load_config, xp_for_level
 from discord.utils import get
 import traceback
 import asyncio
-import os
-
-# Load admin role IDs (same as in moderation base)
-ADMIN_ROLE_IDS = {
-    int(role_id.strip())
-    for role_id in os.getenv("ADMIN_ROLE_IDS", "").split(",")
-    if role_id.strip().isdigit()
-}
-LILAC_ID = 252130669919076352
 
 class XPSync(commands.Cog):
     """Sync XP role rewards for users."""
@@ -23,14 +14,11 @@ class XPSync(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    def check_admin_permission(self, user: discord.Member) -> bool:
+    def check_is_admin(self, user: discord.Member) -> bool:
         """Check if user has admin permissions."""
-        # Check if user is Lilac
-        if user.id == LILAC_ID:
-            return True
-        
-        # Check if user has admin role
-        return any(role.id in ADMIN_ROLE_IDS for role in user.roles)
+        is_lilac = user.id == lilac_id
+        has_admin_role = any(role.id in ADMIN_ROLE_IDS for role in user.roles)
+        return has_admin_role or is_lilac
 
     async def sync_roles_for_user(self, member: discord.Member) -> tuple[int, list[str]]:
         """Sync roles for a member based on their lifetime XP level."""
@@ -86,18 +74,10 @@ class XPSync(commands.Cog):
             
             # If syncing someone else, check admin permission BEFORE deferring
             if user and user.id != interaction.user.id:
-                # Get the member object for permission checking
-                if not isinstance(interaction.user, discord.Member):
+                member = interaction.user
+                if not self.check_is_admin(member):
                     await interaction.response.send_message(
-                        "❌ Cannot verify permissions in DMs.",
-                        ephemeral=True
-                    )
-                    return
-                
-                # Check admin permissions
-                if not self.check_admin_permission(interaction.user):
-                    await interaction.response.send_message(
-                        "❌ You do not have permission to sync roles for other users.",
+                        "You do not have permission to sync roles for other users.",
                         ephemeral=True
                     )
                     return
