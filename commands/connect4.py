@@ -9,7 +9,6 @@ EMPTY = "⚪"
 RED = "🔴"
 YELLOW = "🟡"
 
-
 class ColumnButton(discord.ui.Button):
     def __init__(self, col: int):
         super().__init__(

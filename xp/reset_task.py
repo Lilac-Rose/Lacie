@@ -45,18 +45,6 @@ class ResetTask(commands.Cog):
             if last_reset_month != now.month:
                 reset_leaderboard("monthly")
                 print(f"[XP System] Monthly leaderboard reset at {now}")
-                await self.send_reset_notification(notification_channel_id, user_id, "Monthly")
-    
-    async def send_reset_notification(self, channel_id, user_id, reset_type):
-        """Send a notification message when a reset occurs."""
-        try:
-            channel = self.bot.get_channel(channel_id)
-            if channel:
-                await channel.send(f"<@{user_id}> {reset_type} leaderboard has been reset! 🔄")
-            else:
-                print(f"[XP System] Could not find channel {channel_id} for reset notification")
-        except Exception as e:
-            print(f"[XP System] Error sending reset notification: {e}")
     
     def should_reset_daily(self, now):
         """Check if it's time for daily reset (00:00 UTC)."""
