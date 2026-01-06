@@ -145,25 +145,8 @@ class BackupXP(commands.Cog):
             annual_size = os.path.getsize(annual_db) / (1024 * 1024)
             total_size = lifetime_size + annual_size
             
-            backup_type = "Auto Backup" if is_auto else "Manual Backup"
-            msg = (
-                f"✅ **{backup_type}** - Databases backed up successfully!\n"
-                f"**Lifetime:** `{os.path.basename(lifetime_backup)}` ({lifetime_size:.2f} MB)\n"
-                f"**Annual:** `{os.path.basename(annual_backup)}` ({annual_size:.2f} MB)\n"
-                f"**Total size:** {total_size:.2f} MB"
-            )
-            
-            if log_channel:
-                # Send to notification channel only
-                notification_channel = self.bot.get_channel(NOTIFICATION_CHANNEL_ID)
-                if notification_channel:
-                    print(f"[Backup] Sending notification to channel {NOTIFICATION_CHANNEL_ID}")
-                    await notification_channel.send(msg)
-                else:
-                    print(f"[Backup] Could not find notification channel {NOTIFICATION_CHANNEL_ID}")
-            
             print(f"[Backup] Backup completed successfully")
-            return True, msg
+            return True
             
         except Exception as e:
             error_msg = f"❌ Backup failed: `{e}`"

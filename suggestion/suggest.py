@@ -24,6 +24,9 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
+            # Defer the response immediately to prevent timeout
+            await interaction.response.defer(ephemeral=False)
+            
             reason_text = self.reason.value or None
 
             db_path = os.path.join(os.path.dirname(__file__), "suggestions.db")
@@ -31,17 +34,39 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
                 await db.execute("UPDATE suggestions SET status = ?, reason = ? WHERE id = ?", ("Denied", reason_text, self.suggestion_id))
                 await db.commit()
 
-            await interaction.response.send_message(f"❌ Suggestion #{self.suggestion_id} denied.", ephemeral=False)
+            # Use followup instead of response since we deferred
+            await interaction.followup.send(f"❌ Suggestion #{self.suggestion_id} denied.", ephemeral=False)
 
+            # Disable buttons on the admin message
+            if self.admin_message_id:
+                try:
+                    admin_user = await self.bot.fetch_user(ADMIN_ID)
+                    dm = admin_user.dm_channel or await admin_user.create_dm()
+                    orig_msg = await dm.fetch_message(self.admin_message_id)
+                    disabled_view = SuggestionButtons(
+                        self.bot, 
+                        suggestion_id=self.suggestion_id, 
+                        user_id=self.user_id, 
+                        suggestion_text=self.suggestion_text, 
+                        channel_id=self.channel_id, 
+                        admin_message_id=self.admin_message_id, 
+                        disabled=True
+                    )
+                    await orig_msg.edit(view=disabled_view)
+                except Exception as e:
+                    print(f"Failed to edit admin message: {e}")
+
+            # Send DM to user
             try:
                 user = await self.bot.fetch_user(self.user_id)
                 dm_note = f"❌ Your suggestion (ID: {self.suggestion_id}) — `{self.suggestion_text}` has been **denied**."
                 if reason_text:
                     dm_note += f"\n**Reason:** {reason_text}"
                 await user.send(dm_note)
-            except:
-                pass
+            except Exception as e:
+                print(f"Failed to DM user: {e}")
 
+            # Send message in original channel
             channel = self.bot.get_channel(self.channel_id)
             if channel:
                 try:
@@ -49,21 +74,16 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
                     if reason_text:
                         msg += f"\n**Reason:** {reason_text}"
                     await channel.send(msg)
-                except:
-                    pass
+                except Exception as e:
+                    print(f"Failed to send message in channel: {e}")
 
-            if self.admin_message_id:
-                try:
-                    admin_user = await self.bot.fetch_user(ADMIN_ID)
-                    dm = admin_user.dm_channel or await admin_user.create_dm()
-                    orig_msg = await dm.fetch_message(self.admin_message_id)
-                    disabled_view = SuggestionButtons(self.bot, suggestion_id=self.suggestion_id, user_id=self.user_id, suggestion_text=self.suggestion_text, channel_id=self.channel_id, admin_message_id=self.admin_message_id, disabled=True)
-                    await orig_msg.edit(view=disabled_view)
-                except Exception:
-                    pass
         except Exception as e:
             error_msg = f"❌ Error denying suggestion: {str(e)}\n```{traceback.format_exc()}```"
-            await interaction.response.send_message(error_msg[:2000], ephemeral=True)
+            print(error_msg)
+            try:
+                await interaction.followup.send(error_msg[:2000], ephemeral=True)
+            except:
+                pass
 
 
 class SuggestionButtons(discord.ui.View):
@@ -76,8 +96,8 @@ class SuggestionButtons(discord.ui.View):
         self.channel_id = channel_id
         self.admin_message_id = admin_message_id
 
-        approve_cid = f"suggest_approve_{suggestion_id}"
-        deny_cid = f"suggest_deny_{suggestion_id}"
+        approve_cid = f"suggest_approve_{suggestion_id}" if suggestion_id else "suggest_approve"
+        deny_cid = f"suggest_deny_{suggestion_id}" if suggestion_id else "suggest_deny"
 
         approve_btn = discord.ui.Button(label="Approve ✅", style=discord.ButtonStyle.success, custom_id=approve_cid, disabled=disabled)
         approve_btn.callback = self.approve
@@ -97,43 +117,61 @@ class SuggestionButtons(discord.ui.View):
                 await interaction.response.send_message("⚠️ This button is no longer active.", ephemeral=True)
                 return
 
+            # Defer immediately to prevent timeout
+            await interaction.response.defer(ephemeral=False)
+
             db_path = os.path.join(os.path.dirname(__file__), "suggestions.db")
             async with aiosqlite.connect(db_path) as db:
                 await db.execute("UPDATE suggestions SET status = ? WHERE id = ?", ("Approved", self.suggestion_id))
                 await db.commit()
 
-            await interaction.response.send_message(f"✅ Suggestion #{self.suggestion_id} approved.", ephemeral=False)
+            # Use followup since we deferred
+            await interaction.followup.send(f"✅ Suggestion #{self.suggestion_id} approved.", ephemeral=False)
 
-            try:
-                user = await self.bot.fetch_user(self.user_id)
-                await user.send(f"✅ Your suggestion (ID: {self.suggestion_id}) — `{self.suggestion_text}` has been **approved!**")
-            except:
-                pass
-
-            channel = self.bot.get_channel(self.channel_id)
-            if channel:
-                await channel.send(f"✅ Suggestion **#{self.suggestion_id}** (`{self.suggestion_text}`) has been **approved!**")
-
+            # Disable buttons on the admin message
             if self.admin_message_id:
                 try:
                     admin_user = await self.bot.fetch_user(ADMIN_ID)
                     dm = admin_user.dm_channel or await admin_user.create_dm()
                     orig_msg = await dm.fetch_message(self.admin_message_id)
-                    disabled_view = SuggestionButtons(self.bot, suggestion_id=self.suggestion_id, user_id=self.user_id, suggestion_text=self.suggestion_text, channel_id=self.channel_id, admin_message_id=self.admin_message_id, disabled=True)
+                    disabled_view = SuggestionButtons(
+                        self.bot, 
+                        suggestion_id=self.suggestion_id, 
+                        user_id=self.user_id, 
+                        suggestion_text=self.suggestion_text, 
+                        channel_id=self.channel_id, 
+                        admin_message_id=self.admin_message_id, 
+                        disabled=True
+                    )
                     await orig_msg.edit(view=disabled_view)
-                except Exception:
-                    for item in self.children:
-                        item.disabled = True
-                    try:
-                        await interaction.message.edit(view=self)
-                    except:
-                        pass
+                except Exception as e:
+                    print(f"Failed to edit admin message: {e}")
+
+            # Send DM to user
+            try:
+                user = await self.bot.fetch_user(self.user_id)
+                await user.send(f"✅ Your suggestion (ID: {self.suggestion_id}) — `{self.suggestion_text}` has been **approved!**")
+            except Exception as e:
+                print(f"Failed to DM user: {e}")
+
+            # Send message in original channel
+            channel = self.bot.get_channel(self.channel_id)
+            if channel:
+                try:
+                    await channel.send(f"✅ Suggestion **#{self.suggestion_id}** (`{self.suggestion_text}`) has been **approved!**")
+                except Exception as e:
+                    print(f"Failed to send message in channel: {e}")
+
         except Exception as e:
             error_msg = f"❌ Error approving suggestion: {str(e)}\n```{traceback.format_exc()}```"
+            print(error_msg)
             try:
-                await interaction.response.send_message(error_msg[:2000], ephemeral=True)
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(error_msg[:2000], ephemeral=True)
+                else:
+                    await interaction.followup.send(error_msg[:2000], ephemeral=True)
             except:
-                await interaction.followup.send(error_msg[:2000], ephemeral=True)
+                pass
 
     async def deny(self, interaction: discord.Interaction):
         try:
@@ -145,14 +183,25 @@ class SuggestionButtons(discord.ui.View):
                 await interaction.response.send_message("⚠️ This button is no longer active.", ephemeral=True)
                 return
 
-            modal = DenyModal(suggestion_id=self.suggestion_id, user_id=self.user_id, suggestion_text=self.suggestion_text, channel_id=self.channel_id, admin_message_id=self.admin_message_id, bot=self.bot)
+            modal = DenyModal(
+                suggestion_id=self.suggestion_id, 
+                user_id=self.user_id, 
+                suggestion_text=self.suggestion_text, 
+                channel_id=self.channel_id, 
+                admin_message_id=self.admin_message_id, 
+                bot=self.bot
+            )
             await interaction.response.send_modal(modal)
         except Exception as e:
             error_msg = f"❌ Error opening deny modal: {str(e)}\n```{traceback.format_exc()}```"
+            print(error_msg)
             try:
-                await interaction.response.send_message(error_msg[:2000], ephemeral=True)
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(error_msg[:2000], ephemeral=True)
+                else:
+                    await interaction.followup.send(error_msg[:2000], ephemeral=True)
             except:
-                await interaction.followup.send(error_msg[:2000], ephemeral=True)
+                pass
 
 
 class PaginationView(discord.ui.View):
@@ -218,16 +267,17 @@ class Suggestion(commands.Cog):
             rows = await cursor.fetchall()
 
         for sid, uid, suggestion_text, channel_id, admin_msg_id in rows:
-            view = SuggestionButtons(
-                self.bot, 
-                suggestion_id=sid, 
-                user_id=uid, 
-                suggestion_text=suggestion_text, 
-                channel_id=channel_id, 
-                admin_message_id=admin_msg_id
-            )
-            self.bot.add_view(view, message_id=admin_msg_id)
-            print(f"Re-registered view for suggestion #{sid} (message {admin_msg_id})")
+            if admin_msg_id:  # Only register if we have a message ID
+                view = SuggestionButtons(
+                    self.bot, 
+                    suggestion_id=sid, 
+                    user_id=uid, 
+                    suggestion_text=suggestion_text, 
+                    channel_id=channel_id, 
+                    admin_message_id=admin_msg_id
+                )
+                self.bot.add_view(view, message_id=admin_msg_id)
+                print(f"Re-registered view for suggestion #{sid} (message {admin_msg_id})")
 
     async def cog_unload(self):
         if self.db:
@@ -280,6 +330,7 @@ class Suggestion(commands.Cog):
 
             except Exception as e:
                 print(f"Failed to send DM to admin: {e}")
+                traceback.print_exc()
 
         except Exception as e:
             error_msg = f"❌ An error occurred: {str(e)}\n```{traceback.format_exc()}```"
