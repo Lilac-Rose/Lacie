@@ -8,6 +8,7 @@ import aiohttp
 import traceback
 import os
 import numpy as np
+from scipy.ndimage import uniform_filter
 
 class AvatarCommands(commands.Cog):
     def __init__(self, bot):
@@ -279,6 +280,101 @@ class AvatarCommands(commands.Cog):
         inverted = ImageOps.invert(img)
         out = io.BytesIO()
         inverted.save(out, format="PNG")
+        out.seek(0)
+        return out.getvalue()
+
+    # ----------------------------------------------------------------------
+    # /avatar kuwahara
+    # ----------------------------------------------------------------------
+    @avatar_group.command(name="kuwahara", description="Apply a Kuwahara filter to a user's avatar for a painterly effect")
+    @app_commands.describe(
+        user="The user whose avatar to filter (defaults to you)",
+        kernel_size="Filter kernel size (3-15, odd numbers only, default 5)",
+        avatar_type="Choose between server or global avatar"
+    )
+    @app_commands.choices(
+        avatar_type=[
+            app_commands.Choice(name="Server Avatar", value="server"),
+            app_commands.Choice(name="Global Avatar", value="global")
+        ]
+    )
+    async def avatar_kuwahara(self, interaction: discord.Interaction, kernel_size: int = 5, user: discord.User = None, avatar_type: app_commands.Choice[str] = None):
+        await interaction.response.defer(thinking=True)
+
+        user = user or interaction.user
+        
+        if kernel_size < 3 or kernel_size > 15 or kernel_size % 2 == 0:
+            await interaction.followup.send("Kernel size must be an odd number between 3 and 15.", ephemeral=True)
+            return
+        
+        try:
+            avatar = self.get_avatar_url(user, avatar_type)
+            avatar_url = avatar.with_format("png").with_size(512)
+            
+            if not self.session or self.session.closed:
+                self.session = aiohttp.ClientSession()
+            
+            async with self.session.get(str(avatar_url)) as resp:
+                resp.raise_for_status()
+                image_bytes = await resp.read()
+            
+            filtered_bytes = await asyncio.to_thread(self._kuwahara_filter, image_bytes, kernel_size)
+            file = discord.File(io.BytesIO(filtered_bytes), filename="kuwahara.png")
+            
+            await interaction.followup.send(
+                f"{user.display_name}'s avatar with Kuwahara filter (kernel size {kernel_size}):",
+                file=file
+            )
+        except Exception:
+            traceback.print_exc()
+            await interaction.followup.send("An error occurred while processing the image.", ephemeral=True)
+    
+    def _kuwahara_filter(self, image_bytes: bytes, kernel_size: int) -> bytes:
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        img_array = np.array(img, dtype=np.float32)
+        
+        h, w, c = img_array.shape
+        result = np.zeros_like(img_array)
+        
+        radius = kernel_size // 2
+        
+        # Process each color channel separately
+        for ch in range(c):
+            channel = img_array[:, :, ch]
+            
+            # Calculate mean and variance for the four quadrants
+            mean = uniform_filter(channel, kernel_size, mode='reflect')
+            mean_sq = uniform_filter(channel**2, kernel_size, mode='reflect')
+            variance = mean_sq - mean**2
+            
+            # Create four quadrants by shifting the variance map
+            padded_var = np.pad(variance, radius, mode='reflect')
+            padded_mean = np.pad(mean, radius, mode='reflect')
+            
+            # Extract four overlapping regions (quadrants)
+            vars = []
+            means = []
+            for dy in [0, radius]:
+                for dx in [0, radius]:
+                    vars.append(padded_var[dy:dy+h, dx:dx+w])
+                    means.append(padded_mean[dy:dy+h, dx:dx+w])
+            
+            # Stack and find minimum variance quadrant
+            vars_stack = np.stack(vars, axis=0)
+            means_stack = np.stack(means, axis=0)
+            
+            min_var_idx = np.argmin(vars_stack, axis=0)
+            
+            # Select mean from quadrant with minimum variance
+            for i in range(4):
+                mask = (min_var_idx == i)
+                result[:, :, ch][mask] = means_stack[i][mask]
+        
+        result = np.clip(result, 0, 255).astype(np.uint8)
+        filtered_img = Image.fromarray(result)
+        
+        out = io.BytesIO()
+        filtered_img.save(out, format="PNG")
         out.seek(0)
         return out.getvalue()
 
