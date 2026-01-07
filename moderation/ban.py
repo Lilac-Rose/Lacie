@@ -60,6 +60,7 @@ class BanCommand(ModerationBase):
                 await user.send(
                     f"You have been **banned** from **{ctx.guild.name}**.\n"
                     f"Reason: {reason or 'No reason provided'}\n\n"
+                    f"If you believe this ban was unfiair and would like to appeal, join here: https://discord.gg/FYpfBzpjvq"
                 )
         except:
             await ctx.send("Could not DM the user.")
