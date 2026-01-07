@@ -57,6 +57,11 @@ class Rank(commands.Cog):
             all_users = [r[0] for r in cur.fetchall()]
             conn.close()
 
+            all_rows = [
+                row for row in all_rows
+                if interaction.guild.get_member(int(row[0])) is not None
+            ]
+
             try:
                 rank_position = all_users.index(str(user.id)) + 1
             except ValueError:
