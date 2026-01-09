@@ -54,23 +54,20 @@ def get_multiplier(member, apply_multiplier=True):
     
     return highest
 
-
 def xp_for_level(level: int) -> int:
     """Calculate total XP required to reach a given level"""
     xp = (level ** 3 * XP_CURVE["base"]) + (level ** 2 * XP_CURVE["square"]) + (level * XP_CURVE["linear"])
     xp = xp / XP_CURVE["divisor"]
     return int(math.floor(xp / 100) * 100)
 
-
 def random_xp() -> int:
     """Generate random XP amount within configured range"""
     return random.randint(RANDOM_XP["min"], RANDOM_XP["max"])
 
-
 def can_get_xp(last_message_time: int) -> bool:
     """Check if enough time has passed since last XP gain"""
+    # FIXED: This function should ONLY check cooldown, not access member.roles
     return (time.time() - last_message_time) >= COOLDOWN
-
 
 async def check_level_up(member, cur, conn, lifetime=True):
     """Check if member leveled up and grant role rewards"""

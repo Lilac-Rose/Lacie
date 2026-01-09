@@ -15,10 +15,16 @@ class Welcome(commands.Cog):
         # Welcome channel
         welcome_channel = self.bot.get_channel(876772600704020533)
         
-        # Create DM embed
+        # Create DM embed with updated message
         dm_embed = discord.Embed(
-            title="Welcome!",
-            description="If you have any questions just ask. However if there are questions related to the game (either be Project Kat or Paper Lily) please refer to <#893371132596588544>, but preferably <#1066672893959884860> if they contain any kind of in-game information that could be considered a spoiler for those who haven't played it.\n\nAnd please enjoy your stay!",
+            title="Welcome to the server!",
+            description=(
+                "Please read <#1241579091597987880> and <#1238234316396429312> if you haven't already. "
+                "Apart from that, any Paper Lily related discussion should go into the dedicated channel for it - "
+                "and make sure to claim the spoiler chat role if that's what you want to talk about.\n\n"
+                "Don't hesitate to ask the mods any questions using <@575252669443211264>, "
+                "and we hope you enjoy your stay!"
+            ),
             color=discord.Color.blurple()
         )
         dm_embed.set_footer(text=f"Joined {member.guild.name}")

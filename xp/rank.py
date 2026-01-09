@@ -5,7 +5,7 @@ import traceback
 from discord.ext import commands
 from discord import app_commands
 from .database import get_db
-from .utils import xp_for_level, get_multiplier, load_config
+from .utils import xp_for_level, get_multiplier, MULTIPLIERS, COOLDOWN
 
 class Rank(commands.Cog):
     def __init__(self, bot):
@@ -34,12 +34,7 @@ class Rank(commands.Cog):
             board_type_value = board_type.value if board_type else "lifetime"
             lifetime = board_type_value == "lifetime"
 
-            # Load config fresh every time
-            config = load_config()
-            MULTIPLIERS = config["MULTIPLIERS"]
-            COOLDOWN = config["COOLDOWN"]
-
-            conn, cur = get_db(lifetime)
+            conn, cur = get_db(board_type_value)
 
             # Fetch XP data for the requested user
             cur.execute("SELECT xp, level, last_message FROM xp WHERE user_id = ?", (str(user.id),))
@@ -52,14 +47,15 @@ class Rank(commands.Cog):
 
             xp, level, last_msg = row
 
-            # Determine the user's leaderboard rank
+            # Determine the user's leaderboard rank (filtering absent users like in leaderboard.py)
             cur.execute("SELECT user_id FROM xp ORDER BY xp DESC")
             all_users = [r[0] for r in cur.fetchall()]
             conn.close()
 
-            all_rows = [
-                row for row in all_rows
-                if interaction.guild.get_member(int(row[0])) is not None
+            # Filter out users who are no longer in the guild
+            all_users = [
+                uid for uid in all_users
+                if interaction.guild.get_member(int(uid)) is not None
             ]
 
             try:
@@ -86,7 +82,7 @@ class Rank(commands.Cog):
                 multiplier = get_multiplier(user, apply_multiplier=True)
                 role_name = None
                 for role in user.roles:
-                    if str(role.id) in MULTIPLIERS and MULTIPLIERS[str(role.id)] == multiplier:
+                    if role.id in MULTIPLIERS and MULTIPLIERS[role.id] == multiplier:
                         role_name = role.mention
                         break
                 multipliers_text.append(f"{role_name} – {multiplier}x XP" if role_name else "None")
