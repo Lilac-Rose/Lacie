@@ -37,6 +37,16 @@ RANDOM_XP = {
     "max": 100
 }
 
+def load_config():
+    """Load configuration (returns the hardcoded config dict)"""
+    return {
+        "cooldown": COOLDOWN,
+        "role_rewards": ROLE_REWARDS,
+        "multipliers": MULTIPLIERS,
+        "xp_curve": XP_CURVE,
+        "random_xp": RANDOM_XP
+    }
+
 def get_multiplier(member, apply_multiplier=True):
     """Get XP multiplier for a member based on their roles"""
     if not apply_multiplier:
