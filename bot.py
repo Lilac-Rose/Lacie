@@ -82,7 +82,8 @@ async def on_ready():
     await load_cogs("stats")
     await load_cogs("wordle")
     await load_cogs("reminders")
-
+    await load_cogs("lilac-tools")
+    
     # Sync slash commands after loading cogs
     try:
         synced = await bot.tree.sync()
@@ -117,6 +118,7 @@ async def reload(ctx):
     await load_cogs("wordle")
     await load_cogs("reminders")
     await load_cogs("stats")
+    await load_cogs("lilac-tools")
     
     try:
         synced = await bot.tree.sync()
