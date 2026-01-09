@@ -9,6 +9,7 @@ import traceback
 import os
 import numpy as np
 from scipy.ndimage import uniform_filter
+import cv2
 
 class AvatarCommands(commands.Cog):
     def __init__(self, bot):
@@ -123,6 +124,83 @@ class AvatarCommands(commands.Cog):
         crushed = img.quantize(colors=colors, method=Image.MEDIANCUT)
         out = io.BytesIO()
         crushed.save(out, format="PNG")
+        out.seek(0)
+        return out.getvalue()
+
+    # ----------------------------------------------------------------------
+    # /avatar canny_edge
+    # ----------------------------------------------------------------------
+    @avatar_group.command(name="canny_edge", description="Apply Canny edge detection to a user's avatar")
+    @app_commands.describe(
+        user="The user whose avatar to process (defaults to you)",
+        threshold1="Lower threshold for edge detection (default 100)",
+        threshold2="Upper threshold for edge detection (default 200)",
+        avatar_type="Choose between server or global avatar"
+    )
+    @app_commands.choices(
+        avatar_type=[
+            app_commands.Choice(name="Server Avatar", value="server"),
+            app_commands.Choice(name="Global Avatar", value="global")
+        ]
+    )
+    async def avatar_canny_edge(self, interaction: discord.Interaction, threshold1: int = 100, threshold2: int = 200, user: discord.User = None, avatar_type: app_commands.Choice[str] = None):
+        await interaction.response.defer(thinking=True)
+
+        user = user or interaction.user
+        
+        if threshold1 < 0 or threshold1 > 500:
+            await interaction.followup.send("threshold1 must be between 0 and 500.", ephemeral=True)
+            return
+        
+        if threshold2 < 0 or threshold2 > 500:
+            await interaction.followup.send("threshold2 must be between 0 and 500.", ephemeral=True)
+            return
+        
+        if threshold1 >= threshold2:
+            await interaction.followup.send("threshold1 must be less than threshold2.", ephemeral=True)
+            return
+        
+        try:
+            avatar = self.get_avatar_url(user, avatar_type)
+            avatar_url = avatar.with_format("png").with_size(512)
+            
+            if not self.session or self.session.closed:
+                self.session = aiohttp.ClientSession()
+            
+            async with self.session.get(str(avatar_url)) as resp:
+                resp.raise_for_status()
+                image_bytes = await resp.read()
+            
+            edge_bytes = await asyncio.to_thread(self._canny_edge_detection, image_bytes, threshold1, threshold2)
+            file = discord.File(io.BytesIO(edge_bytes), filename="canny_edges.png")
+            
+            await interaction.followup.send(
+                f"{user.display_name}'s avatar with Canny edge detection:",
+                file=file
+            )
+        except Exception:
+            traceback.print_exc()
+            await interaction.followup.send("An error occurred while processing the image.", ephemeral=True)
+    
+    def _canny_edge_detection(self, image_bytes: bytes, threshold1: int, threshold2: int) -> bytes:
+        # Load image and convert to grayscale
+        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        img_array = np.array(img)
+        
+        # Convert RGB to BGR for OpenCV
+        img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
+        
+        # Convert to grayscale
+        gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
+        
+        # Apply Canny edge detection
+        edges = cv2.Canny(gray, threshold1, threshold2)
+        
+        # Convert back to PIL Image
+        edges_img = Image.fromarray(edges)
+        
+        out = io.BytesIO()
+        edges_img.save(out, format="PNG")
         out.seek(0)
         return out.getvalue()
 
