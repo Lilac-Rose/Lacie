@@ -35,8 +35,8 @@ class CalculateCommand(commands.Cog):
 
             # Load config safely
             config = load_config()
-            COOLDOWN = config["COOLDOWN"]
-            random_xp_config = config.get("RANDOM_XP", {"min": 50, "max": 100})
+            COOLDOWN = config["cooldown"]
+            random_xp_config = config["random_xp"]
 
             # Determine board type
             use_lifetime = True if (board_type is None or board_type.value == "lifetime") else False
@@ -104,15 +104,15 @@ class CalculateCommand(commands.Cog):
                 cooldown_status = f"\n⏳ Cooldown: {int(cooldown_remaining)}s remaining"
 
             response = f"""**{board_name} Level {level} Target**
-                            **Current XP:** {current_xp_fmt} (Level {current_level})
-                            **Target XP:** {target_xp_fmt}
-                            **Remaining XP:** {remaining_xp_fmt}
+**Current XP:** {current_xp_fmt} (Level {current_level})
+**Target XP:** {target_xp_fmt}
+**Remaining XP:** {remaining_xp_fmt}
 
-                            **XP per message:** {min_xp_per_msg} - {max_xp_per_msg}
-                            **Messages remaining:** {min_messages_fmt} - {max_messages_fmt} (avg. {avg_messages_fmt})
-                            **Time remaining:** {days:.1f} days{cooldown_status}
+**XP per message:** {min_xp_per_msg} - {max_xp_per_msg}
+**Messages remaining:** {min_messages_fmt} - {max_messages_fmt} (avg. {avg_messages_fmt})
+**Time remaining:** {days:.1f} days{cooldown_status}
 
-                            {bar} ({progress:.2f}%)"""
+{bar} ({progress:.2f}%)"""
 
             # Safe color handling
             color_cog = self.bot.get_cog("EmbedColor")
