@@ -15,8 +15,6 @@ class ResetTask(commands.Cog):
     async def check_resets(self):
         """Check if any leaderboards need to be reset."""
         now = datetime.now(timezone.utc)
-        notification_channel_id = 1424145004976275617
-        user_id = 252130669919076352
         
         # Daily reset - at midnight UTC
         if self.should_reset_daily(now):
@@ -26,7 +24,6 @@ class ResetTask(commands.Cog):
             if last_reset_date != now.date():
                 reset_leaderboard("daily")
                 print(f"[XP System] Daily leaderboard reset at {now}")
-                await self.send_reset_notification(notification_channel_id, user_id, "Daily")
         
         # Weekly reset - Monday at midnight UTC
         if self.should_reset_weekly(now):
@@ -36,7 +33,6 @@ class ResetTask(commands.Cog):
             if last_reset_week != current_week:
                 reset_leaderboard("weekly")
                 print(f"[XP System] Weekly leaderboard reset at {now}")
-                await self.send_reset_notification(notification_channel_id, user_id, "Weekly")
         
         # Monthly reset - First day of month at midnight UTC
         if self.should_reset_monthly(now):
