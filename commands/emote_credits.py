@@ -3,75 +3,72 @@ from discord import app_commands
 from discord.ext import commands
 from moderation.loader import ModerationBase
 import re
+import aiosqlite
+from pathlib import Path
 
 class EmoteCredits(ModerationBase, commands.Cog):
     def __init__(self, bot):
         super().__init__(bot)
         self.bot = bot
+        self.db_path = Path("commands/emote_credits.db")
+        self.approval_channel_id = 1424145004976275617
+        bot.loop.create_task(self._init_db())
         
-        # Credit data structure
-        self.emoji_credits = {
-            # Stickers
-            "Aoi Boom": "@bluexmagic",
-            "Lacie You Can Cook": "@bluexmagic",
-            "Hiro Party": "@bluexmagic",
-            "Alba Smug": "@bluexmagic",
-            "Got more runes?": "@bluexmagic",
-            "Moths Pointing": "@bluexmagic",
-            "Nah, Lacie'd Win": "@bluexmagic",
-            "Alba Pout": "@frostyj.",
-            "Alba Angry": "@frostyj.",
-            "Katgirl Question": "@frostyj.",
-            "Lacie Shrug": "@frostyj.",
-            "Milion Giggle": "@frostyj.",
-            "Shadow Girl Surprised": "@frostyj.",
-            "Lacie Thumbs Up": "@geniymk",
-            "Lacie Stare": "@geniymk",
-            "Aoi Sadge": "@geniymk",
-            "Alba Bonk": "@geniymk",
-            "Lacie Cut It Off": "@geniymk",
-            "Catgirl Lacie Peek": "@nekoingeneral",
-            "Lacie Sai Hug": "@nekoingeneral",
-            "Lacie Bwaa": "@nekoingeneral",
-            "It's Albover": "@taplii",
-            "Lilith Sip": "@taplii",
-            "Milion Sip": "@taplii",
-            "Aoi Sorry": "@abdi5930",
-            "Alba Hug Fish": "@elurill",
-            "Shadow Girl Dance": "@enashinonomeyuri",
-            "Catgirl Lacie Surprised": "@ianghuofengmeng",
-            "Lacie Heart": "@light_inthedarkness",
-            "Kett Depressed": "@rinn_x23",
-            "Lacie Wave": "@STATICLOVER_ on Twitter",
-            "Lacie Breaking Chains": "@toa_stardust",
+    async def _init_db(self):
+        """Initialize the database"""
+        async with aiosqlite.connect(self.db_path) as conn:
+            # Create credits table
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS emote_credits (
+                    emote_name TEXT PRIMARY KEY COLLATE NOCASE,
+                    artist TEXT NOT NULL,
+                    added_by INTEGER,
+                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
             
-            # Emojis
-            "AoiAlert": "@auatin_archon",
-            "LacieSilly": "@auatin_archon",
-            "SaiSilly": "@auatin_archon",
-            "AoiSilly": "@auatin_archon",
-            "RuneSilly": "@auatin_archon",
-            "AlbaSilly": "@auatin_archon",
-            "ShadowGirlSilly": "@auatin_archon",
-            "MilionSilly": "@auatin_archon",
-            "AoiSalute": "@_finitus",
-            "AoiSkrunkly": "@_finitus",
-            "KatTroll": "@taplii",
-            "LacieSip": "@taplii",
-            "LacieTroll": "@bluexmagic",
-            "LacieDoro": "@faketier",
-            "AoiGun": "@frostyj.",
-            "KatClueless": "@its.tempo",
-            "RuneHug": "@rinn_x23",
-            "LacieFumo": "@schaferine",
-            "HiroFumo": "@spiresto",
-            "KatSilly": "@starduststrawby",
-            "LacieAutismCreature": "@toa_stardust",
-        }
+            # Create pending submissions table
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS pending_credits (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    emote_name TEXT NOT NULL,
+                    artist TEXT NOT NULL,
+                    submitted_by INTEGER NOT NULL,
+                    submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    message_id INTEGER
+                )
+            """)
+            
+            await conn.commit()
+    
+    async def get_credit(self, emote_name: str):
+        """Get credit for an emote from database"""
+        async with aiosqlite.connect(self.db_path) as conn:
+            async with conn.execute(
+                "SELECT artist FROM emote_credits WHERE LOWER(emote_name) = LOWER(?)",
+                (emote_name,)
+            ) as cursor:
+                result = await cursor.fetchone()
+                return result[0] if result else None
+    
+    async def add_credit(self, emote_name: str, artist: str, added_by: int = None):
+        """Add a credit to the database"""
+        async with aiosqlite.connect(self.db_path) as conn:
+            await conn.execute(
+                "INSERT OR REPLACE INTO emote_credits (emote_name, artist, added_by) VALUES (?, ?, ?)",
+                (emote_name, artist, added_by)
+            )
+            await conn.commit()
+    
+    async def get_all_credits(self):
+        """Get all credits from database"""
+        async with aiosqlite.connect(self.db_path) as conn:
+            async with conn.execute("SELECT emote_name FROM emote_credits") as cursor:
+                results = {row[0].lower() async for row in cursor}
+                return results
 
     def parse_emoji_name(self, emote_input: str) -> str:
         """Extract emoji name from Discord emoji format or return as-is"""
-        # Match Discord emoji format: <:name:id> or <a:name:id> for animated
         emoji_pattern = r'<a?:([^:]+):\d+>'
         match = re.match(emoji_pattern, emote_input)
         if match:
@@ -81,67 +78,114 @@ class EmoteCredits(ModerationBase, commands.Cog):
     @app_commands.command(name="emote_credit", description="Find out who created a specific emoji or sticker")
     @app_commands.describe(emote="The emoji or sticker name (you can type the emoji directly!)")
     async def emote_credit(self, interaction: discord.Interaction, emote: str):
-        # Defer the response to prevent timeout
         await interaction.response.defer()
         
-        # Parse the emoji name from Discord format
         emoji_name = self.parse_emoji_name(emote)
-        
-        # Try to find the credit (case-insensitive search)
-        credit = None
-        matched_name = None
-        
-        # First try exact match
-        if emoji_name in self.emoji_credits:
-            credit = self.emoji_credits[emoji_name]
-            matched_name = emoji_name
-        else:
-            # Try case-insensitive match
-            for key in self.emoji_credits:
-                if key.lower() == emoji_name.lower():
-                    credit = self.emoji_credits[key]
-                    matched_name = key
-                    break
+        credit = await self.get_credit(emoji_name)
         
         if credit:
             embed = discord.Embed(
-                title=f"🎨 Credit for: {matched_name}",
+                title=f"🎨 Credit for: {emoji_name}",
                 description=f"**Artist:** {credit}",
                 color=discord.Color.blue()
             )
             embed.set_footer(text="Full credits document: https://docs.google.com/document/d/1o6dJS3G82rA03oHQn3Lu3ywK0SpepZnxnmP28R8Nnpc/edit?tab=t.0")
             await interaction.followup.send(embed=embed)
         else:
-            # Create a helpful error message
             embed = discord.Embed(
                 title="❌ Emote Not Found",
-                description=f"Sorry, I couldn't find credits for `{emoji_name}`.\n\nMake sure you're using the exact name (e.g., `AoiAlert`, `Lacie Wave`, etc.). But there's a good chance we just haven't added credits for it yet. If you notice an emote that doesnt have credits and know who made it, please DM <@252130669919076352>",
+                description=f"Sorry, I couldn't find credits for `{emoji_name}`.\n\nMake sure you're using the exact name (e.g., `AoiAlert`, `Lacie Wave`, etc.)\n\nIf you know who made this emote, use `/emote_credits_add` to submit it!",
                 color=discord.Color.red()
             )
             embed.set_footer(text="Full credits document: https://docs.google.com/document/d/1o6dJS3G82rA03oHQn3Lu3ywK0SpepZnxnmP28R8Nnpc/edit?tab=t.0")
             await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @commands.command(name="missing_credits")
-    @ModerationBase.is_admin()
-    async def missing_credits(self, ctx):
+    @app_commands.command(name="emote_credits_add", description="Submit credit information for an emoji or sticker")
+    @app_commands.describe(
+        emote="The emoji or sticker (you can type it directly!)",
+        artist="The artist's username (e.g., @username)"
+    )
+    async def emote_credits_add(self, interaction: discord.Interaction, emote: str, artist: str):
+        await interaction.response.defer(ephemeral=True)
+        
+        emoji_name = self.parse_emoji_name(emote)
+        
+        # Check if credit already exists
+        existing_credit = await self.get_credit(emoji_name)
+        if existing_credit:
+            embed = discord.Embed(
+                title="⚠️ Credit Already Exists",
+                description=f"**{emoji_name}** already has a credit: {existing_credit}",
+                color=discord.Color.orange()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+        
+        # Add to pending submissions
+        async with aiosqlite.connect(self.db_path) as conn:
+            cursor = await conn.execute(
+                "INSERT INTO pending_credits (emote_name, artist, submitted_by) VALUES (?, ?, ?)",
+                (emoji_name, artist, interaction.user.id)
+            )
+            submission_id = cursor.lastrowid
+            await conn.commit()
+        
+        # Send to approval channel
+        approval_channel = self.bot.get_channel(self.approval_channel_id)
+        if not approval_channel:
+            await interaction.followup.send("❌ Approval channel not found. Please contact an admin.", ephemeral=True)
+            return
+        
+        # Create approval embed
+        approval_embed = discord.Embed(
+            title="🎨 New Credit Submission",
+            color=discord.Color.blue()
+        )
+        approval_embed.add_field(name="Emote Name", value=f"`{emoji_name}`", inline=False)
+        approval_embed.add_field(name="Artist", value=artist, inline=False)
+        approval_embed.add_field(name="Submitted By", value=interaction.user.mention, inline=False)
+        approval_embed.set_footer(text=f"Submission ID: {submission_id}")
+        
+        # Create approval view
+        view = CreditApprovalView(self, submission_id, emoji_name, artist, interaction.user.id)
+        
+        approval_msg = await approval_channel.send(embed=approval_embed, view=view)
+        
+        # Store message ID
+        async with aiosqlite.connect(self.db_path) as conn:
+            await conn.execute(
+                "UPDATE pending_credits SET message_id = ? WHERE id = ?",
+                (approval_msg.id, submission_id)
+            )
+            await conn.commit()
+        
+        # Confirm to user
+        embed = discord.Embed(
+            title="✅ Submission Sent",
+            description=f"Your credit submission for **{emoji_name}** by **{artist}** has been sent for approval!",
+            color=discord.Color.green()
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="missing_credits", description="[Admin] List all server emotes and stickers without credits")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def missing_credits(self, interaction: discord.Interaction):
         """List all server emotes and stickers that don't have credits"""
-        await ctx.send("🔍 Checking for emotes and stickers without credits...")
+        await interaction.response.defer()
         
         missing_emojis = []
         missing_stickers = []
         
+        credited_emotes = await self.get_all_credits()
+        
         # Check server emojis
-        for emoji in ctx.guild.emojis:
-            # Case-insensitive check
-            has_credit = any(key.lower() == emoji.name.lower() for key in self.emoji_credits.keys())
-            if not has_credit:
+        for emoji in interaction.guild.emojis:
+            if emoji.name.lower() not in credited_emotes:
                 missing_emojis.append(emoji)
         
         # Check server stickers
-        for sticker in ctx.guild.stickers:
-            # Case-insensitive check
-            has_credit = any(key.lower() == sticker.name.lower() for key in self.emoji_credits.keys())
-            if not has_credit:
+        for sticker in interaction.guild.stickers:
+            if sticker.name.lower() not in credited_emotes:
                 missing_stickers.append(sticker)
         
         # Build response
@@ -151,7 +195,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
                 description="Every emoji and sticker in this server has proper credits.",
                 color=discord.Color.green()
             )
-            await ctx.send(embed=embed)
+            await interaction.followup.send(embed=embed)
             return
         
         # Create embeds for missing items
@@ -181,16 +225,94 @@ class EmoteCredits(ModerationBase, commands.Cog):
                 embed.set_footer(text=f"Total missing stickers: {len(missing_stickers)}")
                 embeds.append(embed)
         
-        # Send all embeds
-        for embed in embeds:
-            await ctx.send(embed=embed)
+        # Send first embed as response
+        if embeds:
+            await interaction.followup.send(embed=embeds[0])
+            
+            # Send remaining embeds as followup messages
+            for embed in embeds[1:]:
+                await interaction.followup.send(embed=embed)
         
         # Send summary
         summary = f"**Summary:**\n"
         summary += f"Missing emojis: {len(missing_emojis)}\n"
         summary += f"Missing stickers: {len(missing_stickers)}\n"
         summary += f"Total missing: {len(missing_emojis) + len(missing_stickers)}"
-        await ctx.send(summary)
+        await interaction.followup.send(summary)
+
+
+class CreditApprovalView(discord.ui.View):
+    def __init__(self, cog, submission_id, emote_name, artist, submitted_by):
+        super().__init__(timeout=None)
+        self.cog = cog
+        self.submission_id = submission_id
+        self.emote_name = emote_name
+        self.artist = artist
+        self.submitted_by = submitted_by
+    
+    @discord.ui.button(label="Approve", style=discord.ButtonStyle.green, custom_id="approve_credit")
+    async def approve_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Add to database
+        await self.cog.add_credit(self.emote_name, self.artist, interaction.user.id)
+        
+        # Remove from pending
+        async with aiosqlite.connect(self.cog.db_path) as conn:
+            await conn.execute("DELETE FROM pending_credits WHERE id = ?", (self.submission_id,))
+            await conn.commit()
+        
+        # Update message
+        embed = discord.Embed(
+            title="✅ Credit Approved",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Emote Name", value=f"`{self.emote_name}`", inline=False)
+        embed.add_field(name="Artist", value=self.artist, inline=False)
+        embed.add_field(name="Approved By", value=interaction.user.mention, inline=False)
+        
+        await interaction.response.edit_message(embed=embed, view=None)
+        
+        # Notify submitter
+        try:
+            submitter = await self.cog.bot.fetch_user(self.submitted_by)
+            notify_embed = discord.Embed(
+                title="✅ Your Credit Submission Was Approved!",
+                description=f"**{self.emote_name}** by **{self.artist}** has been added to the credits database.",
+                color=discord.Color.green()
+            )
+            await submitter.send(embed=notify_embed)
+        except:
+            pass
+    
+    @discord.ui.button(label="Deny", style=discord.ButtonStyle.red, custom_id="deny_credit")
+    async def deny_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Remove from pending
+        async with aiosqlite.connect(self.cog.db_path) as conn:
+            await conn.execute("DELETE FROM pending_credits WHERE id = ?", (self.submission_id,))
+            await conn.commit()
+        
+        # Update message
+        embed = discord.Embed(
+            title="❌ Credit Denied",
+            color=discord.Color.red()
+        )
+        embed.add_field(name="Emote Name", value=f"`{self.emote_name}`", inline=False)
+        embed.add_field(name="Artist", value=self.artist, inline=False)
+        embed.add_field(name="Denied By", value=interaction.user.mention, inline=False)
+        
+        await interaction.response.edit_message(embed=embed, view=None)
+        
+        # Notify submitter
+        try:
+            submitter = await self.cog.bot.fetch_user(self.submitted_by)
+            notify_embed = discord.Embed(
+                title="❌ Your Credit Submission Was Denied",
+                description=f"Your submission for **{self.emote_name}** by **{self.artist}** was not approved.",
+                color=discord.Color.red()
+            )
+            await submitter.send(embed=notify_embed)
+        except:
+            pass
+
 
 async def setup(bot):
     await bot.add_cog(EmoteCredits(bot))
