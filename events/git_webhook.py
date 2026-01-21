@@ -30,7 +30,7 @@ class GitWebhook(commands.Cog):
         self.site = web.TCPSite(self.runner, '0.0.0.0', WEBHOOK_PORT)
         await self.site.start()
         print(f"✅ Git webhook server started on port {WEBHOOK_PORT}")
-        print(f"   Configure GitHub to send webhooks to: http://185.187.170.61:{WEBHOOK_PORT}/webhook")
+        print(f"   Configure GitHub to send webhooks to: http://159.195.45.90:{WEBHOOK_PORT}/webhook")
         print(f"   Sending notifications to {len(COMMIT_CHANNEL_IDS)} channel(s)")
     
     async def cog_unload(self):
