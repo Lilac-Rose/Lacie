@@ -10,7 +10,8 @@ load_dotenv()
 
 COMMIT_CHANNEL_IDS = [876777562599194644, 1437941632849940563, 1424145004976275617]
 WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
-# Updated port to be 8000 to prevent conflicts
+# Updated port to be 8000 to prevent conflicts (should work)
+# I think the port itself wants me dead
 WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", 8000))
 
 class GitWebhook(commands.Cog):
