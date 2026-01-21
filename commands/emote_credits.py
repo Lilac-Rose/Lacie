@@ -240,6 +240,73 @@ class EmoteCredits(ModerationBase, commands.Cog):
         summary += f"Total missing: {len(missing_emojis) + len(missing_stickers)}"
         await interaction.followup.send(summary)
 
+    @commands.command(name="missing_credits")
+    @ModerationBase.is_admin()
+    async def missing_credits_text(self, ctx):
+        """List all server emotes and stickers that don't have credits"""
+        missing_emojis = []
+        missing_stickers = []
+        
+        credited_emotes = await self.get_all_credits()
+        
+        # Check server emojis
+        for emoji in ctx.guild.emojis:
+            if emoji.name.lower() not in credited_emotes:
+                missing_emojis.append(emoji)
+        
+        # Check server stickers
+        for sticker in ctx.guild.stickers:
+            if sticker.name.lower() not in credited_emotes:
+                missing_stickers.append(sticker)
+        
+        # Build response
+        if not missing_emojis and not missing_stickers:
+            embed = discord.Embed(
+                title="✅ All Emotes Have Credits!",
+                description="Every emoji and sticker in this server has proper credits.",
+                color=discord.Color.green()
+            )
+            await ctx.send(embed=embed)
+            return
+        
+        # Create embeds for missing items
+        embeds = []
+        
+        if missing_emojis:
+            emoji_chunks = [missing_emojis[i:i+20] for i in range(0, len(missing_emojis), 20)]
+            for i, chunk in enumerate(emoji_chunks):
+                emoji_list = "\n".join([f"• {emoji} - `{emoji.name}`" for emoji in chunk])
+                embed = discord.Embed(
+                    title=f"⚠️ Emojis Missing Credits ({i+1}/{len(emoji_chunks)})",
+                    description=emoji_list,
+                    color=discord.Color.orange()
+                )
+                embed.set_footer(text=f"Total missing emojis: {len(missing_emojis)}")
+                embeds.append(embed)
+        
+        if missing_stickers:
+            sticker_chunks = [missing_stickers[i:i+20] for i in range(0, len(missing_stickers), 20)]
+            for i, chunk in enumerate(sticker_chunks):
+                sticker_list = "\n".join([f"• `{sticker.name}`" for sticker in chunk])
+                embed = discord.Embed(
+                    title=f"⚠️ Stickers Missing Credits ({i+1}/{len(sticker_chunks)})",
+                    description=sticker_list,
+                    color=discord.Color.orange()
+                )
+                embed.set_footer(text=f"Total missing stickers: {len(missing_stickers)}")
+                embeds.append(embed)
+        
+        # Send all embeds
+        for embed in embeds:
+            await ctx.send(embed=embed)
+        
+        # Send summary
+        summary = f"**Summary:**\n"
+        summary += f"Missing emojis: {len(missing_emojis)}\n"
+        summary += f"Missing stickers: {len(missing_stickers)}\n"
+        summary += f"Total missing: {len(missing_emojis) + len(missing_stickers)}"
+        await ctx.send(summary)
+
 
 class CreditApprovalView(discord.ui.View):
     def __init__(self, cog, submission_id, emote_name, artist, submitted_by):
