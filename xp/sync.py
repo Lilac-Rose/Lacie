@@ -23,7 +23,7 @@ class XPSync(commands.Cog):
     async def sync_roles_for_user(self, member: discord.Member) -> tuple[int, list[str]]:
         """Sync roles for a member based on their lifetime XP level."""
         config = load_config()
-        ROLE_REWARDS = {int(k): int(v) for k, v in config["ROLE_REWARDS"].items()}
+        ROLE_REWARDS = {int(k): int(v) for k, v in config["role_rewards"].items()}
 
         # Run database operation in executor to avoid blocking
         def get_level():

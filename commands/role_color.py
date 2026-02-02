@@ -15,7 +15,7 @@ COLOR_ROLE_NAMES = [
     "Turquoise", "Green Sea", "Emerald", "Nephritis", "River", "Belize",
     "Amethyst", "Wisteria", "Linen", "Alizarin", "Pomegranate", "Tangerine",
     "Rose", "Carrot", "Orange", "Sun Flower", "Pumpkin", "Light Gray",
-    "Dark Air", "White"
+    "Dark Air", "White-ish"
 ]
 
 FONTS_PATH = os.path.join(os.path.dirname(__file__), "..", "fonts")
