@@ -8,3 +8,4 @@ venv/
 .txt
 */databases/
 */old_backups/
+logs/
