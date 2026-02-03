@@ -5,6 +5,7 @@ from discord.ui import View, Button
 import os
 import shutil
 from moderation.loader import ModerationBase
+from .groups import xp_admin_group
 
 class RestoreXP(commands.Cog):
     def __init__(self, bot):
@@ -12,13 +13,18 @@ class RestoreXP(commands.Cog):
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
         self.db_dir = os.path.join(self.base_dir, "databases")
         self.backup_dir = os.path.join(self.base_dir, "backups")
+        # Register onto the shared xpadmin group
+        cmd = app_commands.command(name="restore", description="Restore a lifetime or annual XP database from backup")(self.restorebackup)
+        # Attach the autocompleters to the command object before adding
+        cmd.autocomplete("db_type")(self.db_type_autocomplete)
+        cmd.autocomplete("filename")(self.filename_autocomplete)
+        xp_admin_group.add_command(cmd)
 
-    @app_commands.command(name="restorebackup", description="Restore a lifetime or annual XP database from backup")
+    @ModerationBase.is_admin()
     @app_commands.describe(
         db_type="Choose which database to restore",
         filename="Select the backup file to restore"
     )
-    @ModerationBase.is_admin()
     async def restorebackup(self, interaction: discord.Interaction, db_type: str, filename: str):
         await interaction.response.defer(ephemeral=False)
 
@@ -77,7 +83,6 @@ class RestoreXP(commands.Cog):
 
         await interaction.followup.send(f"✅ `{db_type}.db` successfully restored from `{filename}`")
 
-    @restorebackup.autocomplete("db_type")
     async def db_type_autocomplete(self, interaction: discord.Interaction, current: str):
         options = ["lifetime", "annual"]
         return [
@@ -85,7 +90,6 @@ class RestoreXP(commands.Cog):
             for opt in options if current.lower() in opt.lower()
         ]
 
-    @restorebackup.autocomplete("filename")
     async def filename_autocomplete(self, interaction: discord.Interaction, current: str):
         db_type = getattr(interaction.namespace, "db_type", None)
         if not db_type:
@@ -101,6 +105,9 @@ class RestoreXP(commands.Cog):
             app_commands.Choice(name=f, value=f)
             for f in files if current.lower() in f.lower()
         ][:25]  # Discord's limit
+
+    def cog_unload(self):
+        xp_admin_group.remove_command("restore")
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(RestoreXP(bot))

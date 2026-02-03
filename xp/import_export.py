@@ -7,14 +7,16 @@ from discord.ext import commands
 from xp.utils import xp_for_level
 from xp.database import get_db
 from moderation.loader import ModerationBase
+from .groups import xp_admin_group
 
 
 class XPImportExport(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        # Register both commands onto the shared xpadmin group
+        xp_admin_group.add_command(app_commands.command(name="export", description="Export XP data to JSON (lifetime or annual)")(self.export_xp))
+        xp_admin_group.add_command(app_commands.command(name="import", description="Import XP data from JSON (overwrites DB)")(self.import_xp))
 
-    # ==================== EXPORT ====================
-    
     async def _export_data(self, lifetime: bool):
         """Async function to handle database operations in a thread"""
         def _db_work():
@@ -42,14 +44,13 @@ class XPImportExport(commands.Cog):
         users = await asyncio.to_thread(_db_work)
         return {"users": users}
 
-    @app_commands.command(name="export_xp", description="Export XP data to JSON (lifetime or annual)")
+    @ModerationBase.is_admin()
     @app_commands.choices(
         xp_type=[
             app_commands.Choice(name="Lifetime", value="lifetime"),
             app_commands.Choice(name="Annual", value="annual")
         ]
     )
-    @ModerationBase.is_admin()
     async def export_xp(self, interaction: discord.Interaction, xp_type: app_commands.Choice[str]):
         try:
             # Defer immediately
@@ -136,14 +137,13 @@ class XPImportExport(commands.Cog):
         count = await asyncio.to_thread(_db_work)
         return count
 
-    @app_commands.command(name="import_xp", description="Import XP data from JSON (admin only, overwrites DB)")
+    @ModerationBase.is_admin()
     @app_commands.choices(
         xp_type=[
             app_commands.Choice(name="Lifetime", value="lifetime"),
             app_commands.Choice(name="Annual", value="annual")
         ]
     )
-    @ModerationBase.is_admin()
     async def import_xp(
         self,
         interaction: discord.Interaction,
@@ -153,10 +153,6 @@ class XPImportExport(commands.Cog):
         try:
             # Defer immediately
             await interaction.response.defer()
-
-            if not ModerationBase.is_admin():
-                await interaction.followup.send("You do not have permission to run this command")
-                return
              
             print(f"Import started for {xp_type.value}")
             
@@ -204,6 +200,9 @@ class XPImportExport(commands.Cog):
             except:
                 pass
 
+    def cog_unload(self):
+        xp_admin_group.remove_command("export")
+        xp_admin_group.remove_command("import")
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(XPImportExport(bot))

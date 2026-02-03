@@ -1,15 +1,17 @@
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 from .database import get_db
 from .utils import xp_for_level, can_get_xp, get_multiplier, load_config
+from .groups import xp_group
 import time
 
 class CalculateCommand(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # Register this command onto the shared xp group
+        xp_group.add_command(app_commands.command(name="calculate", description="Calculate XP needed to reach a target level")(self.calculate))
 
-    @app_commands.command(name="calculate", description="Calculate XP needed to reach a target level")
     @app_commands.describe(
         level="Target level to calculate",
         user="User to check (defaults to you)",
@@ -126,6 +128,8 @@ class CalculateCommand(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"⚠️ **Error:** {e}", ephemeral=False)
 
+    def cog_unload(self):
+        xp_group.remove_command("calculate")
 
 async def setup(bot):
     await bot.add_cog(CalculateCommand(bot))

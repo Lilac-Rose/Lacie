@@ -12,6 +12,9 @@ from aiohttp import web
 # Import sparkle DB to ensure it exists
 from sparkle.database import get_db as get_sparkle_db
 
+# Import and register the XP command groups onto the tree
+from xp.groups import xp_group, xp_admin_group
+
 load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
@@ -22,13 +25,18 @@ bot = commands.Bot(
     help_command=None,
     activity=discord.Activity(
         type=discord.ActivityType.playing,
-        name="Paper Lily - Chapter 1"
+        name="Paper Lily - Chapter 2"
     ))
+
+# Add both groups to the command tree now, before any cogs load
+bot.tree.add_command(xp_group)
+bot.tree.add_command(xp_admin_group)
 
 async def load_cogs(folder: str):
     """Load all cogs in the folder except utility files"""
     non_cog_files = {"add_xp.py", "database.py", "utils.py", "__init__.py",
-                     "import_old_data.py", "repair_db.py", "reset_db.py"}
+                     "import_old_data.py", "repair_db.py", "reset_db.py", "groups.py",
+                     "loader.py"}
     for file in glob.glob(f"{folder}/*.py"):
         filename = os.path.basename(file)
         if filename in non_cog_files:

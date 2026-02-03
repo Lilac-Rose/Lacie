@@ -6,12 +6,14 @@ from discord.ext import commands
 from discord import app_commands
 from .database import get_db
 from .utils import xp_for_level, get_multiplier, MULTIPLIERS, COOLDOWN
+from .groups import xp_group
 
 class Rank(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # Register this command onto the shared xp group
+        xp_group.add_command(app_commands.command(name="rank", description="Check your rank or another user's rank")(self.rank))
 
-    @app_commands.command(name="rank", description="Check your rank or another user's rank")
     @app_commands.describe(
         user="The user to check rank for (leave empty for yourself)",
         board_type="Choose which XP board to view"
@@ -139,6 +141,10 @@ class Rank(commands.Cog):
                     )
             except:
                 pass
+
+    def cog_unload(self):
+        # Remove our command from the group when the cog is unloaded (e.g. on !reload)
+        xp_group.remove_command("rank")
 
 async def setup(bot):
     await bot.add_cog(Rank(bot))

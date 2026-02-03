@@ -1,10 +1,10 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import sqlite3
-import os
 from moderation.loader import ModerationBase
 from xp.add_xp import get_db
+from .groups import xp_admin_group
+
 
 class ResetXPView(discord.ui.View):
     def __init__(self, author: discord.User, db_label: str, on_confirm):
@@ -63,10 +63,11 @@ class ResetAnnual(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        # Register onto the shared xpadmin group
+        xp_admin_group.add_command(app_commands.command(name="reset", description="Reset either the annual or lifetime XP leaderboard.")(self.reset_xp))
 
-    @app_commands.command(name="resetxp", description="Reset either the annual or lifetime XP leaderboard.")
-    @app_commands.describe(db_type="Choose which database to reset: 'annual' or 'lifetime'.")
     @ModerationBase.is_admin()
+    @app_commands.describe(db_type="Choose which database to reset: 'annual' or 'lifetime'.")
     async def reset_xp(self, interaction: discord.Interaction, db_type: str):
         db_type = db_type.lower()
         if db_type not in ["annual", "lifetime"]:
@@ -89,6 +90,9 @@ class ResetAnnual(commands.Cog):
             ephemeral=False,
             view=view
         )
+
+    def cog_unload(self):
+        xp_admin_group.remove_command("reset")
 
 
 async def setup(bot):
