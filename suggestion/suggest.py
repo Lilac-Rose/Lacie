@@ -241,7 +241,9 @@ class PaginationView(discord.ui.View):
             await self.update_page(interaction)
 
 
-class Suggestion(commands.Cog):
+class Suggestion(commands.GroupCog, name="suggest"):
+    """Suggestion commands"""
+
     def __init__(self, bot):
         self.bot = bot
         self.db_path = os.path.join(os.path.dirname(__file__), "suggestions.db")
@@ -283,7 +285,7 @@ class Suggestion(commands.Cog):
         if self.db:
             await self.db.close()
 
-    @app_commands.command(name="suggest", description="Submit a suggestion")
+    @app_commands.command(name="submit", description="Submit a suggestion")
     async def suggest(self, interaction: discord.Interaction, idea: str):
         await interaction.response.defer(ephemeral=False)
 
@@ -337,7 +339,7 @@ class Suggestion(commands.Cog):
             print(error_msg)
             await interaction.followup.send(error_msg[:2000])
 
-    @app_commands.command(name="viewsuggestion", description="View full details of a suggestion")
+    @app_commands.command(name="view", description="View full details of a suggestion")
     async def viewsuggestion(self, interaction: discord.Interaction, suggestion_id: int):
         await interaction.response.defer(ephemeral=False)
 
@@ -383,7 +385,7 @@ class Suggestion(commands.Cog):
             print(error_msg)
             await interaction.followup.send(error_msg[:2000])
 
-    @app_commands.command(name="completesuggestion", description="Mark an approved suggestion as completed (Admin only)")
+    @app_commands.command(name="complete", description="Mark an approved suggestion as completed (Admin only)")
     async def completesuggestion(self, interaction: discord.Interaction, suggestion_id: int):
         await interaction.response.defer(ephemeral=False)
 
@@ -424,7 +426,7 @@ class Suggestion(commands.Cog):
             print(error_msg)
             await interaction.followup.send(error_msg[:2000])
 
-    @app_commands.command(name="listsuggestions", description="List suggestions with optional status filter")
+    @app_commands.command(name="list", description="List suggestions with optional status filter")
     @app_commands.choices(status=[
         app_commands.Choice(name="All", value="All"),
         app_commands.Choice(name="Pending", value="Pending"),

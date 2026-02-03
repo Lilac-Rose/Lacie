@@ -19,12 +19,14 @@ def list_fonts():
                 fonts.append(os.path.splitext(f)[0])
     return fonts
 
-class Profiles(commands.Cog):
+class Profiles(commands.GroupCog, name="profile"):
+    """Profile commands"""
+
     def __init__(self, bot):
         self.bot = bot
         setup_db()
 
-    @app_commands.command(name="listfonts", description="List all available fonts with a visual preview.")
+    @app_commands.command(name="fonts", description="List all available fonts with a visual preview.")
     async def list_fonts_cmd(self, interaction: discord.Interaction):
         await interaction.response.defer(thinking=True)
         
@@ -93,7 +95,7 @@ class Profiles(commands.Cog):
             file=discord.File(buffer, "font_preview.png")
         )
 
-    @app_commands.command(name="setprofile", description="Set your profile information.")
+    @app_commands.command(name="set", description="Set your profile information.")
     @app_commands.describe(
         pronouns="Your pronouns",
         about_me="A short description about you",
@@ -102,7 +104,7 @@ class Profiles(commands.Cog):
         fav_game="Your favorite game",
         fav_artist="Your favorite music artist",
         birthday="Your birthday (MM-DD)",
-        font_name="Font to use (see /listfonts)"
+        font_name="Font to use (see /profile fonts)"
     )
     async def setprofile(self, interaction: discord.Interaction, pronouns: str = None, about_me: str = None, fav_color: str = None, bg_color: str = None, fav_game: str = None, fav_artist: str = None, birthday: str = None, font_name: str = None):
         # Defer the response to show "thinking"
@@ -121,7 +123,7 @@ class Profiles(commands.Cog):
                 return
         
         if font_name and font_name not in list_fonts():
-            await interaction.followup.send("That font is not avaliable. use /listfonts to see the options.")
+            await interaction.followup.send("That font is not avaliable. use /profile fonts to see the options.")
             return
         
         db = get_db()
@@ -182,7 +184,7 @@ class Profiles(commands.Cog):
         
         await interaction.followup.send("Your profile has been saved!")
 
-    @app_commands.command(name="profile", description="View your or another user's profile.")
+    @app_commands.command(name="view", description="View your or another user's profile.")
     async def profile(self, interaction: discord.Interaction, member: discord.Member = None):
         # Defer immediately to show "thinking"
         await interaction.response.defer(thinking=True)
@@ -196,7 +198,7 @@ class Profiles(commands.Cog):
         db.close()
         
         if not row:
-            await interaction.followup.send("This user hasn't set up a profile yet. Use /setprofile to add information to your profile")
+            await interaction.followup.send("This user hasn't set up a profile yet. Use /profile set to add information to your profile")
             return
         
         _, pronouns, about_me, fav_color, bg_color, fav_game, fav_artist, birthday, font_name = row
