@@ -4,4 +4,4 @@ from discord import app_commands
 xp_group = app_commands.Group(name="xp", description="XP commands")
 
 # Admin XP commands: /xpadmin set, /xpadmin add, /xpadmin remove, /xpadmin backup, etc.
-xp_admin_group = app_commands.Group(name="xpadmin", description="Admin XP management commands")
+xp_admin_group = app_commands.Group(name="xp_admin", description="Admin XP management commands")
