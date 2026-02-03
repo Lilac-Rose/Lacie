@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 from discord.ui import View, Button
 from .database import get_db
+from .groups import xp_group
 import math
 
 class LeaderboardView(View):
@@ -48,11 +49,9 @@ class LeaderboardView(View):
 class Leaderboard(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # Register this command onto the shared xp group
+        xp_group.add_command(app_commands.command(name="top", description="Show the server leaderboard")(self.leaderboard))
 
-    @app_commands.command(
-        name="top",
-        description="Show the server leaderboard"
-    )
     @app_commands.describe(
         board_type="Choose which leaderboard to view",
         show_absent="Include members who are no longer in the server (default: False)"
@@ -139,6 +138,8 @@ class Leaderboard(commands.Cog):
 
         view.message = await interaction.original_response()
 
+    def cog_unload(self):
+        xp_group.remove_command("top")
 
 async def setup(bot):
     await bot.add_cog(Leaderboard(bot))

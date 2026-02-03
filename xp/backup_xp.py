@@ -6,6 +6,7 @@ import shutil
 from datetime import datetime, timedelta
 import pytz
 from moderation.loader import ModerationBase
+from .groups import xp_admin_group
 
 BACKUP_CHANNEL_ID = 946421558778417172
 NOTIFICATION_CHANNEL_ID = 1424145004976275617
@@ -23,6 +24,8 @@ class BackupXP(commands.Cog):
         self.last_backup_file = os.path.join(self.backup_dir, "last_backup.txt")
         self.last_auto_backup_file = os.path.join(self.backup_dir, "last_auto_backup.txt")
         os.makedirs(self.backup_dir, exist_ok=True)
+        # Register the manual backup command onto the shared xpadmin group
+        xp_admin_group.add_command(app_commands.command(name="backup", description="Backup both lifetime and annual XP databases")(self.backup_xp))
         # Start the daily check task
         self.auto_backup_task.start()
     
@@ -37,8 +40,8 @@ class BackupXP(commands.Cog):
     
     def cog_unload(self):
         self.auto_backup_task.cancel()
+        xp_admin_group.remove_command("backup")
     
-    @app_commands.command(name="backup_xp", description="Backup both lifetime and annual XP databases")
     @ModerationBase.is_admin()
     async def backup_xp(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
@@ -146,7 +149,7 @@ class BackupXP(commands.Cog):
             total_size = lifetime_size + annual_size
             
             print(f"[Backup] Backup completed successfully")
-            return True
+            return True, f"✅ Backup complete! (`{lifetime_size:.2f}` MB lifetime, `{annual_size:.2f}` MB annual)"
             
         except Exception as e:
             error_msg = f"❌ Backup failed: `{e}`"

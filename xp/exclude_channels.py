@@ -12,10 +12,10 @@ EXCLUDED_FILE = os.path.join(os.path.dirname(__file__), "excluded_channels.json"
 def load_excluded_channels():
     """Load excluded channel IDs from JSON file."""
     if not os.path.exists(EXCLUDED_FILE):
-        return[]
+        return []
     with open(EXCLUDED_FILE, "r") as f:
         return json.load(f)
-    
+
 def save_excluded_channels(channels):
     """Save excluded channel IDs to JSON file."""
     with open(EXCLUDED_FILE, "w") as f:
@@ -45,21 +45,17 @@ def is_channel_excluded(channel_id: int) -> bool:
 
 class ExcludeChannel(commands.Cog):
     """Commands to manage XP exclusion channels"""
-    
+
     def __init__(self, bot):
         self.bot = bot
 
-    
     @commands.command(name="excludechannel")
     @ModerationBase.is_admin()
     async def exclude_channel(self, ctx, channel: discord.TextChannel = None):
         """Exclude a channel from XP gain."""
-        if not self.is_admin(ctx.author):
-            return await ctx.send("You do not have permission to use this command.")
-        
         if not channel:
             return await ctx.send("Please specify a channel, e.g. '!excludechannel #chat'")
-        
+
         if add_excluded_channel(channel.id):
             await ctx.send(f"{channel.mention} has been excluded from XP gain.")
         else:
@@ -69,10 +65,9 @@ class ExcludeChannel(commands.Cog):
     @ModerationBase.is_admin()
     async def include_channel(self, ctx, channel: discord.TextChannel = None):
         """Remove a channel from the XP exclusion list."""
-        
         if not channel:
-            return await ctx.send("Please specify a channel, e.g. '!includechannel #chat")
-        
+            return await ctx.send("Please specify a channel, e.g. '!includechannel #chat'")
+
         if remove_excluded_channel(channel.id):
             await ctx.send(f"{channel.mention} has been re-enabled for XP gain.")
         else:
@@ -86,7 +81,6 @@ class ExcludeChannel(commands.Cog):
             return await ctx.send("No channels are currently excluded.")
         channels = [f"<#{cid}>" for cid in excluded]
         await ctx.send("**Excluded Channels:**\n" + "\n".join(channels))
-
 
 async def setup(bot):
     await bot.add_cog(ExcludeChannel(bot))

@@ -4,6 +4,7 @@ from discord import app_commands
 from moderation.loader import ModerationBase, ADMIN_ROLE_IDS, lilac_id
 from .database import get_db
 from .utils import load_config, xp_for_level
+from .groups import xp_group
 from discord.utils import get
 import traceback
 import asyncio
@@ -13,6 +14,8 @@ class XPSync(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        # Register this command onto the shared xp group
+        xp_group.add_command(app_commands.command(name="sync", description="Sync your XP role rewards.")(self.sync))
 
     def check_is_admin(self, user: discord.Member) -> bool:
         """Check if user has admin permissions."""
@@ -61,7 +64,6 @@ class XPSync(commands.Cog):
 
         return (level, roles_added)
 
-    @app_commands.command(name="sync", description="Sync your XP role rewards.")
     @app_commands.describe(user="[Admin only] The user to sync roles for.")
     async def sync(
         self,
@@ -149,6 +151,9 @@ class XPSync(commands.Cog):
                 )
             except Exception as followup_error:
                 print(f"[SYNC] Could not send error message: {followup_error}")
+
+    def cog_unload(self):
+        xp_group.remove_command("sync")
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(XPSync(bot))

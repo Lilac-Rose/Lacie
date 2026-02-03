@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 from moderation.loader import ModerationBase
 from xp.add_xp import get_db
+from .groups import xp_admin_group
 import time
 
 class XPAdmin(commands.Cog):
@@ -10,12 +11,15 @@ class XPAdmin(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        # Register all admin commands onto the shared xpadmin group
+        xp_admin_group.add_command(app_commands.command(name="set", description="Set a user's XP directly.")(self.xp_set))
+        xp_admin_group.add_command(app_commands.command(name="add", description="Add XP to a user.")(self.xp_add))
+        xp_admin_group.add_command(app_commands.command(name="remove", description="Remove XP from a user.")(self.xp_remove))
 
     def parse_lifetime_arg(self, arg: str | None) -> bool:
         """Return False if the arg is 'annual', True otherwise."""
         return False if arg and arg.lower() == "annual" else True
 
-    @app_commands.command(name="xp_set", description="Set a user's XP directly.")
     @ModerationBase.is_admin()
     @app_commands.describe(
         user="The user to modify.",
@@ -49,7 +53,6 @@ class XPAdmin(commands.Cog):
             ephemeral=True
         )
 
-    @app_commands.command(name="xp_add", description="Add XP to a user.")
     @ModerationBase.is_admin()
     @app_commands.describe(
         user="The user to modify.",
@@ -84,7 +87,6 @@ class XPAdmin(commands.Cog):
             ephemeral=True
         )
 
-    @app_commands.command(name="xp_remove", description="Remove XP from a user.")
     @ModerationBase.is_admin()
     @app_commands.describe(
         user="The user to modify.",
@@ -119,6 +121,10 @@ class XPAdmin(commands.Cog):
             )
         conn.close()
 
+    def cog_unload(self):
+        xp_admin_group.remove_command("set")
+        xp_admin_group.remove_command("add")
+        xp_admin_group.remove_command("remove")
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(XPAdmin(bot))
