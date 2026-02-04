@@ -22,6 +22,9 @@ class ChainDetector(commands.Cog):
         if not content:
             return
 
+        if message.mentions or message.role_metions or message.channel_mentions or message.mention_everyone:
+            return
+
         channel_id = message.channel.id
 
         # Initialize cache for this channel
