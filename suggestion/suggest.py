@@ -9,6 +9,7 @@ import traceback
 
 ADMIN_ID = 252130669919076352
 ADMIN_CHANNEL_ID = 1470441786810826884
+ADMIN_ROLE_ID = 1470439484549234866
 
 
 class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
@@ -110,8 +111,14 @@ class SuggestionButtons(discord.ui.View):
 
     async def approve(self, interaction: discord.Interaction):
         try:
-            if interaction.user.id != ADMIN_ID:
-                await interaction.response.send_message("❌ You can't approve suggestions.", ephemeral=True)
+            # Check if user has admin role or is the admin user
+            has_permission = (
+                interaction.user.id == ADMIN_ID or
+                any(role.id == ADMIN_ROLE_ID for role in interaction.user.roles)
+            )
+            
+            if not has_permission:
+                await interaction.response.send_message("You can't approve suggestions.", ephemeral=True)
                 return
 
             if not self.suggestion_id:
@@ -176,8 +183,14 @@ class SuggestionButtons(discord.ui.View):
 
     async def deny(self, interaction: discord.Interaction):
         try:
-            if interaction.user.id != ADMIN_ID:
-                await interaction.response.send_message("❌ You can't deny suggestions.", ephemeral=True)
+            # Check if user has admin role or is the admin user
+            has_permission = (
+                interaction.user.id == ADMIN_ID or
+                any(role.id == ADMIN_ROLE_ID for role in interaction.user.roles)
+            )
+            
+            if not has_permission:
+                await interaction.response.send_message("You can't deny suggestions.", ephemeral=True)
                 return
 
             if not self.suggestion_id:
@@ -392,8 +405,14 @@ class Suggestion(commands.GroupCog, name="suggest"):
         await interaction.response.defer(ephemeral=False)
 
         try:
-            if interaction.user.id != ADMIN_ID:
-                await interaction.followup.send("❌ You don't have permission to do that.")
+            # Check if user has admin role or is the admin user
+            has_permission = (
+                interaction.user.id == ADMIN_ID or
+                any(role.id == ADMIN_ROLE_ID for role in interaction.user.roles)
+            )
+            
+            if not has_permission:
+                await interaction.followup.send("You don't have permission to do that.")
                 return
 
             async with self.db.execute("SELECT user_id, suggestion, status, channel_id FROM suggestions WHERE id = ?", (suggestion_id,)) as cursor:
