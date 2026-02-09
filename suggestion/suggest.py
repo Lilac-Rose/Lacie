@@ -15,7 +15,7 @@ ADMIN_ROLE_ID = 1470439484549234866
 class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
     reason = discord.ui.TextInput(label="Reason (optional)", style=discord.TextStyle.long, required=False, max_length=2000)
 
-    def __init__(self, suggestion_id: int, user_id: int, suggestion_text: str, channel_id: int, admin_message_id: Optional[int], bot: commands.Bot):
+    def __init__(self, suggestion_id: int, user_id: int, suggestion_text: str, channel_id: int, admin_message_id: Optional[int], bot: commands.Bot, original_embed: discord.Embed):
         super().__init__()
         self.suggestion_id = suggestion_id
         self.user_id = user_id
@@ -23,11 +23,12 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
         self.channel_id = channel_id
         self.admin_message_id = admin_message_id
         self.bot = bot
+        self.original_embed = original_embed
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
             # Defer the response immediately to prevent timeout
-            await interaction.response.defer(ephemeral=False)
+            await interaction.response.defer(ephemeral=True)
             
             reason_text = self.reason.value or None
 
@@ -37,14 +38,30 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
                 await db.commit()
 
             # Use followup instead of response since we deferred
-            await interaction.followup.send(f"❌ Suggestion #{self.suggestion_id} denied.", ephemeral=False)
+            await interaction.followup.send(f"❌ Suggestion #{self.suggestion_id} denied.", ephemeral=True)
 
-            # Disable buttons on the admin message
+            # Update the embed on the admin message
             if self.admin_message_id:
                 try:
                     admin_channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
                     if admin_channel:
                         orig_msg = await admin_channel.fetch_message(self.admin_message_id)
+                        
+                        # Update embed
+                        updated_embed = self.original_embed.copy()
+                        updated_embed.color = discord.Color.red()
+                        updated_embed.title = f"❌ Denied Suggestion (ID: {self.suggestion_id})"
+                        
+                        # Add or update status field
+                        updated_embed.set_field_at(0, name="Suggested by", value=updated_embed.fields[0].value, inline=True)
+                        updated_embed.set_field_at(1, name="Channel", value=updated_embed.fields[1].value, inline=True)
+                        updated_embed.add_field(name="Status", value="Denied", inline=False)
+                        updated_embed.add_field(name="Denied by", value=f"{interaction.user.mention}", inline=True)
+                        updated_embed.add_field(name="Denied at", value=f"<t:{int(datetime.utcnow().timestamp())}:F>", inline=True)
+                        
+                        if reason_text:
+                            updated_embed.add_field(name="Reason", value=reason_text, inline=False)
+                        
                         disabled_view = SuggestionButtons(
                             self.bot, 
                             suggestion_id=self.suggestion_id, 
@@ -54,7 +71,7 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
                             admin_message_id=self.admin_message_id, 
                             disabled=True
                         )
-                        await orig_msg.edit(view=disabled_view)
+                        await orig_msg.edit(embed=updated_embed, view=disabled_view)
                 except Exception as e:
                     print(f"Failed to edit admin message: {e}")
 
@@ -89,7 +106,7 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
 
 
 class SuggestionButtons(discord.ui.View):
-    def __init__(self, bot, suggestion_id=None, user_id=None, suggestion_text=None, channel_id=None, admin_message_id: Optional[int] = None, disabled: bool = False):
+    def __init__(self, bot, suggestion_id=None, user_id=None, suggestion_text=None, channel_id=None, admin_message_id: Optional[int] = None, disabled: bool = False, show_complete: bool = False):
         super().__init__(timeout=None)
         self.bot = bot
         self.suggestion_id = suggestion_id
@@ -100,14 +117,22 @@ class SuggestionButtons(discord.ui.View):
 
         approve_cid = f"suggest_approve_{suggestion_id}" if suggestion_id else "suggest_approve"
         deny_cid = f"suggest_deny_{suggestion_id}" if suggestion_id else "suggest_deny"
+        complete_cid = f"suggest_complete_{suggestion_id}" if suggestion_id else "suggest_complete"
 
-        approve_btn = discord.ui.Button(label="Approve ✅", style=discord.ButtonStyle.success, custom_id=approve_cid, disabled=disabled)
-        approve_btn.callback = self.approve
-        self.add_item(approve_btn)
+        # Only show approve/deny if not disabled
+        if not show_complete:
+            approve_btn = discord.ui.Button(label="Approve ✅", style=discord.ButtonStyle.success, custom_id=approve_cid, disabled=disabled)
+            approve_btn.callback = self.approve
+            self.add_item(approve_btn)
 
-        deny_btn = discord.ui.Button(label="Deny ❌", style=discord.ButtonStyle.danger, custom_id=deny_cid, disabled=disabled)
-        deny_btn.callback = self.deny
-        self.add_item(deny_btn)
+            deny_btn = discord.ui.Button(label="Deny ❌", style=discord.ButtonStyle.danger, custom_id=deny_cid, disabled=disabled)
+            deny_btn.callback = self.deny
+            self.add_item(deny_btn)
+        else:
+            # Show complete button for approved suggestions
+            complete_btn = discord.ui.Button(label="Mark Complete 🎉", style=discord.ButtonStyle.primary, custom_id=complete_cid, disabled=disabled)
+            complete_btn.callback = self.complete
+            self.add_item(complete_btn)
 
     async def approve(self, interaction: discord.Interaction):
         try:
@@ -126,7 +151,7 @@ class SuggestionButtons(discord.ui.View):
                 return
 
             # Defer immediately to prevent timeout
-            await interaction.response.defer(ephemeral=False)
+            await interaction.response.defer(ephemeral=True)
 
             db_path = os.path.join(os.path.dirname(__file__), "suggestions.db")
             async with aiosqlite.connect(db_path) as db:
@@ -134,24 +159,37 @@ class SuggestionButtons(discord.ui.View):
                 await db.commit()
 
             # Use followup since we deferred
-            await interaction.followup.send(f"✅ Suggestion #{self.suggestion_id} approved.", ephemeral=False)
+            await interaction.followup.send(f"✅ Suggestion #{self.suggestion_id} approved.", ephemeral=True)
 
-            # Disable buttons on the admin message
+            # Update the embed on the admin message
             if self.admin_message_id:
                 try:
                     admin_channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
                     if admin_channel:
                         orig_msg = await admin_channel.fetch_message(self.admin_message_id)
-                        disabled_view = SuggestionButtons(
+                        
+                        # Update embed
+                        updated_embed = orig_msg.embeds[0].copy()
+                        updated_embed.color = discord.Color.green()
+                        updated_embed.title = f"✅ Approved Suggestion (ID: {self.suggestion_id})"
+                        
+                        # Add status fields
+                        updated_embed.add_field(name="Status", value="Approved", inline=False)
+                        updated_embed.add_field(name="Approved by", value=f"{interaction.user.mention}", inline=True)
+                        updated_embed.add_field(name="Approved at", value=f"<t:{int(datetime.utcnow().timestamp())}:F>", inline=True)
+                        
+                        # Show complete button instead of approve/deny
+                        complete_view = SuggestionButtons(
                             self.bot, 
                             suggestion_id=self.suggestion_id, 
                             user_id=self.user_id, 
                             suggestion_text=self.suggestion_text, 
                             channel_id=self.channel_id, 
                             admin_message_id=self.admin_message_id, 
-                            disabled=True
+                            disabled=False,
+                            show_complete=True
                         )
-                        await orig_msg.edit(view=disabled_view)
+                        await orig_msg.edit(embed=updated_embed, view=complete_view)
                 except Exception as e:
                     print(f"Failed to edit admin message: {e}")
 
@@ -197,17 +235,126 @@ class SuggestionButtons(discord.ui.View):
                 await interaction.response.send_message("⚠️ This button is no longer active.", ephemeral=True)
                 return
 
+            # Get the original embed to pass to the modal
+            admin_channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
+            if admin_channel and self.admin_message_id:
+                try:
+                    orig_msg = await admin_channel.fetch_message(self.admin_message_id)
+                    original_embed = orig_msg.embeds[0] if orig_msg.embeds else None
+                except:
+                    original_embed = None
+            else:
+                original_embed = None
+
             modal = DenyModal(
                 suggestion_id=self.suggestion_id, 
                 user_id=self.user_id, 
                 suggestion_text=self.suggestion_text, 
                 channel_id=self.channel_id, 
                 admin_message_id=self.admin_message_id, 
-                bot=self.bot
+                bot=self.bot,
+                original_embed=original_embed
             )
             await interaction.response.send_modal(modal)
         except Exception as e:
             error_msg = f"❌ Error opening deny modal: {str(e)}\n```{traceback.format_exc()}```"
+            print(error_msg)
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.send_message(error_msg[:2000], ephemeral=True)
+                else:
+                    await interaction.followup.send(error_msg[:2000], ephemeral=True)
+            except:
+                pass
+
+    async def complete(self, interaction: discord.Interaction):
+        try:
+            # Check if user has admin role or is the admin user
+            has_permission = (
+                interaction.user.id == ADMIN_ID or
+                any(role.id == ADMIN_ROLE_ID for role in interaction.user.roles)
+            )
+            
+            if not has_permission:
+                await interaction.response.send_message("You can't mark suggestions as complete.", ephemeral=True)
+                return
+
+            if not self.suggestion_id:
+                await interaction.response.send_message("⚠️ This button is no longer active.", ephemeral=True)
+                return
+
+            # Defer immediately to prevent timeout
+            await interaction.response.defer(ephemeral=True)
+
+            db_path = os.path.join(os.path.dirname(__file__), "suggestions.db")
+            async with aiosqlite.connect(db_path) as db:
+                # Check if it's approved
+                async with db.execute("SELECT status FROM suggestions WHERE id = ?", (self.suggestion_id,)) as cursor:
+                    row = await cursor.fetchone()
+                    if not row or row[0] != "Approved":
+                        await interaction.followup.send("⚠️ This suggestion must be approved before marking as complete.", ephemeral=True)
+                        return
+                
+                await db.execute("UPDATE suggestions SET status = ? WHERE id = ?", ("Completed", self.suggestion_id))
+                await db.commit()
+
+            # Use followup since we deferred
+            await interaction.followup.send(f"🎉 Suggestion #{self.suggestion_id} marked as completed!", ephemeral=True)
+
+            # Update the embed on the admin message
+            if self.admin_message_id:
+                try:
+                    admin_channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
+                    if admin_channel:
+                        orig_msg = await admin_channel.fetch_message(self.admin_message_id)
+                        
+                        # Update embed
+                        updated_embed = orig_msg.embeds[0].copy()
+                        updated_embed.color = discord.Color.blue()
+                        updated_embed.title = f"🎉 Completed Suggestion (ID: {self.suggestion_id})"
+                        
+                        # Update status field (should be at index 2)
+                        for i, field in enumerate(updated_embed.fields):
+                            if field.name == "Status":
+                                updated_embed.set_field_at(i, name="Status", value="Completed", inline=field.inline)
+                                break
+                        
+                        # Add completion info
+                        updated_embed.add_field(name="Completed by", value=f"{interaction.user.mention}", inline=True)
+                        updated_embed.add_field(name="Completed at", value=f"<t:{int(datetime.utcnow().timestamp())}:F>", inline=True)
+                        
+                        # Disable the complete button
+                        disabled_view = SuggestionButtons(
+                            self.bot, 
+                            suggestion_id=self.suggestion_id, 
+                            user_id=self.user_id, 
+                            suggestion_text=self.suggestion_text, 
+                            channel_id=self.channel_id, 
+                            admin_message_id=self.admin_message_id, 
+                            disabled=True,
+                            show_complete=True
+                        )
+                        await orig_msg.edit(embed=updated_embed, view=disabled_view)
+                except Exception as e:
+                    print(f"Failed to edit admin message: {e}")
+
+            # Send DM to user
+            try:
+                user = await self.bot.fetch_user(self.user_id)
+                await user.send(f"🎉 Your suggestion (ID: {self.suggestion_id}) — `{self.suggestion_text}` has been **implemented!**")
+            except Exception as e:
+                print(f"Failed to DM user: {e}")
+
+            # Send message in original channel
+            channel = self.bot.get_channel(self.channel_id)
+            if channel:
+                try:
+                    await channel.send(f"🎉 Suggestion **#{self.suggestion_id}** (`{self.suggestion_text}`) has been marked as **completed!**")
+                except Exception as e:
+                    print(f"Failed to send message in channel: {e}")
+
+        except Exception as e:
+            error_msg = f"❌ Error completing suggestion: {str(e)}\n```{traceback.format_exc()}```"
             print(error_msg)
             try:
                 if not interaction.response.is_done():
@@ -278,11 +425,11 @@ class Suggestion(commands.GroupCog, name="suggest"):
         """)
         await self.db.commit()
 
-        # Re-register persistent views for all pending suggestions
-        async with self.db.execute("SELECT id, user_id, suggestion, channel_id, admin_message_id FROM suggestions WHERE status = ?", ("Pending",)) as cursor:
+        # Re-register persistent views for all pending and approved suggestions
+        async with self.db.execute("SELECT id, user_id, suggestion, channel_id, admin_message_id, status FROM suggestions WHERE status IN (?, ?)", ("Pending", "Approved")) as cursor:
             rows = await cursor.fetchall()
 
-        for sid, uid, suggestion_text, channel_id, admin_msg_id in rows:
+        for sid, uid, suggestion_text, channel_id, admin_msg_id, status in rows:
             if admin_msg_id:  # Only register if we have a message ID
                 view = SuggestionButtons(
                     self.bot, 
@@ -290,10 +437,11 @@ class Suggestion(commands.GroupCog, name="suggest"):
                     user_id=uid, 
                     suggestion_text=suggestion_text, 
                     channel_id=channel_id, 
-                    admin_message_id=admin_msg_id
+                    admin_message_id=admin_msg_id,
+                    show_complete=(status == "Approved")
                 )
                 self.bot.add_view(view, message_id=admin_msg_id)
-                print(f"Re-registered view for suggestion #{sid} (message {admin_msg_id})")
+                print(f"Re-registered view for suggestion #{sid} (message {admin_msg_id}, status: {status})")
 
     async def cog_unload(self):
         if self.db:
@@ -415,14 +563,14 @@ class Suggestion(commands.GroupCog, name="suggest"):
                 await interaction.followup.send("You don't have permission to do that.")
                 return
 
-            async with self.db.execute("SELECT user_id, suggestion, status, channel_id FROM suggestions WHERE id = ?", (suggestion_id,)) as cursor:
+            async with self.db.execute("SELECT user_id, suggestion, status, channel_id, admin_message_id FROM suggestions WHERE id = ?", (suggestion_id,)) as cursor:
                 row = await cursor.fetchone()
 
             if not row:
                 await interaction.followup.send("❌ Suggestion not found.")
                 return
 
-            user_id, suggestion_text, status, channel_id = row
+            user_id, suggestion_text, status, channel_id, admin_message_id = row
             if status != "Approved":
                 await interaction.followup.send("⚠️ This suggestion must be approved before marking as complete.")
                 return
@@ -431,6 +579,43 @@ class Suggestion(commands.GroupCog, name="suggest"):
             await self.db.commit()
 
             await interaction.followup.send(f"✅ Suggestion #{suggestion_id} marked as completed!")
+
+            # Update the embed if there's an admin message
+            if admin_message_id:
+                try:
+                    admin_channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
+                    if admin_channel:
+                        orig_msg = await admin_channel.fetch_message(admin_message_id)
+                        
+                        # Update embed
+                        updated_embed = orig_msg.embeds[0].copy()
+                        updated_embed.color = discord.Color.blue()
+                        updated_embed.title = f"🎉 Completed Suggestion (ID: {suggestion_id})"
+                        
+                        # Update status field
+                        for i, field in enumerate(updated_embed.fields):
+                            if field.name == "Status":
+                                updated_embed.set_field_at(i, name="Status", value="Completed", inline=field.inline)
+                                break
+                        
+                        # Add completion info
+                        updated_embed.add_field(name="Completed by", value=f"{interaction.user.mention}", inline=True)
+                        updated_embed.add_field(name="Completed at", value=f"<t:{int(datetime.utcnow().timestamp())}:F>", inline=True)
+                        
+                        # Disable the complete button
+                        disabled_view = SuggestionButtons(
+                            self.bot, 
+                            suggestion_id=suggestion_id, 
+                            user_id=user_id, 
+                            suggestion_text=suggestion_text, 
+                            channel_id=channel_id, 
+                            admin_message_id=admin_message_id, 
+                            disabled=True,
+                            show_complete=True
+                        )
+                        await orig_msg.edit(embed=updated_embed, view=disabled_view)
+                except Exception as e:
+                    print(f"Failed to edit admin message: {e}")
 
             try:
                 user = await self.bot.fetch_user(user_id)
@@ -485,6 +670,96 @@ class Suggestion(commands.GroupCog, name="suggest"):
                         value=f"<@{uid}> — {suggestion_text[:100]}{'...' if len(suggestion_text) > 100 else ''}",
                         inline=False
                     )
+                embeds.append(embed)
+
+            view = PaginationView(embeds, interaction.user)
+            await interaction.followup.send(embed=embeds[0], view=view)
+
+        except Exception as e:
+            error_msg = f"❌ An error occurred: {str(e)}\n```{traceback.format_exc()}```"
+            print(error_msg)
+            await interaction.followup.send(error_msg[:2000])
+
+    @app_commands.command(name="todo", description="View your approved suggestions to-do list")
+    async def todolist(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+        await interaction.response.defer(ephemeral=False)
+
+        try:
+            # If no member specified, show for the command user
+            target_user = member if member else interaction.user
+            
+            # Check if user has admin role or is the admin user when checking others
+            if member and member != interaction.user:
+                has_permission = (
+                    interaction.user.id == ADMIN_ID or
+                    any(role.id == ADMIN_ROLE_ID for role in interaction.user.roles)
+                )
+                
+                if not has_permission:
+                    await interaction.followup.send("You can only view your own to-do list.", ephemeral=True)
+                    return
+
+            # We need to track who approved what, so we'll need to update the database schema
+            # For now, we'll fetch from the admin message embeds
+            admin_channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
+            if not admin_channel:
+                await interaction.followup.send("❌ Admin channel not found.")
+                return
+
+            # Get all approved suggestions
+            async with self.db.execute(
+                "SELECT id, user_id, suggestion, admin_message_id FROM suggestions WHERE status = ? ORDER BY id DESC",
+                ("Approved",)
+            ) as cursor:
+                rows = await cursor.fetchall()
+
+            if not rows:
+                await interaction.followup.send(f"No approved suggestions found.")
+                return
+
+            # Filter by who approved them
+            user_approved = []
+            for sid, uid, suggestion_text, admin_msg_id in rows:
+                if admin_msg_id:
+                    try:
+                        msg = await admin_channel.fetch_message(admin_msg_id)
+                        if msg.embeds:
+                            embed = msg.embeds[0]
+                            # Check if target_user approved this
+                            for field in embed.fields:
+                                if field.name == "Approved by" and target_user.mention in field.value:
+                                    user_approved.append((sid, uid, suggestion_text))
+                                    break
+                    except Exception as e:
+                        print(f"Failed to fetch message {admin_msg_id}: {e}")
+                        continue
+
+            if not user_approved:
+                if member and member != interaction.user:
+                    await interaction.followup.send(f"{target_user.mention} hasn't approved any suggestions yet.")
+                else:
+                    await interaction.followup.send("You haven't approved any suggestions yet.")
+                return
+
+            # Create paginated embeds
+            embeds = []
+            per_page = 10
+            for i in range(0, len(user_approved), per_page):
+                embed = discord.Embed(
+                    title=f"📝 {target_user.display_name}'s To-Do List (Page {i//per_page + 1})",
+                    description=f"Approved suggestions waiting to be completed",
+                    color=discord.Color.gold()
+                )
+                embed.set_thumbnail(url=target_user.display_avatar.url)
+                
+                for sid, uid, suggestion_text in user_approved[i:i+per_page]:
+                    embed.add_field(
+                        name=f"ID: {sid}",
+                        value=f"**Suggested by:** <@{uid}>\n**Idea:** {suggestion_text[:150]}{'...' if len(suggestion_text) > 150 else ''}",
+                        inline=False
+                    )
+                
+                embed.set_footer(text=f"Total approved: {len(user_approved)}")
                 embeds.append(embed)
 
             view = PaginationView(embeds, interaction.user)
