@@ -8,6 +8,7 @@ from typing import Optional
 import traceback
 
 ADMIN_ID = 252130669919076352
+ADMIN_CHANNEL_ID = 1470441786810826884
 
 
 class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
@@ -40,19 +41,19 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
             # Disable buttons on the admin message
             if self.admin_message_id:
                 try:
-                    admin_user = await self.bot.fetch_user(ADMIN_ID)
-                    dm = admin_user.dm_channel or await admin_user.create_dm()
-                    orig_msg = await dm.fetch_message(self.admin_message_id)
-                    disabled_view = SuggestionButtons(
-                        self.bot, 
-                        suggestion_id=self.suggestion_id, 
-                        user_id=self.user_id, 
-                        suggestion_text=self.suggestion_text, 
-                        channel_id=self.channel_id, 
-                        admin_message_id=self.admin_message_id, 
-                        disabled=True
-                    )
-                    await orig_msg.edit(view=disabled_view)
+                    admin_channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
+                    if admin_channel:
+                        orig_msg = await admin_channel.fetch_message(self.admin_message_id)
+                        disabled_view = SuggestionButtons(
+                            self.bot, 
+                            suggestion_id=self.suggestion_id, 
+                            user_id=self.user_id, 
+                            suggestion_text=self.suggestion_text, 
+                            channel_id=self.channel_id, 
+                            admin_message_id=self.admin_message_id, 
+                            disabled=True
+                        )
+                        await orig_msg.edit(view=disabled_view)
                 except Exception as e:
                     print(f"Failed to edit admin message: {e}")
 
@@ -131,19 +132,19 @@ class SuggestionButtons(discord.ui.View):
             # Disable buttons on the admin message
             if self.admin_message_id:
                 try:
-                    admin_user = await self.bot.fetch_user(ADMIN_ID)
-                    dm = admin_user.dm_channel or await admin_user.create_dm()
-                    orig_msg = await dm.fetch_message(self.admin_message_id)
-                    disabled_view = SuggestionButtons(
-                        self.bot, 
-                        suggestion_id=self.suggestion_id, 
-                        user_id=self.user_id, 
-                        suggestion_text=self.suggestion_text, 
-                        channel_id=self.channel_id, 
-                        admin_message_id=self.admin_message_id, 
-                        disabled=True
-                    )
-                    await orig_msg.edit(view=disabled_view)
+                    admin_channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
+                    if admin_channel:
+                        orig_msg = await admin_channel.fetch_message(self.admin_message_id)
+                        disabled_view = SuggestionButtons(
+                            self.bot, 
+                            suggestion_id=self.suggestion_id, 
+                            user_id=self.user_id, 
+                            suggestion_text=self.suggestion_text, 
+                            channel_id=self.channel_id, 
+                            admin_message_id=self.admin_message_id, 
+                            disabled=True
+                        )
+                        await orig_msg.edit(view=disabled_view)
                 except Exception as e:
                     print(f"Failed to edit admin message: {e}")
 
@@ -302,36 +303,37 @@ class Suggestion(commands.GroupCog, name="suggest"):
             await interaction.followup.send(f"✅ Suggestion submitted! (ID: **{suggestion_id}**)\n> {idea}")
 
             try:
-                admin = await self.bot.fetch_user(ADMIN_ID)
-                embed = discord.Embed(
-                    title=f"New Suggestion (ID: {suggestion_id})",
-                    description=idea,
-                    color=discord.Color.blurple(),
-                    timestamp=datetime.utcnow()
-                )
-                embed.add_field(name="Suggested by", value=f"{interaction.user} ({interaction.user.id})")
-                embed.add_field(name="Channel", value=f"<#{interaction.channel_id}>")
+                admin_channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
+                if admin_channel:
+                    embed = discord.Embed(
+                        title=f"New Suggestion (ID: {suggestion_id})",
+                        description=idea,
+                        color=discord.Color.blurple(),
+                        timestamp=datetime.utcnow()
+                    )
+                    embed.add_field(name="Suggested by", value=f"{interaction.user} ({interaction.user.id})")
+                    embed.add_field(name="Channel", value=f"<#{interaction.channel_id}>")
 
-                view = SuggestionButtons(self.bot, suggestion_id, interaction.user.id, idea, interaction.channel_id)
-                sent = await admin.send(embed=embed, view=view)
+                    view = SuggestionButtons(self.bot, suggestion_id, interaction.user.id, idea, interaction.channel_id)
+                    sent = await admin_channel.send(embed=embed, view=view)
 
-                await self.db.execute("UPDATE suggestions SET admin_message_id = ? WHERE id = ?", (sent.id, suggestion_id))
-                await self.db.commit()
+                    await self.db.execute("UPDATE suggestions SET admin_message_id = ? WHERE id = ?", (sent.id, suggestion_id))
+                    await self.db.commit()
 
-                # Register the persistent view with the message_id
-                persistent_view = SuggestionButtons(
-                    self.bot, 
-                    suggestion_id, 
-                    interaction.user.id, 
-                    idea, 
-                    interaction.channel_id, 
-                    admin_message_id=sent.id
-                )
-                self.bot.add_view(persistent_view, message_id=sent.id)
-                print(f"Registered persistent view for suggestion #{suggestion_id} (message {sent.id})")
+                    # Register the persistent view with the message_id
+                    persistent_view = SuggestionButtons(
+                        self.bot, 
+                        suggestion_id, 
+                        interaction.user.id, 
+                        idea, 
+                        interaction.channel_id, 
+                        admin_message_id=sent.id
+                    )
+                    self.bot.add_view(persistent_view, message_id=sent.id)
+                    print(f"Registered persistent view for suggestion #{suggestion_id} (message {sent.id})")
 
             except Exception as e:
-                print(f"Failed to send DM to admin: {e}")
+                print(f"Failed to send message to admin channel: {e}")
                 traceback.print_exc()
 
         except Exception as e:
