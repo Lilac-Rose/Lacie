@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-COMMIT_CHANNEL_IDS = [876777562599194644, 1437941632849940563, 1424145004976275617]
+COMMIT_CHANNEL_IDS = [876777562599194644, 1437941632849940563, 1470441786810826884]
 WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
 # Updated port to be 8000 to prevent conflicts (should work)
 # I think the port itself wants me dead
