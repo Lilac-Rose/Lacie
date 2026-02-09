@@ -4,8 +4,6 @@ from discord import app_commands
 from datetime import datetime, timezone
 import sqlite3
 import os
-import aiohttp
-from aiohttp import web
 import json
 import asyncio
 import aiofiles
@@ -48,9 +46,8 @@ class Stats(commands.Cog):
         # Stats file path (same directory as stats.py)
         self.stats_file = os.path.join(BASE_DIR, "bot_stats.json")
         
-        # Start background tasks
+        # Start background task for stats file
         self.bot.loop.create_task(self.update_stats_file())
-        self.bot.loop.create_task(self.start_mini_api())
 
     # -----------------------------
     # Database methods
@@ -352,27 +349,6 @@ class Stats(commands.Cog):
                 'topWords': [{'word': word, 'count': count} for word, count in top_words]
             }
         }
-
-    # -----------------------------
-    # Mini API Server
-    # -----------------------------
-    async def start_mini_api(self):
-        """Start a simple HTTP server for real-time stats"""
-        await self.bot.wait_until_ready()
-        
-        app = web.Application()
-        
-        async def handle_stats(request):
-            stats = await self.gather_stats()
-            return web.json_response(stats)
-        
-        app.router.add_get('/stats', handle_stats)
-        
-        runner = web.AppRunner(app)
-        await runner.setup()
-        site = web.TCPSite(runner, 'localhost', 8765)
-        await site.start()
-        print("Bot stats API running on port 8765")
 
     # -----------------------------
     # Discord event listeners
