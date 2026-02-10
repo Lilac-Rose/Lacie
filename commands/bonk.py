@@ -19,7 +19,7 @@ class Bonk(commands.Cog):
                 return
 
             if user.id == interaction.user.id:
-                await interaction.followup.send("You cannot bonk yourself", ephemeral=True)
+                await interaction.followup.send("You cannot bonk yourself silly", ephemeral=False)
                 return
             
             file = discord.File(self.bonk_path, filename="bonk.png")
