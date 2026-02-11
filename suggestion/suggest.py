@@ -32,7 +32,7 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
             
             reason_text = self.reason.value or None
 
-            db_path = os.path.join(os.path.dirname(__file__), "suggestions.db")
+            db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "suggestions.db")
             async with aiosqlite.connect(db_path) as db:
                 await db.execute("UPDATE suggestions SET status = ?, reason = ? WHERE id = ?", ("Denied", reason_text, self.suggestion_id))
                 await db.commit()
@@ -40,7 +40,6 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
             # Use followup instead of response since we deferred
             await interaction.followup.send(f"❌ Suggestion #{self.suggestion_id} denied.", ephemeral=True)
 
-            # Update the embed on the admin message
             if self.admin_message_id:
                 try:
                     admin_channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
@@ -153,7 +152,7 @@ class SuggestionButtons(discord.ui.View):
             # Defer immediately to prevent timeout
             await interaction.response.defer(ephemeral=True)
 
-            db_path = os.path.join(os.path.dirname(__file__), "suggestions.db")
+            db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "suggestions.db")
             async with aiosqlite.connect(db_path) as db:
                 await db.execute("UPDATE suggestions SET status = ? WHERE id = ?", ("Approved", self.suggestion_id))
                 await db.commit()
@@ -161,7 +160,6 @@ class SuggestionButtons(discord.ui.View):
             # Use followup since we deferred
             await interaction.followup.send(f"✅ Suggestion #{self.suggestion_id} approved.", ephemeral=True)
 
-            # Update the embed on the admin message
             if self.admin_message_id:
                 try:
                     admin_channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
@@ -286,7 +284,7 @@ class SuggestionButtons(discord.ui.View):
             # Defer immediately to prevent timeout
             await interaction.response.defer(ephemeral=True)
 
-            db_path = os.path.join(os.path.dirname(__file__), "suggestions.db")
+            db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "suggestions.db")
             async with aiosqlite.connect(db_path) as db:
                 # Check if it's approved
                 async with db.execute("SELECT status FROM suggestions WHERE id = ?", (self.suggestion_id,)) as cursor:
@@ -301,7 +299,6 @@ class SuggestionButtons(discord.ui.View):
             # Use followup since we deferred
             await interaction.followup.send(f"🎉 Suggestion #{self.suggestion_id} marked as completed!", ephemeral=True)
 
-            # Update the embed on the admin message
             if self.admin_message_id:
                 try:
                     admin_channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
@@ -407,7 +404,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
 
     def __init__(self, bot):
         self.bot = bot
-        self.db_path = os.path.join(os.path.dirname(__file__), "suggestions.db")
+        self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "suggestions.db")
         self.db = None
 
     async def cog_load(self):

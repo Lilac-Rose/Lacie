@@ -7,13 +7,11 @@ import os
 class RoleTrack(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db_path = os.path.join(os.path.dirname(__file__), 'roletrack.db')
+        self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "roletrack.db")
         bot.loop.create_task(self.init_db())
     
     async def init_db(self):
-        """Initialize the database tables if they don't exist"""
         async with aiosqlite.connect(self.db_path) as db:
-            # Table for storing role data - one row per user per guild
             # role_ids stored as comma-separated string
             await db.execute('''
                 CREATE TABLE IF NOT EXISTS tracked_roles (
@@ -29,12 +27,10 @@ class RoleTrack(commands.Cog):
     
     async def save_user_roles(self, member: discord.Member):
         """Save all roles for a user (excluding @everyone)"""
-        # Get all role IDs except @everyone
         role_ids = [str(role.id) for role in member.roles if role.id != member.guild.id]
         role_ids_str = ",".join(role_ids) if role_ids else ""
         
         async with aiosqlite.connect(self.db_path) as db:
-            # Insert or replace the user's roles
             await db.execute('''
                 INSERT OR REPLACE INTO tracked_roles (user_id, guild_id, role_ids, updated_at)
                 VALUES (?, ?, ?, CURRENT_TIMESTAMP)
@@ -51,7 +47,6 @@ class RoleTrack(commands.Cog):
             ''', (user_id, guild_id)) as cursor:
                 result = await cursor.fetchone()
                 if result and result[0]:
-                    # Convert comma-separated string back to list of ints
                     return [int(role_id) for role_id in result[0].split(",")]
                 return []
     
@@ -63,7 +58,6 @@ class RoleTrack(commands.Cog):
         try:
             await self.save_user_roles(interaction.user)
             
-            # Count how many roles were saved (excluding @everyone)
             role_count = len([r for r in interaction.user.roles if r.id != interaction.guild.id])
             
             embed = discord.Embed(
@@ -77,7 +71,6 @@ class RoleTrack(commands.Cog):
                 inline=False
             )
             
-            # Show current roles
             if role_count > 0:
                 roles_list = ", ".join([r.name for r in interaction.user.roles if r.id != interaction.guild.id])
                 embed.add_field(
@@ -111,8 +104,7 @@ class RoleTrack(commands.Cog):
                     color=discord.Color.orange()
                 )
             else:
-                # Get role names
-                roles = []
+                    roles = []
                 for role_id in saved_role_ids:
                     role = interaction.guild.get_role(role_id)
                     if role:
@@ -152,12 +144,9 @@ class RoleTrack(commands.Cog):
         saved_role_ids = await self.get_saved_roles(member.id, member.guild.id)
         
         if not saved_role_ids:
-            # New member - just save their initial roles
             await self.save_user_roles(member)
             return
         
-        # Returning member - restore their roles
-        # Get the roles that still exist in the guild
         roles_to_add = []
         for role_id in saved_role_ids:
             role = member.guild.get_role(role_id)
@@ -168,10 +157,7 @@ class RoleTrack(commands.Cog):
             return  # None of the saved roles exist anymore
         
         try:
-            # Add the roles back
             await member.add_roles(*roles_to_add, reason="Role tracking: Restoring previous roles")
-            
-            # Send a DM to the user notifying them
             try:
                 embed = discord.Embed(
                     title="🎭 Roles Restored",
@@ -197,7 +183,6 @@ class RoleTrack(commands.Cog):
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):
         """Track role changes in real-time"""
-        # Check if roles changed
         if before.roles != after.roles:
             await self.save_user_roles(after)
 

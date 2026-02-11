@@ -12,7 +12,7 @@ from functools import partial
 class LockCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db_path = os.path.join(os.path.dirname(__file__), "moderation.db")
+        self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "moderation.db")
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.c = self.conn.cursor()

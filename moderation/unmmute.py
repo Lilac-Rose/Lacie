@@ -49,7 +49,7 @@ class UnmuteCommand(ModerationBase):
 
         if mute_role in user.roles:
             await user.remove_roles(mute_role, reason="Manual unmute issued")
-            db_path = os.path.join(os.path.dirname(__file__), "moderation.db")
+            db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "moderation.db")
             conn = sqlite3.connect(db_path)
             c = conn.cursor()
             c.execute("DELETE FROM mutes WHERE user_id = ? AND guild_id = ?", (user.id, ctx.guild.id))

@@ -15,7 +15,7 @@ BIRTHDAY_ROLE_ID = 1113751318918602762
 class Birthday(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db_path = os.path.join(os.path.dirname(__file__), "birthdays.db")
+        self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "birthdays.db")
         self._init_db()
         self.check_birthdays.start()
         self.remove_birthday_roles.start()

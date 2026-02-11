@@ -19,8 +19,8 @@ class BackupXP(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.base_dir = os.path.dirname(os.path.abspath(__file__))
-        self.db_dir = os.path.join(self.base_dir, "databases")
-        self.backup_dir = os.path.join(self.base_dir, "backups")
+        self.db_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
+        self.backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "backups", "xp")
         self.last_backup_file = os.path.join(self.backup_dir, "last_backup.txt")
         self.last_auto_backup_file = os.path.join(self.backup_dir, "last_auto_backup.txt")
         os.makedirs(self.backup_dir, exist_ok=True)

@@ -11,7 +11,7 @@ class InfractionsCommand(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         # Path to moderation database (go up to project root, then into moderation/)
-        self.db_path = os.path.join(os.path.dirname(__file__), "..", "moderation", "moderation.db")
+        self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "moderation.db")
 
     @app_commands.command(name="infractions", description="View your infractions in this server")
     async def infractions(self, interaction: discord.Interaction):

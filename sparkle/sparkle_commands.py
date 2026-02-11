@@ -182,7 +182,7 @@ class SparkleCommands(commands.Cog):
             # Get total message count from stats.db (located in ../stats/)
             import os
             import sqlite3
-            stats_db_path = os.path.join(os.path.dirname(__file__), "..", "stats", "stats.db")
+            stats_db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "stats.db")
             total_messages = 0
             try:
                 stats_conn = sqlite3.connect(stats_db_path)

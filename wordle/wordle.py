@@ -10,7 +10,7 @@ import datetime
 WORD_LIST_URL = "https://raw.githubusercontent.com/tabatkins/wordle-list/main/words"
 WORDLE_DIR = "wordle"
 WORD_LIST_PATH = os.path.join(WORDLE_DIR, "words.txt")
-DB_PATH = os.path.join(WORDLE_DIR, "wordle.db")
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "wordle.db")
 
 # Emoji squares for displaying guess results
 SQUARES = {"green": "🟩", "yellow": "🟨", "gray": "⬛"}
@@ -27,9 +27,7 @@ class Wordle(commands.Cog):
         self.bot.loop.create_task(self._ensure_wordlist())
 
     async def _init_db(self):
-        """Initialize the SQLite database with required tables."""
         async with aiosqlite.connect(DB_PATH) as db:
-            # Table for storing user statistics (wins, streaks, etc.)
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS wordle_stats (
                     user_id INTEGER PRIMARY KEY,
@@ -39,7 +37,6 @@ class Wordle(commands.Cog):
                     max_streak INTEGER DEFAULT 0
                 )
             """)
-            # Table for storing individual game sessions
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS wordle_games (
                     user_id INTEGER,
@@ -61,7 +58,6 @@ class Wordle(commands.Cog):
             with open(WORD_LIST_PATH, "w", encoding="utf-8") as f:
                 f.write(words)
         
-        # Load all 5-letter words into memory
         with open(WORD_LIST_PATH, "r", encoding="utf-8") as f:
             self.words = [w.strip() for w in f.read().splitlines() if len(w.strip()) == 5]
         print(f"[Wordle] Loaded {len(self.words)} words.")

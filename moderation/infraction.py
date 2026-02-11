@@ -54,12 +54,10 @@ class InfractionCommand(ModerationBase):
     async def check_auto_removals(self):
         """Background task that runs every 24 hours to check for eligible infraction removals."""
         try:
-            # Get all guilds with active infractions
             self.c.execute("SELECT DISTINCT guild_id FROM infractions WHERE removed=0 AND skip_auto_removal=0 AND pending_approval=0")
             guilds = [row[0] for row in self.c.fetchall()]
 
             for guild_id in guilds:
-                # Get all users with active, non-skipped, non-pending infractions in this guild
                 self.c.execute("""
                     SELECT DISTINCT user_id 
                     FROM infractions 
