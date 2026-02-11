@@ -7,7 +7,7 @@ from moderation.loader import ModerationBase
 
 load_dotenv()
 
-EXCLUDED_FILE = os.path.join(os.path.dirname(__file__), "excluded_channels.json")
+EXCLUDED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "excluded_channels.json")
 
 def load_excluded_channels():
     """Load excluded channel IDs from JSON file."""

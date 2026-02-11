@@ -35,12 +35,8 @@ class AvatarCommands(commands.Cog):
         else:
             return user.display_avatar
 
-    # Create the main avatar command group
     avatar_group = app_commands.Group(name="avatar", description="Avatar manipulation commands")
 
-    # ----------------------------------------------------------------------
-    # /avatar show
-    # ----------------------------------------------------------------------
     @avatar_group.command(name="show", description="Show your avatar or another user's avatar")
     @app_commands.describe(
         user="The user whose avatar to show (defaults to you)",
@@ -72,9 +68,6 @@ class AvatarCommands(commands.Cog):
 
         await interaction.followup.send(embed=embed)
 
-    # ----------------------------------------------------------------------
-    # /avatar bitcrush
-    # ----------------------------------------------------------------------
     @avatar_group.command(name="bitcrush", description="Bitcrush a user's avatar to a lower bits-per-pixel value")
     @app_commands.describe(
         user="The user whose avatar to bitcrush (defaults to you)",
@@ -127,9 +120,6 @@ class AvatarCommands(commands.Cog):
         out.seek(0)
         return out.getvalue()
 
-    # ----------------------------------------------------------------------
-    # /avatar canny_edge
-    # ----------------------------------------------------------------------
     @avatar_group.command(name="canny_edge", description="Apply Canny edge detection to a user's avatar")
     @app_commands.describe(
         user="The user whose avatar to process (defaults to you)",
@@ -204,9 +194,6 @@ class AvatarCommands(commands.Cog):
         out.seek(0)
         return out.getvalue()
 
-    # ----------------------------------------------------------------------
-    # /avatar explode
-    # ----------------------------------------------------------------------
     @avatar_group.command(name="explode", description="Make a user's avatar explode")
     @app_commands.describe(
         user="The user whose avatar to explode (defaults to you)",
@@ -269,9 +256,6 @@ class AvatarCommands(commands.Cog):
         out.seek(0)
         return out.getvalue()
 
-    # ----------------------------------------------------------------------
-    # /avatar grayscale
-    # ----------------------------------------------------------------------
     @avatar_group.command(name="grayscale", description="Grayscale a user's avatar")
     @app_commands.describe(
         user="The user whose avatar to grayscale (defaults to you)",
@@ -315,9 +299,6 @@ class AvatarCommands(commands.Cog):
         out.seek(0)
         return out.getvalue()
 
-    # ----------------------------------------------------------------------
-    # /avatar inverse
-    # ----------------------------------------------------------------------
     @avatar_group.command(name="inverse", description="Invert the colors of a user's avatar")
     @app_commands.describe(
         user="The user whose avatar to invert (defaults to you)",
@@ -361,9 +342,6 @@ class AvatarCommands(commands.Cog):
         out.seek(0)
         return out.getvalue()
 
-    # ----------------------------------------------------------------------
-    # /avatar kuwahara
-    # ----------------------------------------------------------------------
     @avatar_group.command(name="kuwahara", description="Apply a Kuwahara filter to a user's avatar for a painterly effect")
     @app_commands.describe(
         user="The user whose avatar to filter (defaults to you)",
@@ -456,9 +434,6 @@ class AvatarCommands(commands.Cog):
         out.seek(0)
         return out.getvalue()
 
-    # ----------------------------------------------------------------------
-    # /avatar obamify
-    # ----------------------------------------------------------------------
     @avatar_group.command(name="obamify", description="Turn a user's avatar into a tile-based Obama mosaic")
     @app_commands.describe(
         user="The user whose avatar to obamify (defaults to you)",

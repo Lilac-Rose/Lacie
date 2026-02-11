@@ -13,13 +13,9 @@ from zoneinfo import ZoneInfo
 class StatusMonitor(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        # Path to the status monitor database
         self.db_path = Path("/home/lilacrose/lilacrose.dev2.0/monitor.db")
-        # Your Discord user ID
         self.admin_user_id = 252130669919076352
-        # Track last known status to detect changes
         self.last_status = {}
-        # Start the monitoring loop
         self.check_status.start()
     
     def cog_unload(self):
@@ -30,16 +26,13 @@ class StatusMonitor(commands.Cog):
     async def check_status(self):
         """Check service status every minute"""
         try:
-            # Check if database exists
             if not self.db_path.exists():
                 return
-            
-            # Connect to the status monitor database
+
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
-            
-            # Get latest status for each service
+
             cur.execute("""
                 SELECT service_name, status, error_message, timestamp
                 FROM service_checks
@@ -53,17 +46,14 @@ class StatusMonitor(commands.Cog):
             current_statuses = {row['service_name']: row for row in cur.fetchall()}
             conn.close()
             
-            # Get the admin user
             admin = await self.bot.fetch_user(self.admin_user_id)
             if not admin:
                 return
             
-            # Check each service for status changes
             for service_name, row in current_statuses.items():
                 current_status = row['status']
                 error_msg = row['error_message']
                 
-                # Get the service's display name
                 service_display_names = {
                     "website": "TERMINAL//FKLR-F23",
                     "game_tracker": "GAME_TRACKER//FKLR-F23",

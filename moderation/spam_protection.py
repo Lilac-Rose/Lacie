@@ -17,7 +17,7 @@ class SpamProtection(commands.Cog):
     
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db_path = os.path.join(os.path.dirname(__file__), "moderation.db")
+        self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "moderation.db")
         
         # Track user message patterns
         # user_id -> deque of (timestamp, channel_id, content)

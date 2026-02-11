@@ -18,7 +18,6 @@ async def add_xp(user):
             if is_channel_excluded(last_message.channel.id):
                 return
     
-    # Check cooldown ONCE before adding to any database
     conn_check, cur_check = get_db("lifetime")
     cur_check.execute("SELECT last_message FROM xp WHERE user_id = ?", (str(member.id),))
     row_check = cur_check.fetchone()
@@ -29,7 +28,6 @@ async def add_xp(user):
     
     base_xp = random_xp()
     
-    # List of all leaderboard types to update
     leaderboard_types = [
         ("lifetime", True),   # (db_type, apply_multiplier)
         ("annual", False),

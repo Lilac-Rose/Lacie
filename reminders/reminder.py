@@ -34,7 +34,7 @@ class ReminderCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         # Database will be stored next to this Python file
-        self.db_path = Path(__file__).parent / "reminders.db"
+        self.db_path = Path(__file__).parent.parent / "data" / "reminders.db"
 
     async def setup_database(self):
         async with aiosqlite.connect(self.db_path) as db:

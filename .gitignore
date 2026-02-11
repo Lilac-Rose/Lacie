@@ -9,3 +9,4 @@ venv/
 */databases/
 */old_backups/
 logs/
+data/

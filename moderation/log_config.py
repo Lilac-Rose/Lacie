@@ -41,7 +41,6 @@ class LogConfig(ModerationBase):
     
     def __init__(self, bot):
         super().__init__(bot)
-        # Create the excluded channels table if it doesn't exist
         self.c.execute("""
             CREATE TABLE IF NOT EXISTS log_excluded_channels (
                 guild_id INTEGER NOT NULL,
@@ -74,13 +73,11 @@ class LogConfig(ModerationBase):
             await ctx.send(f"❌ Invalid log type `{log_type}`.\nUse `!log types` to see all available types.")
             return
         
-        # Check if bot can send messages in the channel
         permissions = channel.permissions_for(ctx.guild.me)
         if not permissions.send_messages or not permissions.embed_links:
             await ctx.send(f"❌ I don't have permission to send messages and embeds in {channel.mention}!")
             return
         
-        # Update database
         self.c.execute("""
             INSERT INTO log_config (guild_id, log_type, channel_id)
             VALUES (?, ?, ?)
@@ -101,20 +98,17 @@ class LogConfig(ModerationBase):
         
         Events from this channel will not be logged.
         """
-        # Verify the channel exists in the guild
         channel = ctx.guild.get_channel(channel_id)
         if not channel:
             await ctx.send(f"❌ Channel with ID `{channel_id}` not found in this server.")
             return
         
-        # Check if already excluded
         self.c.execute("SELECT channel_id FROM log_excluded_channels WHERE guild_id = ? AND channel_id = ?",
                       (ctx.guild.id, channel_id))
         if self.c.fetchone():
             await ctx.send(f"❌ {channel.mention} (`{channel_id}`) is already excluded from logging.")
             return
         
-        # Add to excluded channels
         self.c.execute("INSERT INTO log_excluded_channels (guild_id, channel_id) VALUES (?, ?)",
                       (ctx.guild.id, channel_id))
         self.conn.commit()
@@ -307,7 +301,6 @@ class LogConfig(ModerationBase):
             await ctx.send("❌ No logging configured to clear.")
             return
         
-        # Confirmation
         from discord.ui import View, Button
         view = View(timeout=30)
         confirmed = {"value": False}

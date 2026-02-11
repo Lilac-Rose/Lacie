@@ -4,8 +4,7 @@ import os
 from discord.ext import commands
 from discord import app_commands
 
-# Get the directory where this file is located
-DB_PATH = os.path.join(os.path.dirname(__file__), "embed_colors.db")
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "embed_colors.db")
 
 class EmbedColor(commands.Cog):
     def __init__(self, bot):

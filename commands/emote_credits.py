@@ -10,7 +10,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
     def __init__(self, bot):
         super().__init__(bot)
         self.bot = bot
-        self.db_path = Path("commands/emote_credits.db")
+        self.db_path = Path(__file__).parent.parent / "data" / "emote_credits.db"
         self.approval_channel_id = 1424145004976275617
         bot.loop.create_task(self._init_db())
         
@@ -130,13 +130,11 @@ class EmoteCredits(ModerationBase, commands.Cog):
             submission_id = cursor.lastrowid
             await conn.commit()
         
-        # Send to approval channel
         approval_channel = self.bot.get_channel(self.approval_channel_id)
         if not approval_channel:
             await interaction.followup.send("❌ Approval channel not found. Please contact an admin.", ephemeral=True)
             return
         
-        # Create approval embed
         approval_embed = discord.Embed(
             title="🎨 New Credit Submission",
             color=discord.Color.blue()
@@ -146,12 +144,10 @@ class EmoteCredits(ModerationBase, commands.Cog):
         approval_embed.add_field(name="Submitted By", value=interaction.user.mention, inline=False)
         approval_embed.set_footer(text=f"Submission ID: {submission_id}")
         
-        # Create approval view
         view = CreditApprovalView(self, submission_id, emoji_name, artist, interaction.user.id)
         
         approval_msg = await approval_channel.send(embed=approval_embed, view=view)
         
-        # Store message ID
         async with aiosqlite.connect(self.db_path) as conn:
             await conn.execute(
                 "UPDATE pending_credits SET message_id = ? WHERE id = ?",

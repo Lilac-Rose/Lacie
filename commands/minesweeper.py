@@ -97,7 +97,6 @@ class MinesweeperGame:
         while queue:
             row, col = queue.popleft()
             
-            # Check all 8 adjacent cells
             for dr in [-1, 0, 1]:
                 for dc in [-1, 0, 1]:
                     if dr == 0 and dc == 0:
@@ -105,7 +104,6 @@ class MinesweeperGame:
                     
                     nr, nc = row + dr, col + dc
                     
-                    # Skip if out of bounds or already visited
                     if not (0 <= nr < self.rows and 0 <= nc < self.cols):
                         continue
                     if (nr, nc) in visited:
@@ -429,7 +427,6 @@ class Minesweeper(commands.Cog):
         if view.game.game_over:
             return
         
-        # Parse the message
         move = self.parse_move(message.content)
         
         if move is None:

@@ -83,7 +83,7 @@ class MuteCommand(ModerationBase):
         await self.log_infraction(ctx.guild.id, user.id, ctx.author.id, "mute", reason)
         await ctx.send(f"{user.mention} has been muted for **{duration}**.")
 
-        db_path = os.path.join(os.path.dirname(__file__), "moderation.db")
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "moderation.db")
         conn = sqlite3.connect(db_path)
         c = conn.cursor()
         c.execute("""
@@ -111,7 +111,7 @@ class MuteCommand(ModerationBase):
 
     async def schedule_unmute(self, user_id, guild_id, channel_id, delay):
         await asyncio.sleep(delay)
-        db_path = os.path.join(os.path.dirname(__file__), "moderation.db")
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "moderation.db")
         conn = sqlite3.connect(db_path)
         c = conn.cursor()
         c.execute("SELECT 1 FROM mutes WHERE user_id = ? AND guild_id = ?", (user_id, guild_id))
@@ -145,7 +145,7 @@ class MuteCommand(ModerationBase):
 
     @tasks.loop(minutes=1)
     async def check_mutes(self):
-        db_path = os.path.join(os.path.dirname(__file__), "moderation.db")
+        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "moderation.db")
         conn = sqlite3.connect(db_path)
         c = conn.cursor()
         now = datetime.utcnow().isoformat()
