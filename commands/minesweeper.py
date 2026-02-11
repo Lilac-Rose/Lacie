@@ -4,6 +4,7 @@ from discord import app_commands
 import random
 import asyncio
 import re
+from datetime import datetime, timedelta
 
 class MinesweeperGame:
     def __init__(self, rows: int = 13, cols: int = 13, mines: int = 20):
@@ -197,10 +198,64 @@ class MinesweeperGame:
 
 class MinesweeperView(discord.ui.View):
     def __init__(self, player: discord.Member, game: MinesweeperGame):
-        super().__init__(timeout=600)
+        super().__init__(timeout=None)  # Disable built-in timeout, we'll manage it ourselves
         self.player = player
         self.game = game
         self.message: discord.Message = None
+        self.timeout_seconds = 1800  # 30 minutes
+        self.timeout_task = None
+        self.timed_out = False
+    
+    async def start_timeout(self):
+        """Start or restart the timeout timer"""
+        # Cancel existing timeout task if any
+        if self.timeout_task and not self.timeout_task.done():
+            self.timeout_task.cancel()
+        
+        # Create new timeout task
+        self.timeout_task = asyncio.create_task(self._timeout_handler())
+    
+    async def _timeout_handler(self):
+        """Handle the timeout after waiting"""
+        try:
+            await asyncio.sleep(self.timeout_seconds)
+            # If we reach here, the timeout expired
+            await self.handle_timeout()
+        except asyncio.CancelledError:
+            # Timeout was reset, this is expected
+            pass
+    
+    async def handle_timeout(self):
+        """Handle when the game times out"""
+        if self.timed_out or self.game.game_over:
+            return
+        
+        self.timed_out = True
+        self.game.game_over = True
+        
+        for child in self.children:
+            child.disabled = True
+        
+        self.stop()
+        
+        if self.message:
+            embed = self.create_embed()
+            embed.color = discord.Color.orange()
+            embed.title = "⏱️ Game Timed Out"
+            embed.description = f"{self.player.mention}'s game has ended due to inactivity (30 minutes)."
+            embed.set_footer(text="The game has been automatically closed.")
+            try:
+                await self.message.edit(embed=embed, view=self)
+            except discord.errors.NotFound:
+                # Message was deleted
+                pass
+            except Exception as e:
+                print(f"Error updating timed out game: {e}")
+    
+    def reset_timeout(self):
+        """Reset the timeout timer - called when a move is made"""
+        if not self.game.game_over and not self.timed_out:
+            asyncio.create_task(self.start_timeout())
     
     @discord.ui.button(label="Forfeit", style=discord.ButtonStyle.danger, emoji="🏳️")
     async def forfeit(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -209,6 +264,11 @@ class MinesweeperView(discord.ui.View):
             return
         
         self.game.game_over = True
+        
+        # Cancel timeout task
+        if self.timeout_task and not self.timeout_task.done():
+            self.timeout_task.cancel()
+        
         for child in self.children:
             child.disabled = True
         self.stop()
@@ -295,23 +355,9 @@ class MinesweeperView(discord.ui.View):
         embed.add_field(name="Stats", value=stats, inline=False)
         
         if not self.game.game_over:
-            embed.set_footer(text="Send your move in chat: [column number] [row letter] [flag]")
+            embed.set_footer(text="Send your move in chat: [column number] [row letter] [flag] | Timeout resets with each move (30min)")
         
         return embed
-    
-    async def on_timeout(self):
-        self.game.game_over = True
-        for child in self.children:
-            child.disabled = True
-        
-        if self.message:
-            embed = self.create_embed()
-            embed.color = discord.Color.greyple()
-            embed.title = "⏱️ Game Timed Out"
-            try:
-                await self.message.edit(embed=embed, view=self)
-            except:
-                pass
 
 
 class Minesweeper(commands.Cog):
@@ -350,6 +396,9 @@ class Minesweeper(commands.Cog):
         embed = view.create_embed()
         message = await interaction.followup.send(embed=embed, view=view)
         view.message = message
+        
+        # Start the timeout timer
+        await view.start_timeout()
         
         self.active_games[interaction.channel_id] = (interaction.user.id, view)
         
@@ -401,8 +450,15 @@ class Minesweeper(commands.Cog):
         else:
             view.game.reveal(row, col)
         
+        # Reset the timeout timer since a valid move was made
+        view.reset_timeout()
+        
         # Update the embed
         if view.game.game_over:
+            # Cancel timeout task since game is over
+            if view.timeout_task and not view.timeout_task.done():
+                view.timeout_task.cancel()
+            
             for child in view.children:
                 child.disabled = True
             view.stop()
