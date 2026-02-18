@@ -1,12 +1,14 @@
+"""Bonk command cog that lets users bonk each other with an image."""
 import discord
 from discord import app_commands
 from discord.ext import commands
 import os
+from pathlib import Path
 
 class Bonk(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.bonk_path = os.path.join(os.path.dirname(__file__), "..", "media", "kat_bonk.png")
+        self.bonk_path = Path(__file__).parent.parent / "media" / "kat_bonk.png"
 
     @app_commands.command(name="bonk", description="Bonk another user!")
     @app_commands.describe(user="The user you want to bonk")

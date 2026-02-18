@@ -1,3 +1,4 @@
+"""Webhook server that listens for GitHub push events and posts to Discord."""
 import discord
 from discord.ext import commands
 from aiohttp import web
@@ -5,8 +6,11 @@ import hmac
 import hashlib
 import os
 from dotenv import load_dotenv
+from utils.logger import get_logger
 
 load_dotenv()
+
+logger = get_logger(__name__)
 
 COMMIT_CHANNEL_IDS = [876777562599194644, 1437941632849940563, 1470441786810826884]
 WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
@@ -29,9 +33,8 @@ class GitWebhook(commands.Cog):
         await self.runner.setup()
         self.site = web.TCPSite(self.runner, '0.0.0.0', WEBHOOK_PORT)
         await self.site.start()
-        print(f"✅ Git webhook server started on port {WEBHOOK_PORT}")
-        print(f"   Configure GitHub to send webhooks to: http://159.195.45.90:{WEBHOOK_PORT}/webhook")
-        print(f"   Sending notifications to {len(COMMIT_CHANNEL_IDS)} channel(s)")
+        logger.info(f"Git webhook server started on port {WEBHOOK_PORT}")
+        logger.info(f"Sending notifications to {len(COMMIT_CHANNEL_IDS)} channel(s)")
     
     async def cog_unload(self):
         """Stop the webhook server when cog unloads."""
@@ -39,7 +42,7 @@ class GitWebhook(commands.Cog):
             await self.site.stop()
         if self.runner:
             await self.runner.cleanup()
-        print("🛑 Git webhook server stopped")
+        logger.info("Git webhook server stopped")
     
     def verify_signature(self, payload_body, signature_header):
         """Verify GitHub webhook signature for security."""
@@ -73,9 +76,9 @@ class GitWebhook(commands.Cog):
             
             # Handle GitHub ping event (test from GitHub)
             if 'zen' in data and 'hook_id' in data:
-                print("✅ Received GitHub ping event - webhook is configured correctly!")
+                logger.info("Received GitHub ping event - webhook is configured correctly!")
                 return web.json_response({"status": "pong"}, status=200)
-            
+
             # Get all Discord channels
             channels = []
             for channel_id in COMMIT_CHANNEL_IDS:
@@ -83,10 +86,10 @@ class GitWebhook(commands.Cog):
                 if channel:
                     channels.append(channel)
                 else:
-                    print(f"⚠️ Channel {channel_id} not found!")
-            
+                    logger.warning(f"Channel {channel_id} not found!")
+
             if not channels:
-                print(f"❌ No valid channels found!")
+                logger.error("No valid channels found!")
                 return web.json_response({"error": "No channels found"}, status=500)
             
             # Handle GitHub push events
@@ -99,13 +102,11 @@ class GitWebhook(commands.Cog):
                 await self.handle_gitlab_push(data, channels)
                 return web.json_response({"status": "success"}, status=200)
             
-            print(f"⚠️ Unknown webhook format. Keys in data: {list(data.keys())}")
+            logger.warning(f"Unknown webhook format. Keys in data: {list(data.keys())}")
             return web.json_response({"error": "Unknown webhook format"}, status=400)
-            
+
         except Exception as e:
-            print(f"❌ Webhook error: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Webhook error: {e}", exc_info=True)
             return web.json_response({"error": str(e)}, status=500)
     
     async def handle_github_push(self, data, channels):
@@ -168,7 +169,7 @@ class GitWebhook(commands.Cog):
             try:
                 await channel.send(embed=embed)
             except Exception as e:
-                print(f"❌ Failed to send to channel {channel.id}: {e}")
+                logger.error(f"Failed to send to channel {channel.id}: {e}")
     
     async def handle_gitlab_push(self, data, channels):
         """Handle GitLab push webhook."""
@@ -229,7 +230,7 @@ class GitWebhook(commands.Cog):
             try:
                 await channel.send(embed=embed)
             except Exception as e:
-                print(f"❌ Failed to send to channel {channel.id}: {e}")
+                logger.error(f"Failed to send to channel {channel.id}: {e}")
 
 async def setup(bot):
     await bot.add_cog(GitWebhook(bot))

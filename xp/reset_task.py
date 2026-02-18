@@ -1,7 +1,11 @@
+"""Scheduled XP reset tasks for daily, weekly, and monthly leaderboards."""
 from discord.ext import tasks, commands
 from datetime import datetime, timezone
 from .database import reset_leaderboard, get_last_reset
 import calendar
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 class ResetTask(commands.Cog):
     def __init__(self, bot):
@@ -23,7 +27,7 @@ class ResetTask(commands.Cog):
             last_reset_date = datetime.fromtimestamp(last_reset, timezone.utc).date() if last_reset > 0 else None
             if last_reset_date != now.date():
                 reset_leaderboard("daily")
-                print(f"[XP System] Daily leaderboard reset at {now}")
+                logger.info(f"Daily leaderboard reset at {now}")
         
         # Weekly reset - Monday at midnight UTC
         if self.should_reset_weekly(now):
@@ -32,7 +36,7 @@ class ResetTask(commands.Cog):
             current_week = now.isocalendar()[1]
             if last_reset_week != current_week:
                 reset_leaderboard("weekly")
-                print(f"[XP System] Weekly leaderboard reset at {now}")
+                logger.info(f"Weekly leaderboard reset at {now}")
         
         # Monthly reset - First day of month at midnight UTC
         if self.should_reset_monthly(now):
@@ -40,7 +44,7 @@ class ResetTask(commands.Cog):
             last_reset_month = datetime.fromtimestamp(last_reset, timezone.utc).month if last_reset > 0 else None
             if last_reset_month != now.month:
                 reset_leaderboard("monthly")
-                print(f"[XP System] Monthly leaderboard reset at {now}")
+                logger.info(f"Monthly leaderboard reset at {now}")
     
     def should_reset_daily(self, now):
         """Check if it's time for daily reset (00:00 UTC)."""

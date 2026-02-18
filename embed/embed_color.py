@@ -1,10 +1,23 @@
+"""Embed color preference system allowing users to set custom embed colors."""
 import discord
 import sqlite3
-import os
+from pathlib import Path
 from discord.ext import commands
 from discord import app_commands
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "embed_colors.db")
+DB_PATH = Path(__file__).parent.parent / "data" / "embed_colors.db"
+
+
+def get_embed_color(user_id: int) -> discord.Color:
+    db = sqlite3.connect(DB_PATH)
+    cursor = db.cursor()
+    cursor.execute("SELECT color FROM user_embed_colors WHERE user_id = ?", (user_id,))
+    result = cursor.fetchone()
+    db.close()
+    if result and result[0]:
+        return discord.Color(int(result[0], 16))
+    return discord.Color.blurple()
+
 
 class EmbedColor(commands.Cog):
     def __init__(self, bot):

@@ -1,15 +1,17 @@
+"""Admin command to generate the color role preview image."""
 import discord
 from discord import app_commands
 from discord.ext import commands
 from pathlib import Path
-import traceback
 from PIL import Image, ImageDraw, ImageFont
-import os
 import io
 from math import floor, ceil
 from moderation.loader import ModerationBase
 import importlib
 import sys
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 class ColorImageGen(commands.Cog):
     def __init__(self, bot):
@@ -43,7 +45,7 @@ class ColorImageGen(commands.Cog):
             color_roles = []
             
             # Styling
-            font_path_ttf = os.path.join(self.FONTS_PATH, "Renogare-Regular.otf")
+            font_path_ttf = self.FONTS_PATH / "Renogare-Regular.otf"
             FONT_SIZE = 300
             font = ImageFont.truetype(font_path_ttf, FONT_SIZE)
             COLUMN_SIZE = 5
@@ -104,7 +106,7 @@ class ColorImageGen(commands.Cog):
             )
                 
         except Exception as e:
-            print(f"[ERROR] /color list\n{traceback.format_exc()}")
+            logger.error(f"Error generating color image: {e}", exc_info=True)
             msg = f"❌ Error in `/color list`: `{e}`" if self.DEBUG else "❌ Something went wrong loading color images."
             await ctx.send(msg)
 

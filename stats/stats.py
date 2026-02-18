@@ -1,18 +1,24 @@
+"""Statistics tracking cog: message counts, word frequencies, bot uptime."""
 import discord
 from discord.ext import commands
 from discord import app_commands
 from datetime import datetime, timezone
 import sqlite3
+from embed.embed_color import get_embed_color
 import os
 import json
+from pathlib import Path
 import asyncio
 import aiofiles
 import re
 from collections import Counter
 from typing import Dict, List, Tuple
+from utils.logger import get_logger
 
-BASE_DIR = os.path.dirname(__file__)
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "stats.db")
+logger = get_logger(__name__)
+
+BASE_DIR = Path(__file__).parent
+DB_PATH = Path(__file__).parent.parent / "data" / "stats.db"
 
 class Stats(commands.Cog):
     def __init__(self, bot):
@@ -41,8 +47,10 @@ class Stats(commands.Cog):
         }
 
         self.init_db()
-        self.stats_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "bot_stats.json")
-        self.bot.loop.create_task(self.update_stats_file())
+        self.stats_file = Path(__file__).parent.parent / "data" / "bot_stats.json"
+
+    async def cog_load(self):
+        asyncio.create_task(self.update_stats_file())
 
     def init_db(self):
         db = sqlite3.connect(DB_PATH)
@@ -243,9 +251,9 @@ class Stats(commands.Cog):
                     file_path = os.path.join(stats_dir, filename)
                     if file_path != self.stats_file:
                         os.remove(file_path)
-                        print(f"Removed old stats file: {filename}")
+                        logger.info(f"Removed old stats file: {filename}")
         except Exception as e:
-            print(f"Error cleaning up old stats files: {e}")
+            logger.error(f"Error cleaning up old stats files: {e}", exc_info=True)
 
     async def update_stats_file(self):
         await self.bot.wait_until_ready()
@@ -257,7 +265,7 @@ class Stats(commands.Cog):
                 async with aiofiles.open(self.stats_file, 'w') as f:
                     await f.write(json.dumps(stats, indent=2, default=str))
             except Exception as e:
-                print(f"Error updating stats file: {e}")
+                logger.error(f"Error updating stats file: {e}", exc_info=True)
 
             await asyncio.sleep(30)  # Update every 30 seconds
 
@@ -346,7 +354,7 @@ class Stats(commands.Cog):
 
         embed = discord.Embed(
             title=f"🌟 {guild.name} Statistics 🌟",
-            color=self.bot.get_cog("EmbedColor").get_user_color(interaction.user),
+            color=get_embed_color(interaction.user.id),
             timestamp=datetime.now(timezone.utc)
         )
 
@@ -389,7 +397,7 @@ class Stats(commands.Cog):
 
         embed = discord.Embed(
             title="📊 Message Statistics",
-            color=self.bot.get_cog("EmbedColor").get_user_color(interaction.user),
+            color=get_embed_color(interaction.user.id),
             timestamp=datetime.now(timezone.utc)
         )
 
@@ -413,7 +421,7 @@ class Stats(commands.Cog):
 
         embed = discord.Embed(
             title="🔤 Word Frequency Statistics",
-            color=self.bot.get_cog("EmbedColor").get_user_color(interaction.user),
+            color=get_embed_color(interaction.user.id),
             timestamp=datetime.now(timezone.utc)
         )
 
@@ -437,7 +445,7 @@ class Stats(commands.Cog):
 
         embed = discord.Embed(
             title="📊 Most Active Channels",
-            color=self.bot.get_cog("EmbedColor").get_user_color(interaction.user),
+            color=get_embed_color(interaction.user.id),
             timestamp=datetime.now(timezone.utc)
         )
 

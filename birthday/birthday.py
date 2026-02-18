@@ -1,11 +1,13 @@
+"""Birthday tracking cog that sends birthday wishes and manages birthday roles."""
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands
 import sqlite3
 from datetime import datetime, timezone, timedelta
+from embed.embed_color import get_embed_color
 import asyncio
 import pytz
-import os
+from pathlib import Path
 from dotenv import load_dotenv
 from moderation.loader import ModerationBase
 
@@ -15,7 +17,7 @@ BIRTHDAY_ROLE_ID = 1113751318918602762
 class Birthday(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "birthdays.db")
+        self.db_path = Path(__file__).parent.parent / "data" / "birthdays.db"
         self._init_db()
         self.check_birthdays.start()
         self.remove_birthday_roles.start()
@@ -239,7 +241,7 @@ class Birthday(commands.Cog):
         embed = discord.Embed(
             title=f"🎂 Birthdays in {month_name}",
             description="\n".join(lines),
-            color=discord.Color.magenta()
+            color=get_embed_color(interaction.user.id)
         )
         await interaction.response.send_message(embed=embed)
 

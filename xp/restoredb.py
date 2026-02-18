@@ -1,18 +1,19 @@
+"""XP database restore commands for recovering from backups."""
 import discord
 from discord import app_commands
 from discord.ext import commands
 from discord.ui import View, Button
 import os
 import shutil
+from pathlib import Path
 from moderation.loader import ModerationBase
 from .groups import xp_admin_group
 
 class RestoreXP(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.base_dir = os.path.dirname(os.path.abspath(__file__))
-        self.db_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
-        self.backup_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "backups", "xp")
+        self.db_dir = Path(__file__).parent.parent / "data"
+        self.backup_dir = Path(__file__).parent.parent / "data" / "backups" / "xp"
         # Register onto the shared xpadmin group
         cmd = app_commands.command(name="restore", description="Restore a lifetime or annual XP database from backup")(self.restorebackup)
         # Attach the autocompleters to the command object before adding

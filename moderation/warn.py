@@ -1,3 +1,4 @@
+"""Warn command that logs infractions and notifies the user."""
 import discord
 from discord.ext import commands
 from discord.ui import View, Button
@@ -41,7 +42,7 @@ class WarnCommand(ModerationBase):
 
         try:
             await user.send(f"You have been **warned** in **{ctx.guild.name}**.\nReason: {reason or 'No reason provided'}")
-        except:
+        except Exception:
             await ctx.send("Could not DM the user.")
 
         await self.log_infraction(ctx.guild.id, user.id, ctx.author.id, "warn", reason)

@@ -1,3 +1,4 @@
+"""Welcome event cog that greets new members and assigns default roles."""
 import discord
 from discord.ext import commands
 

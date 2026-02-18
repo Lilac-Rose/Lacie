@@ -1,15 +1,22 @@
+"""Role tracking cog that monitors and records role assignment history."""
 import discord
 from discord import app_commands
 from discord.ext import commands
 import aiosqlite
-import os
+from pathlib import Path
+from embed.embed_color import get_embed_color
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 class RoleTrack(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "roletrack.db")
-        bot.loop.create_task(self.init_db())
-    
+        self.db_path = Path(__file__).parent.parent / "data" / "roletrack.db"
+
+    async def cog_load(self):
+        await self.init_db()
+
     async def init_db(self):
         async with aiosqlite.connect(self.db_path) as db:
             # role_ids stored as comma-separated string
@@ -63,7 +70,7 @@ class RoleTrack(commands.Cog):
             embed = discord.Embed(
                 title="✅ Roles Synced",
                 description=f"Successfully saved {role_count} role(s) to the tracking system.",
-                color=discord.Color.green()
+                color=get_embed_color(interaction.user.id)
             )
             embed.add_field(
                 name="What does this do?",
@@ -85,7 +92,7 @@ class RoleTrack(commands.Cog):
             embed = discord.Embed(
                 title="❌ Sync Failed",
                 description=f"An error occurred while syncing your roles: {str(e)}",
-                color=discord.Color.red()
+                color=get_embed_color(interaction.user.id)
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
     
@@ -101,10 +108,10 @@ class RoleTrack(commands.Cog):
                 embed = discord.Embed(
                     title="📋 Saved Roles",
                     description="No roles are currently saved for you in the database.",
-                    color=discord.Color.orange()
+                    color=get_embed_color(interaction.user.id)
                 )
             else:
-                    roles = []
+                roles = []
                 for role_id in saved_role_ids:
                     role = interaction.guild.get_role(role_id)
                     if role:
@@ -115,7 +122,7 @@ class RoleTrack(commands.Cog):
                 embed = discord.Embed(
                     title="📋 Saved Roles",
                     description=f"Found {len(saved_role_ids)} role(s) in the database:",
-                    color=discord.Color.blue()
+                    color=get_embed_color(interaction.user.id)
                 )
                 embed.add_field(
                     name="Roles",
@@ -129,7 +136,7 @@ class RoleTrack(commands.Cog):
             embed = discord.Embed(
                 title="❌ Check Failed",
                 description=f"An error occurred: {str(e)}",
-                color=discord.Color.red()
+                color=get_embed_color(interaction.user.id)
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
     
@@ -162,7 +169,7 @@ class RoleTrack(commands.Cog):
                 embed = discord.Embed(
                     title="🎭 Roles Restored",
                     description=f"Welcome back to **{member.guild.name}**! Your roles have been automatically restored.",
-                    color=discord.Color.blue()
+                    color=get_embed_color(member.id)
                 )
                 embed.add_field(
                     name="Restored Roles",
@@ -170,7 +177,7 @@ class RoleTrack(commands.Cog):
                     inline=False
                 )
                 await member.send(embed=embed)
-            except:
+            except Exception:
                 # User has DMs disabled, that's fine
                 pass
                 
@@ -178,7 +185,7 @@ class RoleTrack(commands.Cog):
             # Bot doesn't have permission to add roles
             pass
         except Exception as e:
-            print(f"Error restoring roles for {member}: {e}")
+            logger.error(f"Error restoring roles for {member}: {e}")
     
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member):

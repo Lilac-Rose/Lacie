@@ -1,3 +1,4 @@
+"""Cleanban command that bans and deletes recent messages."""
 import discord
 from discord.ext import commands
 from discord.ui import View, Button
@@ -69,7 +70,7 @@ class CleanBanCommand(ModerationBase):
                     f"Messages from the past {days} day(s) have been deleted.\n"
                     f"Reason: {reason or 'No reason provided'}\n\n"
                 )
-        except:
+        except Exception:
             await ctx.send("Could not DM the user.")
 
         # Perform the ban with message deletion

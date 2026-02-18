@@ -1,22 +1,27 @@
+"""Avatar manipulation commands (bitcrush, edge detect, explode, filters, etc.)."""
 import discord
 from discord import app_commands
 from discord.ext import commands
 from PIL import Image, ImageOps, ImageSequence
 import io
+from embed.embed_color import get_embed_color
 import asyncio
 import aiohttp
-import traceback
 import os
+from pathlib import Path
 import numpy as np
 from scipy.ndimage import uniform_filter
 import cv2
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 class AvatarCommands(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.session = None
-        self.explosion_path = os.path.join(os.path.dirname(__file__), "..", "media", "explosion-deltarune.gif")
-        self.obama_path = os.path.join(os.path.dirname(__file__), "..", "media", "obama.jpg")
+        self.explosion_path = Path(__file__).parent.parent / "media" / "explosion-deltarune.gif"
+        self.obama_path = Path(__file__).parent.parent / "media" / "obama.jpg"
     
     async def cog_load(self):
         self.session = aiohttp.ClientSession()
@@ -55,13 +60,9 @@ class AvatarCommands(commands.Cog):
         avatar = self.get_avatar_url(target, avatar_type)
         avatar_url = avatar.url
 
-        embed_color = discord.Color.blue()
-        if self.bot.get_cog("EmbedColor"):
-            embed_color = self.bot.get_cog("EmbedColor").get_user_color(interaction.user)
-        
         embed = discord.Embed(
             title=f"{target.display_name}'s Avatar",
-            color=embed_color
+            color=get_embed_color(interaction.user.id)
         )
         embed.set_image(url=avatar_url)
         embed.add_field(name="Direct Link", value=f"[Open Avatar]({avatar_url})")
@@ -108,9 +109,9 @@ class AvatarCommands(commands.Cog):
                 file=file
             )
         except Exception:
-            traceback.print_exc()
+            logger.exception("Error in avatar bitcrush")
             await interaction.followup.send("An error occurred while processing the image.", ephemeral=True)
-    
+
     def _bitcrush_image(self, image_bytes: bytes, bits: int) -> bytes:
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         colors = 2 ** bits
@@ -169,9 +170,9 @@ class AvatarCommands(commands.Cog):
                 file=file
             )
         except Exception:
-            traceback.print_exc()
+            logger.exception("Error in avatar canny_edge")
             await interaction.followup.send("An error occurred while processing the image.", ephemeral=True)
-    
+
     def _canny_edge_detection(self, image_bytes: bytes, threshold1: int, threshold2: int) -> bytes:
         # Load image and convert to grayscale
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
@@ -226,7 +227,7 @@ class AvatarCommands(commands.Cog):
             
             await interaction.followup.send(f"{user.display_name} just got exploded!", file=file)
         except Exception:
-            traceback.print_exc()
+            logger.exception("Error in avatar explode")
             await interaction.followup.send("An error occurred while processing the explosion.", ephemeral=True)
     
     def _explode_avatar(self, avatar_bytes: bytes) -> bytes:
@@ -288,9 +289,9 @@ class AvatarCommands(commands.Cog):
                 file=file
             )
         except Exception:
-            traceback.print_exc()
+            logger.exception("Error in avatar grayscale")
             await interaction.followup.send("An error occurred while processing the image.", ephemeral=True)
-    
+
     def _grayscale_image(self, image_bytes: bytes) -> bytes:
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         grayscaled = ImageOps.grayscale(img)
@@ -331,9 +332,9 @@ class AvatarCommands(commands.Cog):
                 file=file
             )
         except Exception:
-            traceback.print_exc()
+            logger.exception("Error in avatar inverse")
             await interaction.followup.send("An error occurred while processing the image.", ephemeral=True)
-    
+
     def _invert_image(self, image_bytes: bytes) -> bytes:
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         inverted = ImageOps.invert(img)
@@ -382,9 +383,9 @@ class AvatarCommands(commands.Cog):
                 file=file
             )
         except Exception:
-            traceback.print_exc()
+            logger.exception("Error in avatar kuwahara")
             await interaction.followup.send("An error occurred while processing the image.", ephemeral=True)
-    
+
     def _kuwahara_filter(self, image_bytes: bytes, kernel_size: int) -> bytes:
         img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         img_array = np.array(img, dtype=np.float32)
@@ -470,7 +471,7 @@ class AvatarCommands(commands.Cog):
             
             await interaction.followup.send(file=discord.File(buf, filename="obama_mosaic.png"))
         except Exception:
-            traceback.print_exc()
+            logger.exception("Error in avatar obamify")
             await interaction.followup.send("An error occurred during mosaic generation.", ephemeral=True)
     
     async def _fetch_avatar(self, url: str) -> Image.Image:

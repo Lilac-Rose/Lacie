@@ -6,7 +6,5 @@ venv/
 */backups/
 */fonts/
 .txt
-*/databases/
-*/old_backups/
 logs/
 data/

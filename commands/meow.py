@@ -1,7 +1,10 @@
+"""Simple meow command cog that responds with a random cat sound."""
 import discord
 from discord.ext import commands
 from discord import app_commands
 import random
+
+MEOW_LIST = ["Meowwwww~", "Purrrrrr", "Nyaaaaaa", "Meow Meow", "Nya!", "Meow :3"]
 
 class Meow(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -9,10 +12,8 @@ class Meow(commands.Cog):
 
     @app_commands.command(name="meow")
     async def meow(self, interaction: discord.Interaction):
-
-        meow_list=["Meowwwww~", "Purrrrrr", "Nyaaaaaa", "Meow Meow", "Nya!", "Meow :3"]
-        meow_index = random.randrange(0,5)
-        await interaction.response.send_message(meow_list[meow_index])
+        meow_index = random.randrange(0, len(MEOW_LIST))
+        await interaction.response.send_message(MEOW_LIST[meow_index])
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Meow(bot))

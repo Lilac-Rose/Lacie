@@ -1,3 +1,4 @@
+"""Owner-only admin tools: database browser, terminal, eval, file manager."""
 import discord
 from discord.ext import commands
 import aiosqlite
@@ -5,8 +6,10 @@ import asyncio
 import os
 import glob
 from typing import Optional
-import traceback
 import re
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 ADMIN_USER_ID = 252130669919076352
 
@@ -100,7 +103,7 @@ class AdminCommands(commands.Cog):
         
         db_files = await loop.run_in_executor(None, _glob)
         self.db_connections = {os.path.basename(f).replace('.db', ''): f for f in db_files}
-        print(f"Discovered databases: {list(self.db_connections.keys())}")
+        logger.info(f"Discovered databases: {list(self.db_connections.keys())}")
     
     @commands.command(name="admin_help", aliases=["adminhelp", "ahelp"])
     @is_owner()
@@ -398,7 +401,7 @@ class AdminCommands(commands.Cog):
             await ctx.send(embed=embed)
         except Exception as e:
             await ctx.send(f"❌ Error: {str(e)}")
-            traceback.print_exc()
+            logger.exception("Error in admin command")
     
     @commands.command(name="dbinfo")
     @is_owner()
@@ -438,7 +441,7 @@ class AdminCommands(commands.Cog):
             await ctx.send(embed=embed)
         except Exception as e:
             await ctx.send(f"❌ Error: {str(e)}")
-            traceback.print_exc()
+            logger.exception("Error in admin command")
     
     @commands.command(name="dbquery")
     @is_owner()
@@ -476,7 +479,7 @@ class AdminCommands(commands.Cog):
                 await ctx.send(f"```\n{output}\n```")
         except Exception as e:
             await ctx.send(f"❌ Error: {str(e)}")
-            traceback.print_exc()
+            logger.exception("Error in admin command")
     
     def _write_file(self, filename, content):
         """Helper to write file synchronously in executor"""
@@ -500,7 +503,7 @@ class AdminCommands(commands.Cog):
             await ctx.send(f"✅ Query executed successfully. Rows affected: {affected_rows}")
         except Exception as e:
             await ctx.send(f"❌ Error: {str(e)}")
-            traceback.print_exc()
+            logger.exception("Error in admin command")
     
     @commands.command(name="terminal", aliases=["term", "sh"])
     @is_owner()
@@ -544,7 +547,7 @@ class AdminCommands(commands.Cog):
         
         except Exception as e:
             await ctx.send(f"❌ Error: {str(e)}")
-            traceback.print_exc()
+            logger.exception("Error in admin command")
     
     @commands.command(name="eval")
     @is_owner()
@@ -611,7 +614,7 @@ class AdminCommands(commands.Cog):
         except Exception as e:
             error_msg = f"```python\n{type(e).__name__}: {str(e)}\n```"
             await ctx.send(f"❌ Error:\n{error_msg}")
-            traceback.print_exc()
+            logger.exception("Error in admin command")
     
     @commands.command(name="pwd")
     @is_owner()
@@ -764,7 +767,7 @@ class AdminCommands(commands.Cog):
         
         except Exception as e:
             await ctx.send(f"❌ Error: {str(e)}")
-            traceback.print_exc()
+            logger.exception("Error in admin command")
     
     @code.command(name="search", aliases=["grep", "find-all"])
     @is_owner()
@@ -805,7 +808,7 @@ class AdminCommands(commands.Cog):
                                     })
                                     if len(results) >= 100:  # Limit results
                                         return results, "truncated"
-                    except:
+                    except Exception:
                         continue
                 
                 return results, None
@@ -860,7 +863,7 @@ class AdminCommands(commands.Cog):
         
         except Exception as e:
             await ctx.send(f"❌ Error: {str(e)}")
-            traceback.print_exc()
+            logger.exception("Error in admin command")
     
     @code.command(name="find")
     @is_owner()
@@ -927,11 +930,11 @@ class AdminCommands(commands.Cog):
         
         except Exception as e:
             await ctx.send(f"❌ Error: {str(e)}")
-            traceback.print_exc()
+            logger.exception("Error in admin command")
         
         except Exception as e:
             await ctx.send(f"❌ Error: {str(e)}")
-            traceback.print_exc()
+            logger.exception("Error in admin command")
     
     @code.command(name="edit")
     @is_owner()
@@ -1079,7 +1082,7 @@ class AdminCommands(commands.Cog):
         
         except Exception as e:
             await ctx.send(f"❌ Error: {str(e)}")
-            traceback.print_exc()
+            logger.exception("Error in admin command")
     
     @code.command(name="insert")
     @is_owner()
@@ -1124,7 +1127,7 @@ class AdminCommands(commands.Cog):
         
         except Exception as e:
             await ctx.send(f"❌ Error: {str(e)}")
-            traceback.print_exc()
+            logger.exception("Error in admin command")
     
     @code.command(name="delete", aliases=["del"])
     @is_owner()
@@ -1172,7 +1175,7 @@ class AdminCommands(commands.Cog):
         
         except Exception as e:
             await ctx.send(f"❌ Error: {str(e)}")
-            traceback.print_exc()
+            logger.exception("Error in admin command")
     
     @code.command(name="replace")
     @is_owner()
@@ -1233,7 +1236,7 @@ class AdminCommands(commands.Cog):
         
         except Exception as e:
             await ctx.send(f"❌ Error: {str(e)}")
-            traceback.print_exc()
+            logger.exception("Error in admin command")
     
     @code.command(name="backup")
     @is_owner()
@@ -1265,7 +1268,7 @@ class AdminCommands(commands.Cog):
         
         except Exception as e:
             await ctx.send(f"❌ Error: {str(e)}")
-            traceback.print_exc()
+            logger.exception("Error in admin command")
     
     @code.command(name="diff")
     @is_owner()
@@ -1319,7 +1322,7 @@ class AdminCommands(commands.Cog):
         
         except Exception as e:
             await ctx.send(f"❌ Error: {str(e)}")
-            traceback.print_exc()
+            logger.exception("Error in admin command")
     
     @commands.command(name="grep")
     @is_owner()
@@ -1356,7 +1359,7 @@ class AdminCommands(commands.Cog):
                                     results.append(f"{filepath}:{i}: {line.rstrip()}")
                                     if len(results) >= 50:  # Limit results
                                         return results, "truncated"
-                    except:
+                    except Exception:
                         continue
                 
                 return results, None
@@ -1385,7 +1388,7 @@ class AdminCommands(commands.Cog):
         
         except Exception as e:
             await ctx.send(f"❌ Error: {str(e)}")
-            traceback.print_exc()
+            logger.exception("Error in admin command")
 
 async def setup(bot):
     await bot.add_cog(AdminCommands(bot))

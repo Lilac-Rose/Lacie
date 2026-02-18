@@ -1,11 +1,16 @@
+"""Suggestion system cog with voting, approval, and completion workflow."""
 import discord
 from discord import app_commands
 from discord.ext import commands
 import aiosqlite
 from datetime import datetime
-import os
+from embed.embed_color import get_embed_color
+from pathlib import Path
 from typing import Optional
 import traceback
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 ADMIN_ID = 252130669919076352
 ADMIN_CHANNEL_ID = 1470441786810826884
@@ -32,7 +37,7 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
             
             reason_text = self.reason.value or None
 
-            db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "suggestions.db")
+            db_path = Path(__file__).parent.parent / "data" / "suggestions.db"
             async with aiosqlite.connect(db_path) as db:
                 await db.execute("UPDATE suggestions SET status = ?, reason = ? WHERE id = ?", ("Denied", reason_text, self.suggestion_id))
                 await db.commit()
@@ -72,7 +77,7 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
                         )
                         await orig_msg.edit(embed=updated_embed, view=disabled_view)
                 except Exception as e:
-                    print(f"Failed to edit admin message: {e}")
+                    logger.error(f"Failed to edit admin message: {e}")
 
             # Send DM to user
             try:
@@ -82,7 +87,7 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
                     dm_note += f"\n**Reason:** {reason_text}"
                 await user.send(dm_note)
             except Exception as e:
-                print(f"Failed to DM user: {e}")
+                logger.error(f"Failed to DM user: {e}")
 
             # Send message in original channel
             channel = self.bot.get_channel(self.channel_id)
@@ -93,14 +98,14 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
                         msg += f"\n**Reason:** {reason_text}"
                     await channel.send(msg)
                 except Exception as e:
-                    print(f"Failed to send message in channel: {e}")
+                    logger.error(f"Failed to send message in channel: {e}")
 
         except Exception as e:
             error_msg = f"❌ Error denying suggestion: {str(e)}\n```{traceback.format_exc()}```"
-            print(error_msg)
+            logger.error(f"Error denying suggestion: {e}", exc_info=True)
             try:
                 await interaction.followup.send(error_msg[:2000], ephemeral=True)
-            except:
+            except Exception:
                 pass
 
 
@@ -152,7 +157,7 @@ class SuggestionButtons(discord.ui.View):
             # Defer immediately to prevent timeout
             await interaction.response.defer(ephemeral=True)
 
-            db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "suggestions.db")
+            db_path = Path(__file__).parent.parent / "data" / "suggestions.db"
             async with aiosqlite.connect(db_path) as db:
                 await db.execute("UPDATE suggestions SET status = ? WHERE id = ?", ("Approved", self.suggestion_id))
                 await db.commit()
@@ -189,14 +194,14 @@ class SuggestionButtons(discord.ui.View):
                         )
                         await orig_msg.edit(embed=updated_embed, view=complete_view)
                 except Exception as e:
-                    print(f"Failed to edit admin message: {e}")
+                    logger.error(f"Failed to edit admin message: {e}")
 
             # Send DM to user
             try:
                 user = await self.bot.fetch_user(self.user_id)
                 await user.send(f"✅ Your suggestion (ID: {self.suggestion_id}) — `{self.suggestion_text}` has been **approved!**")
             except Exception as e:
-                print(f"Failed to DM user: {e}")
+                logger.error(f"Failed to DM user: {e}")
 
             # Send message in original channel
             channel = self.bot.get_channel(self.channel_id)
@@ -204,17 +209,17 @@ class SuggestionButtons(discord.ui.View):
                 try:
                     await channel.send(f"✅ Suggestion **#{self.suggestion_id}** (`{self.suggestion_text}`) has been **approved!**")
                 except Exception as e:
-                    print(f"Failed to send message in channel: {e}")
+                    logger.error(f"Failed to send message in channel: {e}")
 
         except Exception as e:
             error_msg = f"❌ Error approving suggestion: {str(e)}\n```{traceback.format_exc()}```"
-            print(error_msg)
+            logger.error(f"Error approving suggestion: {e}", exc_info=True)
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message(error_msg[:2000], ephemeral=True)
                 else:
                     await interaction.followup.send(error_msg[:2000], ephemeral=True)
-            except:
+            except Exception:
                 pass
 
     async def deny(self, interaction: discord.Interaction):
@@ -239,7 +244,7 @@ class SuggestionButtons(discord.ui.View):
                 try:
                     orig_msg = await admin_channel.fetch_message(self.admin_message_id)
                     original_embed = orig_msg.embeds[0] if orig_msg.embeds else None
-                except:
+                except Exception:
                     original_embed = None
             else:
                 original_embed = None
@@ -256,13 +261,13 @@ class SuggestionButtons(discord.ui.View):
             await interaction.response.send_modal(modal)
         except Exception as e:
             error_msg = f"❌ Error opening deny modal: {str(e)}\n```{traceback.format_exc()}```"
-            print(error_msg)
+            logger.error(f"Error opening deny modal: {e}", exc_info=True)
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message(error_msg[:2000], ephemeral=True)
                 else:
                     await interaction.followup.send(error_msg[:2000], ephemeral=True)
-            except:
+            except Exception:
                 pass
 
     async def complete(self, interaction: discord.Interaction):
@@ -284,7 +289,7 @@ class SuggestionButtons(discord.ui.View):
             # Defer immediately to prevent timeout
             await interaction.response.defer(ephemeral=True)
 
-            db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "suggestions.db")
+            db_path = Path(__file__).parent.parent / "data" / "suggestions.db"
             async with aiosqlite.connect(db_path) as db:
                 # Check if it's approved
                 async with db.execute("SELECT status FROM suggestions WHERE id = ?", (self.suggestion_id,)) as cursor:
@@ -333,14 +338,14 @@ class SuggestionButtons(discord.ui.View):
                         )
                         await orig_msg.edit(embed=updated_embed, view=disabled_view)
                 except Exception as e:
-                    print(f"Failed to edit admin message: {e}")
+                    logger.error(f"Failed to edit admin message: {e}")
 
             # Send DM to user
             try:
                 user = await self.bot.fetch_user(self.user_id)
                 await user.send(f"🎉 Your suggestion (ID: {self.suggestion_id}) — `{self.suggestion_text}` has been **implemented!**")
             except Exception as e:
-                print(f"Failed to DM user: {e}")
+                logger.error(f"Failed to DM user: {e}")
 
             # Send message in original channel
             channel = self.bot.get_channel(self.channel_id)
@@ -348,17 +353,17 @@ class SuggestionButtons(discord.ui.View):
                 try:
                     await channel.send(f"🎉 Suggestion **#{self.suggestion_id}** (`{self.suggestion_text}`) has been marked as **completed!**")
                 except Exception as e:
-                    print(f"Failed to send message in channel: {e}")
+                    logger.error(f"Failed to send message in channel: {e}")
 
         except Exception as e:
             error_msg = f"❌ Error completing suggestion: {str(e)}\n```{traceback.format_exc()}```"
-            print(error_msg)
+            logger.error(f"Error completing suggestion: {e}", exc_info=True)
             try:
                 if not interaction.response.is_done():
                     await interaction.response.send_message(error_msg[:2000], ephemeral=True)
                 else:
                     await interaction.followup.send(error_msg[:2000], ephemeral=True)
-            except:
+            except Exception:
                 pass
 
 
@@ -404,7 +409,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
 
     def __init__(self, bot):
         self.bot = bot
-        self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "suggestions.db")
+        self.db_path = Path(__file__).parent.parent / "data" / "suggestions.db"
         self.db = None
 
     async def cog_load(self):
@@ -438,7 +443,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
                     show_complete=(status == "Approved")
                 )
                 self.bot.add_view(view, message_id=admin_msg_id)
-                print(f"Re-registered view for suggestion #{sid} (message {admin_msg_id}, status: {status})")
+                logger.info(f"Re-registered view for suggestion #{sid} (message {admin_msg_id}, status: {status})")
 
     async def cog_unload(self):
         if self.db:
@@ -466,7 +471,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
                     embed = discord.Embed(
                         title=f"New Suggestion (ID: {suggestion_id})",
                         description=idea,
-                        color=discord.Color.blurple(),
+                        color=get_embed_color(interaction.user.id),
                         timestamp=datetime.utcnow()
                     )
                     embed.add_field(name="Suggested by", value=f"{interaction.user} ({interaction.user.id})")
@@ -488,15 +493,14 @@ class Suggestion(commands.GroupCog, name="suggest"):
                         admin_message_id=sent.id
                     )
                     self.bot.add_view(persistent_view, message_id=sent.id)
-                    print(f"Registered persistent view for suggestion #{suggestion_id} (message {sent.id})")
+                    logger.info(f"Registered persistent view for suggestion #{suggestion_id} (message {sent.id})")
 
             except Exception as e:
-                print(f"Failed to send message to admin channel: {e}")
-                traceback.print_exc()
+                logger.error(f"Failed to send message to admin channel: {e}", exc_info=True)
 
         except Exception as e:
             error_msg = f"❌ An error occurred: {str(e)}\n```{traceback.format_exc()}```"
-            print(error_msg)
+            logger.error(f"Error in suggest command: {e}", exc_info=True)
             await interaction.followup.send(error_msg[:2000])
 
     @app_commands.command(name="view", description="View full details of a suggestion")
@@ -529,7 +533,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
             try:
                 user = await self.bot.fetch_user(user_id)
                 embed.add_field(name="Suggested by", value=f"{user.mention} ({user})", inline=True)
-            except:
+            except Exception:
                 embed.add_field(name="Suggested by", value=f"<@{user_id}>", inline=True)
             
             embed.add_field(name="Status", value=status, inline=True)
@@ -542,7 +546,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
 
         except Exception as e:
             error_msg = f"❌ An error occurred: {str(e)}\n```{traceback.format_exc()}```"
-            print(error_msg)
+            logger.error(f"Error in viewsuggestion command: {e}", exc_info=True)
             await interaction.followup.send(error_msg[:2000])
 
     @app_commands.command(name="complete", description="Mark an approved suggestion as completed (Admin only)")
@@ -612,12 +616,12 @@ class Suggestion(commands.GroupCog, name="suggest"):
                         )
                         await orig_msg.edit(embed=updated_embed, view=disabled_view)
                 except Exception as e:
-                    print(f"Failed to edit admin message: {e}")
+                    logger.error(f"Failed to edit admin message: {e}")
 
             try:
                 user = await self.bot.fetch_user(user_id)
                 await user.send(f"🎉 Your suggestion (ID: {suggestion_id}) — `{suggestion_text}` has been **implemented!**")
-            except:
+            except Exception:
                 pass
 
             channel = self.bot.get_channel(channel_id)
@@ -626,7 +630,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
 
         except Exception as e:
             error_msg = f"❌ An error occurred: {str(e)}\n```{traceback.format_exc()}```"
-            print(error_msg)
+            logger.error(f"Error in completesuggestion command: {e}", exc_info=True)
             await interaction.followup.send(error_msg[:2000])
 
     @app_commands.command(name="list", description="List suggestions with optional status filter")
@@ -674,7 +678,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
 
         except Exception as e:
             error_msg = f"❌ An error occurred: {str(e)}\n```{traceback.format_exc()}```"
-            print(error_msg)
+            logger.error(f"Error in listsuggestions command: {e}", exc_info=True)
             await interaction.followup.send(error_msg[:2000])
 
     @app_commands.command(name="todo", description="View your approved suggestions to-do list")
@@ -728,7 +732,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
                                     user_approved.append((sid, uid, suggestion_text))
                                     break
                     except Exception as e:
-                        print(f"Failed to fetch message {admin_msg_id}: {e}")
+                        logger.error(f"Failed to fetch message {admin_msg_id}: {e}")
                         continue
 
             if not user_approved:
@@ -764,7 +768,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
 
         except Exception as e:
             error_msg = f"❌ An error occurred: {str(e)}\n```{traceback.format_exc()}```"
-            print(error_msg)
+            logger.error(f"Error in todolist command: {e}", exc_info=True)
             await interaction.followup.send(error_msg[:2000])
 
 

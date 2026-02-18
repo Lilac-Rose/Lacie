@@ -1,3 +1,4 @@
+"""Sparkle currency commands for giving, checking, and viewing sparkle stats."""
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -5,6 +6,9 @@ from discord.utils import escape_markdown
 from .database import get_db
 import asyncio
 import datetime
+import sqlite3
+from pathlib import Path
+from embed.embed_color import get_embed_color
 
 
 class SparkleCommands(commands.Cog):
@@ -54,7 +58,7 @@ class SparkleCommands(commands.Cog):
         epic, rare, regular, total = result
         embed = discord.Embed(
             title=f"{user.display_name}'s Sparkles",
-            color=discord.Color.gold()
+            color=get_embed_color(interaction.user.id)
         )
         embed.set_thumbnail(url=user.display_avatar.url)
         embed.add_field(
@@ -83,7 +87,7 @@ class SparkleCommands(commands.Cog):
                 "💫 **Epic Sparkle** – 1/100,000 chance\n\n"
                 "Track your sparkles using `/sparkle check` or `/sparkle leaderboard`."
             ),
-            color=discord.Color.purple()
+            color=get_embed_color(interaction.user.id)
         )
         embed.set_footer(text="Keep chatting to test your luck!")
         await interaction.response.send_message(embed=embed)
@@ -125,7 +129,7 @@ class SparkleCommands(commands.Cog):
 
         embed = discord.Embed(
             title=f"✨ {escape_markdown(interaction.guild.name)} Sparkle Leaderboard",
-            color=discord.Color.gold()
+            color=get_embed_color(interaction.user.id)
         )
 
         medal = {1: "🥇", 2: "🥈", 3: "🥉"}
@@ -180,9 +184,7 @@ class SparkleCommands(commands.Cog):
             conn.close()
             
             # Get total message count from stats.db (located in ../stats/)
-            import os
-            import sqlite3
-            stats_db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "stats.db")
+            stats_db_path = Path(__file__).parent.parent / "data" / "stats.db"
             total_messages = 0
             try:
                 stats_conn = sqlite3.connect(stats_db_path)
@@ -193,7 +195,7 @@ class SparkleCommands(commands.Cog):
                 if result and result[0]:
                     total_messages = result[0]
                 stats_conn.close()
-            except:
+            except Exception:
                 pass  # If stats.db doesn't exist or has issues, just use 0
             
             return total_epic, total_rare, total_regular, events, total_messages
@@ -217,7 +219,7 @@ class SparkleCommands(commands.Cog):
 
         embed = discord.Embed(
             title=f"📊 Sparkle Stats for {interaction.guild.name}",
-            color=discord.Color.purple()
+            color=get_embed_color(interaction.user.id)
         )
 
         embed.add_field(

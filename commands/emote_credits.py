@@ -1,3 +1,4 @@
+"""Emote credits cog for tracking and displaying custom emote artists."""
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -5,6 +6,7 @@ from moderation.loader import ModerationBase
 import re
 import aiosqlite
 from pathlib import Path
+from embed.embed_color import get_embed_color
 
 class EmoteCredits(ModerationBase, commands.Cog):
     def __init__(self, bot):
@@ -12,8 +14,10 @@ class EmoteCredits(ModerationBase, commands.Cog):
         self.bot = bot
         self.db_path = Path(__file__).parent.parent / "data" / "emote_credits.db"
         self.approval_channel_id = 1424145004976275617
-        bot.loop.create_task(self._init_db())
-        
+
+    async def cog_load(self):
+        await self._init_db()
+
     async def _init_db(self):
         """Initialize the database"""
         async with aiosqlite.connect(self.db_path) as conn:
@@ -87,7 +91,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
             embed = discord.Embed(
                 title=f"🎨 Credit for: {emoji_name}",
                 description=f"**Artist:** {credit}",
-                color=discord.Color.blue()
+                color=get_embed_color(interaction.user.id)
             )
             embed.set_footer(text="Full credits document: https://docs.google.com/document/d/1o6dJS3G82rA03oHQn3Lu3ywK0SpepZnxnmP28R8Nnpc/edit?tab=t.0")
             await interaction.followup.send(embed=embed)
@@ -137,7 +141,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
         
         approval_embed = discord.Embed(
             title="🎨 New Credit Submission",
-            color=discord.Color.blue()
+            color=get_embed_color(interaction.user.id)
         )
         approval_embed.add_field(name="Emote Name", value=f"`{emoji_name}`", inline=False)
         approval_embed.add_field(name="Artist", value=artist, inline=False)
@@ -343,7 +347,7 @@ class CreditApprovalView(discord.ui.View):
                 color=discord.Color.green()
             )
             await submitter.send(embed=notify_embed)
-        except:
+        except Exception:
             pass
     
     @discord.ui.button(label="Deny", style=discord.ButtonStyle.red, custom_id="deny_credit")
@@ -373,7 +377,7 @@ class CreditApprovalView(discord.ui.View):
                 color=discord.Color.red()
             )
             await submitter.send(embed=notify_embed)
-        except:
+        except Exception:
             pass
 
 

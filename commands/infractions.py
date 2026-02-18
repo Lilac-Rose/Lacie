@@ -1,8 +1,9 @@
+"""Command for users to view their own moderation infractions via DM."""
 import discord
 from discord import app_commands
 from discord.ext import commands
 import sqlite3
-import os
+from pathlib import Path
 
 
 class InfractionsCommand(commands.Cog):
@@ -11,7 +12,7 @@ class InfractionsCommand(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         # Path to moderation database (go up to project root, then into moderation/)
-        self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "moderation.db")
+        self.db_path = Path(__file__).parent.parent / "data" / "moderation.db"
 
     @app_commands.command(name="infractions", description="View your infractions in this server")
     async def infractions(self, interaction: discord.Interaction):

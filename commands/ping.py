@@ -1,14 +1,16 @@
+"""Ping command that shows WebSocket, API, and database latency."""
 import discord
 from discord.ext import commands
 from discord import app_commands
 import time
 import aiosqlite
-import os
+from embed.embed_color import get_embed_color
+from pathlib import Path
 
 class Ping(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "suggestions.db")
+        self.db_path = Path(__file__).parent.parent / "data" / "suggestions.db"
 
     @app_commands.command(name="ping", description="Check the bot's latency")
     async def ping(self, interaction: discord.Interaction):
@@ -33,7 +35,7 @@ class Ping(commands.Cog):
 
         embed = discord.Embed(
             title="Pong!",
-            color=self.bot.get_cog("EmbedColor").get_user_color(interaction.user)
+            color=get_embed_color(interaction.user.id)
         )
         embed.add_field(name="WebSocket Latency", value=f"{ws_latency}ms", inline=True)
         embed.add_field(name="API Latency", value=f"{api_latency}ms", inline=True)

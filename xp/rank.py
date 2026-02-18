@@ -1,12 +1,16 @@
+"""XP rank card generation and rank display commands."""
 import discord
 import time
 import math
-import traceback
 from discord.ext import commands
 from discord import app_commands
 from .database import get_db
 from .utils import xp_for_level, get_multiplier, MULTIPLIERS, COOLDOWN
 from .groups import xp_group
+from embed.embed_color import get_embed_color
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 class Rank(commands.Cog):
     def __init__(self, bot):
@@ -109,7 +113,7 @@ class Rank(commands.Cog):
                     f"➡️ **Next level:** `{next_level_xp:,}` ({needed:,} more)\n"
                     f"🕒 **Cooldown:** {cooldown}"
                 ),
-                color=self.bot.get_cog("EmbedColor").get_user_color(interaction.user)
+                color=get_embed_color(interaction.user.id)
             )
 
             if lifetime and multipliers_text:
@@ -128,8 +132,7 @@ class Rank(commands.Cog):
             await interaction.followup.send(embed=embed)
 
         except Exception as e:
-            print(f"Rank command error: {e}")
-            traceback.print_exc()
+            logger.exception(f"Rank command error: {e}")
             try:
                 if interaction.response.is_done():
                     await interaction.followup.send(
@@ -139,7 +142,7 @@ class Rank(commands.Cog):
                     await interaction.response.send_message(
                         "An error occurred while fetching rank data.", ephemeral=True
                     )
-            except:
+            except Exception:
                 pass
 
     def cog_unload(self):

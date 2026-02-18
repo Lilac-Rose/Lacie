@@ -1,13 +1,16 @@
+"""Color role management cog allowing users to pick decorative color roles."""
 import discord
 from discord import app_commands
 from discord.ext import commands
 from pathlib import Path
-import traceback
 from PIL import Image, ImageDraw, ImageFont
-import os
 import io
 from math import floor, ceil
 from moderation.loader import ModerationBase
+from embed.embed_color import get_embed_color
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 DEBUG = False
 
@@ -18,7 +21,7 @@ COLOR_ROLE_NAMES = [
     "Dark Air", "White-ish"
 ]
 
-FONTS_PATH = os.path.join(os.path.dirname(__file__), "..", "fonts")
+FONTS_PATH = Path(__file__).parent.parent / "fonts"
 
 class ColorRoles(commands.Cog):
     def __init__(self, bot):
@@ -87,7 +90,7 @@ class ColorRoles(commands.Cog):
                 ephemeral=True
             )
         except Exception as e:
-            print(f"[ERROR] /color set\n{traceback.format_exc()}")
+            logger.error(f"/color set: {e}", exc_info=True)
             msg = f"Error: `{e}`" if DEBUG else "Something went wrong."
             await interaction.followup.send(msg, ephemeral=True)
 
@@ -148,7 +151,7 @@ class ColorRoles(commands.Cog):
                 ephemeral=False
             )
         except Exception as e:
-            print(f"[ERROR] /color setfor\n{traceback.format_exc()}")
+            logger.error(f"/color setfor: {e}", exc_info=True)
             msg = f"Error: `{e}`" if DEBUG else "Something went wrong."
             await interaction.followup.send(msg, ephemeral=True)
 
@@ -199,7 +202,7 @@ class ColorRoles(commands.Cog):
                 ephemeral=True
             )
         except Exception as e:
-            print(f"[ERROR] /color remove\n{traceback.format_exc()}")
+            logger.error(f"/color remove: {e}", exc_info=True)
             msg = f"Error: `{e}`" if DEBUG else "Something went wrong."
             await interaction.followup.send(msg, ephemeral=True)
 
@@ -244,7 +247,7 @@ class ColorRoles(commands.Cog):
                 ephemeral=False
             )
         except Exception as e:
-            print(f"[ERROR] /color removefor\n{traceback.format_exc()}")
+            logger.error(f"/color removefor: {e}", exc_info=True)
             msg = f"Error: `{e}`" if DEBUG else "Something went wrong."
             await interaction.followup.send(msg, ephemeral=True)
 
@@ -280,7 +283,7 @@ class ColorRoles(commands.Cog):
                 embed1 = discord.Embed(
                     title="Available Color Roles (Part 1)",
                     description="Use `/color set` to pick one!",
-                    color=discord.Color.purple()
+                    color=get_embed_color(interaction.user.id)
                 )
                 embed1.set_image(url=f"attachment://{color_image_files[0].name}")
                 await interaction.followup.send(embed=embed1, file=file1, ephemeral=False)
@@ -290,7 +293,7 @@ class ColorRoles(commands.Cog):
                     embed2 = discord.Embed(
                         title="Available Color Roles (Part 2)",
                         description="More colors to choose from!",
-                        color=discord.Color.purple()
+                        color=get_embed_color(interaction.user.id)
                     )
                     embed2.set_image(url=f"attachment://{color_image_files[1].name}")
                     await interaction.followup.send(embed=embed2, file=file2, ephemeral=False)
@@ -300,13 +303,13 @@ class ColorRoles(commands.Cog):
                 embed = discord.Embed(
                     title="Available Color Roles",
                     description="Use `/color set` to pick one!",
-                    color=discord.Color.purple()
+                    color=get_embed_color(interaction.user.id)
                 )
                 embed.set_image(url="attachment://colorimage.png")
                 await interaction.followup.send(embed=embed, file=file, ephemeral=False)
                 
         except Exception as e:
-            print(f"[ERROR] /color list\n{traceback.format_exc()}")
+            logger.error(f"/color list: {e}", exc_info=True)
             msg = f"Error in `/color list`: `{e}`" if DEBUG else "Something went wrong loading color images."
             await interaction.followup.send(msg, ephemeral=True)
 

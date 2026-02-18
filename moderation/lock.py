@@ -1,18 +1,21 @@
+"""Channel lock/unlock commands that save and restore permission overwrites."""
 import discord
 from discord.ext import commands
-import traceback
 from .loader import ModerationBase
-import os
+from pathlib import Path
 import sqlite3
 import json
 import asyncio
 from functools import partial
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class LockCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "moderation.db")
+        self.db_path = Path(__file__).parent.parent / "data" / "moderation.db"
         self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.c = self.conn.cursor()
@@ -195,7 +198,7 @@ class LockCog(commands.Cog):
                     failed_targets.append(target.name)
             
             if failed_targets:
-                print(f"Warning: Could not clear permissions for: {', '.join(failed_targets)}")
+                logger.warning(f"Could not clear permissions for: {', '.join(failed_targets)}")
             
             # Deny everyone from talking
             try:
@@ -215,7 +218,7 @@ class LockCog(commands.Cog):
                 # If we can't set ritual member, at least try to undo the everyone change
                 try:
                     await channel.set_permissions(everyone_role, overwrite=None)
-                except:
+                except Exception:
                     pass
                 await ctx.message.add_reaction("❌")
                 return await ctx.send(f"Cannot modify {ritual_member_role.name} permissions! My role needs to be higher than that role.", allowed_mentions=discord.AllowedMentions.none())
@@ -226,23 +229,23 @@ class LockCog(commands.Cog):
             # Try to send in channel
             try:
                 await ctx.send(f"#{channel.name} has been locked! Only {ritual_member_role.name} can talk.", allowed_mentions=discord.AllowedMentions.none())
-            except:
+            except Exception:
                 pass
                 
         except discord.Forbidden as e:
             await ctx.message.add_reaction("❌")
             try:
                 await ctx.send(f"Missing permissions! My role needs to be higher than the roles I'm trying to modify.", allowed_mentions=discord.AllowedMentions.none())
-            except:
+            except Exception:
                 pass
-            traceback.print_exc()
+            logger.exception("Error in lock/unlock command")
         except Exception as e:
             await ctx.message.add_reaction("❌")
             try:
                 await ctx.send(f"Error: {e}", allowed_mentions=discord.AllowedMentions.none())
-            except:
+            except Exception:
                 pass
-            traceback.print_exc()
+            logger.exception("Error in lock/unlock command")
 
     @commands.command(name="unlock")
     @ModerationBase.is_admin()
@@ -290,23 +293,23 @@ class LockCog(commands.Cog):
                     if len(failed_targets) > 5:
                         msg += f" and {len(failed_targets) - 5} more"
                 await ctx.send(msg, allowed_mentions=discord.AllowedMentions.none())
-            except:
+            except Exception:
                 pass
                 
         except discord.Forbidden as e:
             await ctx.message.add_reaction("❌")
             try:
                 await ctx.send(f"Missing permissions! My role needs to be higher than the roles I'm trying to modify.", allowed_mentions=discord.AllowedMentions.none())
-            except:
+            except Exception:
                 pass
-            traceback.print_exc()
+            logger.exception("Error in lock/unlock command")
         except Exception as e:
             await ctx.message.add_reaction("❌")
             try:
                 await ctx.send(f"Error: {e}", allowed_mentions=discord.AllowedMentions.none())
-            except:
+            except Exception:
                 pass
-            traceback.print_exc()
+            logger.exception("Error in lock/unlock command")
 
 
 async def setup(bot):
