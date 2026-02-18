@@ -1,4 +1,3 @@
-"""XP calculation helpers: awarding XP, handling cooldowns, leveling up."""
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks

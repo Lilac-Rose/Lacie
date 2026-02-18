@@ -1,4 +1,3 @@
-"""Mute command with duration parsing and scheduled unmute task."""
 import discord
 from discord.ext import commands, tasks
 from discord.ui import View, Button

@@ -1,4 +1,3 @@
-"""Scheduled XP reset tasks for daily, weekly, and monthly leaderboards."""
 from discord.ext import tasks, commands
 from datetime import datetime, timezone
 from .database import reset_leaderboard, get_last_reset

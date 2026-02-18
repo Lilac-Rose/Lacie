@@ -1,4 +1,3 @@
-"""XP role sync commands that assign Discord roles based on XP level."""
 import discord
 from discord.ext import commands
 from discord import app_commands

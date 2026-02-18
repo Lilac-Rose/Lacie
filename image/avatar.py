@@ -1,4 +1,3 @@
-"""Avatar manipulation commands (bitcrush, edge detect, explode, filters, etc.)."""
 import discord
 from discord import app_commands
 from discord.ext import commands

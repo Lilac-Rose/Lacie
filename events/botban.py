@@ -1,4 +1,3 @@
-"""Auto-ban cog that bans users who receive a specific bot-trap role."""
 import discord
 from discord.ext import commands
 from datetime import datetime, timedelta, timezone

@@ -1,4 +1,3 @@
-"""Sparkle currency database helpers for the sparkle economy."""
 import sqlite3
 from pathlib import Path
 

@@ -1,4 +1,3 @@
-"""Unmute command with confirmation prompt."""
 import discord
 from discord.ext import commands
 from discord.ui import View, Button

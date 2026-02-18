@@ -1,4 +1,3 @@
-"""XP rank card generation and rank display commands."""
 import discord
 import time
 import math

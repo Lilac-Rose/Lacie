@@ -1,4 +1,3 @@
-"""Connect 4 game implementation as a Discord slash command."""
 import discord
 from discord.ext import commands
 from discord import app_commands

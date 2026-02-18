@@ -1,4 +1,3 @@
-"""Sparkle currency commands for giving, checking, and viewing sparkle stats."""
 import discord
 from discord.ext import commands
 from discord import app_commands

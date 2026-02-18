@@ -1,4 +1,3 @@
-"""XP system utilities: level math, multipliers, config loading."""
 import math
 import random
 import time

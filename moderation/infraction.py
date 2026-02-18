@@ -1,4 +1,3 @@
-"""Infraction logging and retrieval system for moderation actions."""
 import discord
 from discord.ext import commands, tasks
 from .loader import ModerationBase

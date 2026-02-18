@@ -1,4 +1,3 @@
-"""Channel lock/unlock commands that save and restore permission overwrites."""
 import discord
 from discord.ext import commands
 from .loader import ModerationBase

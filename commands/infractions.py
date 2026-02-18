@@ -1,4 +1,3 @@
-"""Command for users to view their own moderation infractions via DM."""
 import discord
 from discord import app_commands
 from discord.ext import commands

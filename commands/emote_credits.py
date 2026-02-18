@@ -1,4 +1,3 @@
-"""Emote credits cog for tracking and displaying custom emote artists."""
 import discord
 from discord import app_commands
 from discord.ext import commands

@@ -1,4 +1,3 @@
-"""Profile database helpers for connecting to the profile SQLite database."""
 import sqlite3
 from pathlib import Path
 
