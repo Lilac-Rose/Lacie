@@ -1,4 +1,3 @@
-"""Kick command with confirmation prompt and DM notification."""
 import discord
 from discord.ext import commands
 from discord.ui import View, Button

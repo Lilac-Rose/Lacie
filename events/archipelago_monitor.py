@@ -1,9 +1,3 @@
-"""
-Archipelago Monitor Cog
-Monitors an Archipelago server log file and sends Discord notifications
-when items are sent between players.
-"""
-
 import discord
 from discord.ext import commands, tasks
 import asyncio

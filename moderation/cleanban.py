@@ -1,4 +1,3 @@
-"""Cleanban command that bans and deletes recent messages."""
 import discord
 from discord.ext import commands
 from discord.ui import View, Button

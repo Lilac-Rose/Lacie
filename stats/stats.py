@@ -1,4 +1,3 @@
-"""Statistics tracking cog: message counts, word frequencies, bot uptime."""
 import discord
 from discord.ext import commands
 from discord import app_commands

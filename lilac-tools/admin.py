@@ -1,4 +1,3 @@
-"""Owner-only admin tools: database browser, terminal, eval, file manager."""
 import discord
 from discord.ext import commands
 import aiosqlite

@@ -1,7 +1,3 @@
-"""
-Status Monitor Cog
-Monitors the status_monitor database and sends DMs when services go down/recover
-"""
 import discord
 from discord.ext import commands, tasks
 import sqlite3

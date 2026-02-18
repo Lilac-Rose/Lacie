@@ -1,4 +1,3 @@
-"""XP database connection helpers for multiple leaderboard time periods."""
 import sqlite3
 from pathlib import Path
 

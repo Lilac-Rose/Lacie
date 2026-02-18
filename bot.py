@@ -1,4 +1,3 @@
-"""Main entry point for the Lacie Discord bot."""
 import os
 from dotenv import load_dotenv
 import discord

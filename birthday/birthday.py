@@ -1,4 +1,3 @@
-"""Birthday tracking cog that sends birthday wishes and manages birthday roles."""
 import discord
 from discord.ext import commands, tasks
 from discord import app_commands

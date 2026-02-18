@@ -1,4 +1,3 @@
-"""Embed color preference system allowing users to set custom embed colors."""
 import discord
 import sqlite3
 from pathlib import Path

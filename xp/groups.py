@@ -1,4 +1,3 @@
-"""Shared slash command group definitions for the XP system."""
 from discord import app_commands
 
 # Public XP commands: /xp rank, /xp top, /xp calculate, /xp sync

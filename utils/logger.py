@@ -1,10 +1,3 @@
-"""
-Centralized logging configuration for the Lacie Discord bot.
-
-Provides a configured logger factory so all modules use consistent
-logging instead of bare print() statements.
-"""
-
 import logging
 import sys
 

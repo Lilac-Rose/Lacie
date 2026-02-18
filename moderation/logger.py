@@ -1,4 +1,3 @@
-"""Moderation event logger that records Discord actions to the database."""
 import discord
 from discord.ext import commands
 import sqlite3

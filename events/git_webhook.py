@@ -1,4 +1,3 @@
-"""Webhook server that listens for GitHub push events and posts to Discord."""
 import discord
 from discord.ext import commands
 from aiohttp import web

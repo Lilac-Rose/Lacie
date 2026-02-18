@@ -1,4 +1,3 @@
-"""Color role management cog allowing users to pick decorative color roles."""
 import discord
 from discord import app_commands
 from discord.ext import commands

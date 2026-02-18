@@ -1,4 +1,3 @@
-"""User profile card generation with custom fonts and avatar overlays."""
 import discord
 from discord.ext import commands
 from discord import app_commands

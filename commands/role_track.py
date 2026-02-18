@@ -1,4 +1,3 @@
-"""Role tracking cog that monitors and records role assignment history."""
 import discord
 from discord import app_commands
 from discord.ext import commands

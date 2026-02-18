@@ -1,10 +1,3 @@
-"""
-Centralized constants for the Lacie Discord bot.
-
-All hardcoded IDs (user IDs, guild IDs, channel IDs, role IDs)
-are collected here so they can be managed in one place.
-"""
-
 # --- Owner / Admin ---
 LILAC_ID = 252130669919076352
 

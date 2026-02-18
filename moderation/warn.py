@@ -1,4 +1,3 @@
-"""Warn command that logs infractions and notifies the user."""
 import discord
 from discord.ext import commands
 from discord.ui import View, Button

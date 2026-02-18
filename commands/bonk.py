@@ -1,4 +1,3 @@
-"""Bonk command cog that lets users bonk each other with an image."""
 import discord
 from discord import app_commands
 from discord.ext import commands

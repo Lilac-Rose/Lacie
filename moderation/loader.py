@@ -1,4 +1,3 @@
-"""Shared ModerationBase cog with DB connection and is_admin() decorator."""
 from discord.ext import commands
 import os
 import sqlite3

@@ -1,4 +1,3 @@
-"""XP import/export commands for backing up and restoring user XP data."""
 import json
 import asyncio
 from io import BytesIO

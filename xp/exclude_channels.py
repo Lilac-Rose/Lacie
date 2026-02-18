@@ -1,4 +1,3 @@
-"""Utilities for managing channels excluded from XP gain."""
 import discord
 from discord.ext import commands
 import json

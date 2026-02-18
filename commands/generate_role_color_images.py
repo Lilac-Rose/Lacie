@@ -1,4 +1,3 @@
-"""Admin command to generate the color role preview image."""
 import discord
 from discord import app_commands
 from discord.ext import commands

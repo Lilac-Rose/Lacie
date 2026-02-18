@@ -1,4 +1,3 @@
-"""Chain message event listener (reacts to chain messages in channels)."""
 import discord
 from discord.ext import commands
 

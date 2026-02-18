@@ -1,4 +1,3 @@
-"""Automatic spam detection and rate-limiting with auto-mute."""
 import discord
 from discord.ext import commands, tasks
 from discord.ui import View, Button
