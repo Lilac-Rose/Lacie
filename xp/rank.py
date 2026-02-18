@@ -39,6 +39,10 @@ class Rank(commands.Cog):
             board_type_value = board_type.value if board_type else "lifetime"
             lifetime = board_type_value == "lifetime"
 
+            if not interaction.guild:
+                await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+                return
+
             conn, cur = get_db(board_type_value)
 
             # Fetch XP data for the requested user

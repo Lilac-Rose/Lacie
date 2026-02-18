@@ -6,6 +6,9 @@ from .database import get_db
 from .groups import xp_group
 import math
 from embed.embed_color import get_embed_color
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 class LeaderboardView(View):
     def __init__(self, embed_pages):
@@ -73,71 +76,80 @@ class Leaderboard(commands.Cog):
         show_absent: bool = False
     ):
         await interaction.response.defer(thinking=True)
-        
-        board_type_value = board_type.value if board_type else "annual"
-        board_display_name = board_type.name if board_type else "Annual XP"
 
-        conn, cur = get_db(board_type_value)
+        try:
+            if not interaction.guild:
+                await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+                return
 
-        cur.execute("SELECT user_id, xp, level FROM xp ORDER BY xp DESC")
-        all_rows = cur.fetchall()
-        conn.close()
+            board_type_value = board_type.value if board_type else "annual"
+            board_display_name = board_type.name if board_type else "Annual XP"
 
-        if not all_rows:
-            return await interaction.followup.send("No leaderboard data yet!", ephemeral=True)
+            conn, cur = get_db(board_type_value)
 
-        user_id = str(interaction.user.id)
+            cur.execute("SELECT user_id, xp, level FROM xp ORDER BY xp DESC")
+            all_rows = cur.fetchall()
+            conn.close()
 
-        # Filter out absent users UNLESS show_absent is True
-        if not show_absent:
-            all_rows = [
-                row for row in all_rows
-                if interaction.guild.get_member(int(row[0])) is not None
-            ]
+            if not all_rows:
+                return await interaction.followup.send("No leaderboard data yet!", ephemeral=True)
 
-        if not all_rows:
-            return await interaction.followup.send(
-                "No visible leaderboard entries with the current settings.", ephemeral=True
-            )
+            # Filter out absent users UNLESS show_absent is True
+            if not show_absent:
+                all_rows = [
+                    row for row in all_rows
+                    if interaction.guild.get_member(int(row[0])) is not None
+                ]
 
-        per_page = 10
-        total_pages = math.ceil(len(all_rows) / per_page)
-        embeds = []
+            if not all_rows:
+                return await interaction.followup.send(
+                    "No visible leaderboard entries with the current settings.", ephemeral=True
+                )
 
-        for page_num in range(total_pages):
-            start_idx = page_num * per_page
-            end_idx = start_idx + per_page
-            page_rows = all_rows[start_idx:end_idx]
+            per_page = 10
+            total_pages = math.ceil(len(all_rows) / per_page)
+            embeds = []
 
-            embed = discord.Embed(
-                title=f"{board_display_name} Leaderboard (Page {page_num + 1}/{total_pages})",
-                color=get_embed_color(interaction.user.id)
-            )
+            for page_num in range(total_pages):
+                start_idx = page_num * per_page
+                end_idx = start_idx + per_page
+                page_rows = all_rows[start_idx:end_idx]
 
-            if page_num == 0 and page_rows:
-                top_member = interaction.guild.get_member(int(page_rows[0][0]))
-                if top_member:
-                    embed.set_thumbnail(url=top_member.display_avatar.url)
+                embed = discord.Embed(
+                    title=f"{board_display_name} Leaderboard (Page {page_num + 1}/{total_pages})",
+                    color=get_embed_color(interaction.user.id)
+                )
 
-            description_lines = []
-            for idx, (uid, xp, level) in enumerate(page_rows, start=start_idx + 1):
-                member = interaction.guild.get_member(int(uid))
-                if member:
-                    line = f"{idx}. {member.mention} · Level {level} · {xp:,} XP"
-                elif show_absent:
-                    # Only show absent users if show_absent is True
-                    line = f"{idx}. User {uid} · Level {level} · {xp:,} XP"
-                else:
-                    continue
-                description_lines.append(line)
+                if page_num == 0 and page_rows:
+                    top_member = interaction.guild.get_member(int(page_rows[0][0]))
+                    if top_member:
+                        embed.set_thumbnail(url=top_member.display_avatar.url)
 
-            embed.description = "\n".join(description_lines)
-            embeds.append(embed)
+                description_lines = []
+                for idx, (uid, xp, level) in enumerate(page_rows, start=start_idx + 1):
+                    member = interaction.guild.get_member(int(uid))
+                    if member:
+                        line = f"{idx}. {member.mention} · Level {level} · {xp:,} XP"
+                    elif show_absent:
+                        line = f"{idx}. User {uid} · Level {level} · {xp:,} XP"
+                    else:
+                        continue
+                    description_lines.append(line)
 
-        view = LeaderboardView(embeds)
-        await interaction.followup.send(embed=embeds[0], view=view)
+                embed.description = "\n".join(description_lines)
+                embeds.append(embed)
 
-        view.message = await interaction.original_response()
+            view = LeaderboardView(embeds)
+            await interaction.followup.send(embed=embeds[0], view=view)
+
+            view.message = await interaction.original_response()
+
+        except Exception as e:
+            logger.exception(f"Leaderboard command error: {e}")
+            try:
+                await interaction.followup.send("An error occurred while fetching the leaderboard.", ephemeral=True)
+            except Exception:
+                pass
 
     def cog_unload(self):
         xp_group.remove_command("top")
