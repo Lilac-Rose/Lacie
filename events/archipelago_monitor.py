@@ -70,7 +70,7 @@ class ArchipelagoMonitor(commands.Cog):
             
             # Get the most recently modified file
             most_recent = max(log_files, key=lambda p: p.stat().st_mtime)
-            logger.info(f"Found most recent log file: {most_recent.name}")
+            logger.debug(f"Found most recent log file: {most_recent.name}")
             return most_recent
             
         except Exception as e:
