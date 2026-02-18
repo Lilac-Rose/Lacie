@@ -1,17 +1,18 @@
+"""Utilities for managing channels excluded from XP gain."""
 import discord
 from discord.ext import commands
 import json
-import os
+from pathlib import Path
 from dotenv import load_dotenv
 from moderation.loader import ModerationBase
 
 load_dotenv()
 
-EXCLUDED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "excluded_channels.json")
+EXCLUDED_FILE = Path(__file__).parent.parent / "data" / "excluded_channels.json"
 
 def load_excluded_channels():
     """Load excluded channel IDs from JSON file."""
-    if not os.path.exists(EXCLUDED_FILE):
+    if not EXCLUDED_FILE.exists():
         return []
     with open(EXCLUDED_FILE, "r") as f:
         return json.load(f)

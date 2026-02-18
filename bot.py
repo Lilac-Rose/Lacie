@@ -1,142 +1,125 @@
+"""Main entry point for the Lacie Discord bot."""
 import os
 from dotenv import load_dotenv
 import discord
 from discord.ext import commands
 import asyncio
 import glob
-import traceback
 from xp.database import get_db as get_xp_db
+from xp.add_xp import add_xp
 from moderation.loader import ModerationBase
-from aiohttp import web
-
-# Import sparkle DB to ensure it exists
 from sparkle.database import get_db as get_sparkle_db
-
-# Import and register the XP command groups onto the tree
 from xp.groups import xp_group, xp_admin_group
+from utils.logger import get_logger, setup_logging
 
+# --- Startup ---
 load_dotenv()
+setup_logging()
+
+logger = get_logger(__name__)
 
 TOKEN = os.getenv("TOKEN")
 
+# All cog folders to load on startup and reload
+COG_FOLDERS = [
+    "commands",
+    "moderation",
+    "xp",
+    "sparkle",
+    "image",
+    "suggestion",
+    "birthday",
+    "embed",
+    "profiles",
+    "events",
+    "stats",
+    "wordle",
+    "reminders",
+    "lilac-tools",
+]
+
+# --- Bot setup ---
 bot = commands.Bot(
-    command_prefix="!", 
-    intents=discord.Intents.all(), 
+    command_prefix="!",
+    intents=discord.Intents.all(),
     help_command=None,
     activity=discord.Activity(
         type=discord.ActivityType.playing,
         name="Paper Lily - Chapter 2"
     ))
 
-# Add both groups to the command tree now, before any cogs load
+# Register shared slash command groups defined in xp/groups.py
 bot.tree.add_command(xp_group)
 bot.tree.add_command(xp_admin_group)
 
+# --- Cog loading ---
 async def load_cogs(folder: str):
-    """Load all cogs in the folder except utility files"""
-    non_cog_files = {"add_xp.py", "database.py", "utils.py", "__init__.py",
-                     "import_old_data.py", "repair_db.py", "reset_db.py", "groups.py",
-                     "loader.py"}
+    non_cog_files = {"add_xp.py", "database.py", "utils.py", "__init__.py", "groups.py", "loader.py"}
     for file in glob.glob(f"{folder}/*.py"):
         filename = os.path.basename(file)
         if filename in non_cog_files:
-            print(f"Skipping {filename} (utility file)")
+            logger.debug(f"Skipping {filename} (utility file)")
             continue
         module_name = f"{folder}.{os.path.splitext(filename)[0]}"
         try:
-            # Try to reload if already loaded, otherwise load fresh
             if module_name in bot.extensions:
                 await bot.reload_extension(module_name)
-                print(f"Reloaded {module_name}")
+                logger.info(f"Reloaded {module_name}")
             else:
                 await bot.load_extension(module_name)
-                print(f"Loaded {module_name}")
+                logger.info(f"Loaded {module_name}")
         except Exception as e:
-            print(f"Failed to load {module_name}: {e}")
-            traceback.print_exc()
+            logger.exception(f"Failed to load {module_name}: {e}")
 
+# --- Events and commands ---
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user}!")
+    logger.info(f"Logged in as {bot.user}!")
 
-    # Ensure XP database connection works
     for lifetime in (True, False):
         try:
             conn, cur = get_xp_db(lifetime)
             conn.close()
-            print(f"XP database connection successful (lifetime={lifetime})")
+            logger.info(f"XP database connection successful (lifetime={lifetime})")
         except Exception as e:
-            print(f"XP database connection failed (lifetime={lifetime}): {e}")
+            logger.error(f"XP database connection failed (lifetime={lifetime}): {e}")
 
-    # Ensure Sparkle DB exists
     try:
         conn = get_sparkle_db()
         conn.close()
-        print("Sparkle database initialized successfully.")
+        logger.info("Sparkle database initialized successfully.")
     except Exception as e:
-        print(f"Failed to initialize sparkle database: {e}")
+        logger.error(f"Failed to initialize sparkle database: {e}")
 
-    # Load all cogs
-    await load_cogs("commands")
-    # await load_cogs("wordbomb")
-    await load_cogs("moderation")
-    await load_cogs("xp")
-    await load_cogs("sparkle")
-    await load_cogs("image")
-    await load_cogs("suggestion")
-    await load_cogs("birthday")
-    await load_cogs("embed")
-    await load_cogs("profiles")
-    await load_cogs("events")
-    await load_cogs("stats")
-    await load_cogs("wordle")
-    await load_cogs("reminders")
-    await load_cogs("lilac-tools")
-    
-    # Sync slash commands after loading cogs
+    for folder in COG_FOLDERS:
+        await load_cogs(folder)
+
     try:
         synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} slash commands")
+        logger.info(f"Synced {len(synced)} slash commands")
         for cmd in synced:
-            print(f"  - {cmd.name}")
+            logger.debug(f"  - {cmd.name}")
     except Exception as e:
-        print(f"Failed to sync slash commands: {e}")
-        traceback.print_exc()
+        logger.exception(f"Failed to sync slash commands: {e}")
 
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):
         return
-    print(f"Command error: {error}")
-    traceback.print_exc()
+    logger.error(f"Command error: {error}", exc_info=True)
 
 @bot.command(name="reload")
 @ModerationBase.is_admin()
 async def reload(ctx):
     """Reload commands cogs and sync slash commands"""
-    await load_cogs("commands")
-    await load_cogs("moderation")
-    await load_cogs("xp")
-    await load_cogs("sparkle")
-    await load_cogs("image")
-    await load_cogs("suggestion")
-    await load_cogs("birthday")
-    await load_cogs("embed")
-    await load_cogs("profiles")
-    await load_cogs("events")
-    await load_cogs("wordle")
-    await load_cogs("reminders")
-    await load_cogs("stats")
-    await load_cogs("lilac-tools")
-    
+    for folder in COG_FOLDERS:
+        await load_cogs(folder)
+
     try:
         synced = await bot.tree.sync()
         await ctx.send(f"Cogs reloaded successfully! Synced {len(synced)} slash commands.")
     except Exception as e:
         await ctx.send(f"Cogs reloaded but failed to sync slash commands: {e}")
-
-# Hook XP into messages
-from xp.add_xp import add_xp
 
 @bot.event
 async def on_message(message):
@@ -145,17 +128,16 @@ async def on_message(message):
     try:
         await add_xp(message.author)
     except Exception as e:
-        print(f"XP error: {e}")
-        traceback.print_exc()
+        logger.error(f"XP error: {e}", exc_info=True)
     await bot.process_commands(message)
 
+# --- Entry point ---
 async def main():
     try:
         async with bot:
             await bot.start(TOKEN)
     except Exception as e:
-        print(f"Bot startup error: {e}")
-        traceback.print_exc()
+        logger.exception(f"Bot startup error: {e}")
 
 if __name__ == "__main__":
     asyncio.run(main())

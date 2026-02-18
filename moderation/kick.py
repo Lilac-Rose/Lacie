@@ -1,3 +1,4 @@
+"""Kick command with confirmation prompt and DM notification."""
 import discord
 from discord.ext import commands
 from discord.ui import View, Button
@@ -41,7 +42,7 @@ class KickCommand(ModerationBase):
 
         try:
             await user.send(f"You have been **kicked** from **{ctx.guild.name}**.\nReason: {reason or 'No reason provided'}")
-        except:
+        except Exception:
             await ctx.send("Could not DM the user.")
 
         await ctx.guild.kick(user, reason=reason)

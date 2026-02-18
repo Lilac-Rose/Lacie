@@ -1,7 +1,8 @@
+"""Profile database helpers for connecting to the profile SQLite database."""
 import sqlite3
-import os
+from pathlib import Path
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "profile.db")
+DB_PATH = Path(__file__).parent.parent / "data" / "profile.db"
 
 def get_db():
     db = sqlite3.connect(DB_PATH)

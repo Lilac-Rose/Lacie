@@ -1,12 +1,15 @@
+"""Mute command with duration parsing and scheduled unmute task."""
 import discord
 from discord.ext import commands, tasks
 from discord.ui import View, Button
 import asyncio
 import re
 import sqlite3
-import os
+from pathlib import Path
 from datetime import timedelta, datetime
 from .loader import ModerationBase
+
+DB_PATH = Path(__file__).parent.parent / "data" / "moderation.db"
 
 MUTE_ROLE_ID = 982702037517090836
 
@@ -77,14 +80,13 @@ class MuteCommand(ModerationBase):
         await user.add_roles(mute_role, reason=reason)
         try:
             await user.send(f"You have been muted in **{ctx.guild.name}** for **{duration}**.\nReason: {reason or 'No reason provided'}")
-        except:
+        except Exception:
             await ctx.send("Could not DM the user.")
 
         await self.log_infraction(ctx.guild.id, user.id, ctx.author.id, "mute", reason)
         await ctx.send(f"{user.mention} has been muted for **{duration}**.")
 
-        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "moderation.db")
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute("""
         CREATE TABLE IF NOT EXISTS mutes (
@@ -111,8 +113,7 @@ class MuteCommand(ModerationBase):
 
     async def schedule_unmute(self, user_id, guild_id, channel_id, delay):
         await asyncio.sleep(delay)
-        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "moderation.db")
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         c.execute("SELECT 1 FROM mutes WHERE user_id = ? AND guild_id = ?", (user_id, guild_id))
         exists = c.fetchone()
@@ -140,13 +141,12 @@ class MuteCommand(ModerationBase):
                 await logger.log_moderation_action(
                     guild_id, "unmute", member, self.bot.user, "Mute duration expired"
                 )
-        except:
+        except Exception:
             pass
 
     @tasks.loop(minutes=1)
     async def check_mutes(self):
-        db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "moderation.db")
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         now = datetime.utcnow().isoformat()
         c.execute("SELECT user_id, guild_id, channel_id, unmute_time FROM mutes WHERE unmute_time <= ?", (now,))

@@ -1,9 +1,10 @@
+"""XP database connection helpers for multiple leaderboard time periods."""
 import sqlite3
-import os
+from pathlib import Path
 
-DB_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
+DB_DIR = Path(__file__).parent.parent / "data"
 
-os.makedirs(DB_DIR, exist_ok=True)
+DB_DIR.mkdir(parents=True, exist_ok=True)
 
 def get_db(db_type="lifetime"):
     if isinstance(db_type, bool):

@@ -1,3 +1,4 @@
+"""Automatic spam detection and rate-limiting with auto-mute."""
 import discord
 from discord.ext import commands, tasks
 from discord.ui import View, Button
@@ -5,7 +6,10 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict, deque
 import sqlite3
-import os
+from pathlib import Path
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 MUTE_ROLE_ID = 982702037517090836
 STAFF_CHANNEL_ID = 876780367296745493
@@ -17,7 +21,7 @@ class SpamProtection(commands.Cog):
     
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "moderation.db")
+        self.db_path = Path(__file__).parent.parent / "data" / "moderation.db"
         
         # Track user message patterns
         # user_id -> deque of (timestamp, channel_id, content)
@@ -149,7 +153,7 @@ class SpamProtection(commands.Cog):
                     f"Automatically muted for 1 day."
                 )
         except Exception as e:
-            print(f"[ERROR] Failed to apply default spam action: {e}")
+            logger.error(f"Failed to apply default spam action: {e}", exc_info=True)
     
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -192,7 +196,7 @@ class SpamProtection(commands.Cog):
                 except asyncio.QueueEmpty:
                     break
         except Exception as e:
-            print(f"[ERROR] Error in message queue processing: {e}")
+            logger.error(f"Error in message queue processing: {e}", exc_info=True)
     
     async def _process_message(self, message: discord.Message):
         """Actually process the message for spam detection"""
@@ -269,16 +273,16 @@ class SpamProtection(commands.Cog):
         # Apply mute role
         mute_role = guild.get_role(MUTE_ROLE_ID)
         if not mute_role:
-            print(f"[ERROR] Mute role {MUTE_ROLE_ID} not found in guild {guild.id}")
+            logger.error(f"Mute role {MUTE_ROLE_ID} not found in guild {guild.id}")
             return
-        
+
         try:
             await member.add_roles(mute_role, reason="Automatic spam detection")
         except discord.Forbidden:
-            print(f"[ERROR] Missing permissions to mute {member.id}")
+            logger.error(f"Missing permissions to mute {member.id}")
             return
         except Exception as e:
-            print(f"[ERROR] Failed to mute spammer: {e}")
+            logger.error(f"Failed to mute spammer: {e}", exc_info=True)
             return
         
         # Log the automatic mute action
@@ -295,13 +299,13 @@ class SpamProtection(commands.Cog):
                 f"You have been automatically muted in **{guild.name}** for spam detection. "
                 f"A staff member will review your case shortly."
             )
-        except:
+        except Exception:
             pass  # Can't DM user
         
         # Create staff alert
         staff_channel = guild.get_channel(STAFF_CHANNEL_ID)
         if not staff_channel:
-            print(f"[ERROR] Staff channel {STAFF_CHANNEL_ID} not found")
+            logger.error(f"Staff channel {STAFF_CHANNEL_ID} not found")
             return
         
         # Build embed
@@ -410,7 +414,7 @@ class SpamProtection(commands.Cog):
             view.alert_message_id = msg.id
             
         except Exception as e:
-            print(f"[ERROR] Failed to send spam alert: {e}")
+            logger.error(f"Failed to send spam alert: {e}", exc_info=True)
 
 class SpamActionView(View):
     """Interactive buttons for staff to handle spam reports"""
@@ -592,7 +596,7 @@ class SpamActionView(View):
                 f"You have been **banned** from **{self.guild.name}** for spam.\n"
                 f"Reason: {reason}"
             )
-        except:
+        except Exception:
             pass
         
         # Ban user

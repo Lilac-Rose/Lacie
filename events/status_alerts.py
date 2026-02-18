@@ -9,6 +9,9 @@ import os
 from pathlib import Path
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 class StatusMonitor(commands.Cog):
     def __init__(self, bot):
@@ -86,7 +89,7 @@ class StatusMonitor(commands.Cog):
                     try:
                         await admin.send(embed=embed)
                     except Exception as e:
-                        print(f"Failed to send down alert for {service_name}: {e}")
+                        logger.error(f"Failed to send down alert for {service_name}: {e}")
                 
                 # Service went DEGRADED
                 elif current_status == "degraded" and previous_status == "up":
@@ -104,7 +107,7 @@ class StatusMonitor(commands.Cog):
                     try:
                         await admin.send(embed=embed)
                     except Exception as e:
-                        print(f"Failed to send degraded alert for {service_name}: {e}")
+                        logger.error(f"Failed to send degraded alert for {service_name}: {e}")
                 
                 # Service RECOVERED
                 elif current_status == "up" and previous_status in ["down", "degraded"]:
@@ -146,20 +149,20 @@ class StatusMonitor(commands.Cog):
                     try:
                         await admin.send(embed=embed)
                     except Exception as e:
-                        print(f"Failed to send recovery alert for {service_name}: {e}")
+                        logger.error(f"Failed to send recovery alert for {service_name}: {e}")
                 
                 # Update last known status
                 self.last_status[service_name] = current_status
                 
         except Exception as e:
-            print(f"[StatusMonitor] Error checking status: {e}")
+            logger.error(f"Error checking status: {e}", exc_info=True)
     
     @check_status.before_loop
     async def before_check_status(self):
         """Wait for bot to be ready before starting the loop"""
         await self.bot.wait_until_ready()
-        print("[StatusMonitor] Starting status monitoring loop...")
-        
+        logger.info("Starting status monitoring loop...")
+
         # Initialize last_status with current state on startup
         try:
             if self.db_path.exists():
@@ -181,9 +184,9 @@ class StatusMonitor(commands.Cog):
                     self.last_status[row['service_name']] = row['status']
                 
                 conn.close()
-                print(f"[StatusMonitor] Initialized with {len(self.last_status)} services")
+                logger.info(f"Initialized with {len(self.last_status)} services")
         except Exception as e:
-            print(f"[StatusMonitor] Failed to initialize: {e}")
+            logger.error(f"Failed to initialize: {e}", exc_info=True)
     
     @commands.command(name="statustest")
     @commands.is_owner()

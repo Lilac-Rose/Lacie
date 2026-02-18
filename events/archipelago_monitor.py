@@ -8,15 +8,15 @@ import discord
 from discord.ext import commands, tasks
 import asyncio
 import re
-import logging
 import os
 from dotenv import load_dotenv
 from typing import Optional, Set
 from pathlib import Path
+from utils.logger import get_logger
 
 load_dotenv()
 
-logger = logging.getLogger('ArchipelagoMonitor')
+logger = get_logger(__name__)
 
 
 class ArchipelagoMonitor(commands.Cog):
@@ -44,24 +44,16 @@ class ArchipelagoMonitor(commands.Cog):
             'server_start': re.compile(r'Hosting game at (.+?) \(Password: (.+?)\)'),
         }
         
-        # Print startup info
-        print(f"[Archipelago] Initializing log monitor...")
-        print(f"[Archipelago] Enabled: {self.enabled}")
-        print(f"[Archipelago] Channel ID: {self.channel_id}")
-        print(f"[Archipelago] Log directory: {self.log_directory}")
-        
+        logger.info(f"Initializing log monitor - Enabled: {self.enabled}, Channel: {self.channel_id}, Log dir: {self.log_directory}")
+
         if self.enabled and self.channel_id:
-            logger.info(f"Archipelago monitor enabled - Channel: {self.channel_id}, Log dir: {self.log_directory}")
-            print(f"[Archipelago] Monitor will start when bot is ready")
+            logger.info("Monitor will start when bot is ready")
             self.monitor_log.start()
-            print(f"[Archipelago] Monitor task started")
         else:
-            logger.info("Archipelago monitor disabled (check .env configuration)")
-            print(f"[Archipelago] Monitor DISABLED - check your .env file")
             if not self.enabled:
-                print(f"[Archipelago] - ARCHIPELAGO_ENABLED is not true")
+                logger.info("Monitor DISABLED: ARCHIPELAGO_ENABLED is not true")
             if not self.channel_id:
-                print(f"[Archipelago] - ARCHIPELAGO_CHANNEL_ID is not set")
+                logger.info("Monitor DISABLED: ARCHIPELAGO_CHANNEL_ID is not set")
     
     async def cog_unload(self):
         """Called when the cog is unloaded."""

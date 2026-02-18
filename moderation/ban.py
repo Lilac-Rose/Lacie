@@ -1,3 +1,4 @@
+"""Ban command with confirmation prompt and DM notification."""
 import discord
 from discord.ext import commands
 from discord.ui import View, Button
@@ -62,7 +63,7 @@ class BanCommand(ModerationBase):
                     f"Reason: {reason or 'No reason provided'}\n\n"
                     f"If you believe this ban was unfiair and would like to appeal, join here: https://discord.gg/FYpfBzpjvq"
                 )
-        except:
+        except Exception:
             await ctx.send("Could not DM the user.")
 
         # Perform the ban

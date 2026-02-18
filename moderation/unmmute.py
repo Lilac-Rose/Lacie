@@ -1,9 +1,12 @@
+"""Unmute command with confirmation prompt."""
 import discord
 from discord.ext import commands
 from discord.ui import View, Button
 import sqlite3
-import os
+from pathlib import Path
 from .loader import ModerationBase
+
+DB_PATH = Path(__file__).parent.parent / "data" / "moderation.db"
 
 MUTE_ROLE_ID = 982702037517090836
 
@@ -49,15 +52,14 @@ class UnmuteCommand(ModerationBase):
 
         if mute_role in user.roles:
             await user.remove_roles(mute_role, reason="Manual unmute issued")
-            db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "moderation.db")
-            conn = sqlite3.connect(db_path)
+            conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
             c.execute("DELETE FROM mutes WHERE user_id = ? AND guild_id = ?", (user.id, ctx.guild.id))
             conn.commit()
             conn.close()
             try:
                 await user.send(f"You have been **unmuted** in **{ctx.guild.name}**.")
-            except:
+            except Exception:
                 await ctx.send("Could not DM the user.")
 
             await self.log_infraction(ctx.guild.id, user.id, ctx.author.id, "unmute", "Manual unmute issued")

@@ -1,3 +1,4 @@
+"""XP leaderboard commands showing top users by various time periods."""
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -5,6 +6,7 @@ from discord.ui import View, Button
 from .database import get_db
 from .groups import xp_group
 import math
+from embed.embed_color import get_embed_color
 
 class LeaderboardView(View):
     def __init__(self, embed_pages):
@@ -110,7 +112,7 @@ class Leaderboard(commands.Cog):
 
             embed = discord.Embed(
                 title=f"{board_display_name} Leaderboard (Page {page_num + 1}/{total_pages})",
-                color=self.bot.get_cog("EmbedColor").get_user_color(interaction.user)
+                color=get_embed_color(interaction.user.id)
             )
 
             if page_num == 0 and page_rows:

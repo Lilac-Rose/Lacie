@@ -1,3 +1,4 @@
+"""XP calculation helpers: awarding XP, handling cooldowns, leveling up."""
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
@@ -5,6 +6,7 @@ from .database import get_db
 from .utils import xp_for_level, can_get_xp, get_multiplier, load_config
 from .groups import xp_group
 import time
+from embed.embed_color import get_embed_color
 
 class CalculateCommand(commands.Cog):
     def __init__(self, bot):
@@ -116,11 +118,7 @@ class CalculateCommand(commands.Cog):
 
 {bar} ({progress:.2f}%)"""
 
-            # Safe color handling
-            color_cog = self.bot.get_cog("EmbedColor")
-            color = color_cog.get_user_color(interaction.user) if color_cog else discord.Color.blurple()
-
-            embed = discord.Embed(description=response, color=color)
+            embed = discord.Embed(description=response, color=get_embed_color(interaction.user.id))
             embed.set_author(name=user.display_name, icon_url=user.display_avatar.url)
 
             await interaction.followup.send(embed=embed)

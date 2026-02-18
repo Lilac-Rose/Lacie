@@ -1,10 +1,58 @@
+"""Minesweeper game cog with an interactive Discord UI."""
 import discord
 from discord.ext import commands
 from discord import app_commands
 import random
 import asyncio
+import aiosqlite
+from pathlib import Path
+from embed.embed_color import get_embed_color
 import re
 from datetime import datetime, timedelta
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+DB_PATH = Path(__file__).parent.parent / "data" / "minesweeper.db"
+
+
+async def _update_stats(user_id: int, win: bool):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS minesweeper_stats (
+                user_id INTEGER PRIMARY KEY,
+                played INTEGER DEFAULT 0,
+                wins INTEGER DEFAULT 0,
+                current_streak INTEGER DEFAULT 0,
+                max_streak INTEGER DEFAULT 0
+            )
+        """)
+        cursor = await db.execute(
+            "SELECT played, wins, current_streak, max_streak FROM minesweeper_stats WHERE user_id=?",
+            (user_id,)
+        )
+        row = await cursor.fetchone()
+        if not row:
+            played, wins, streak, max_streak = 0, 0, 0, 0
+        else:
+            played, wins, streak, max_streak = row
+
+        played += 1
+        if win:
+            wins += 1
+            streak += 1
+            max_streak = max(max_streak, streak)
+        else:
+            streak = 0
+
+        await db.execute("""
+            INSERT INTO minesweeper_stats (user_id, played, wins, current_streak, max_streak)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                played=excluded.played, wins=excluded.wins,
+                current_streak=excluded.current_streak, max_streak=excluded.max_streak
+        """, (user_id, played, wins, streak, max_streak))
+        await db.commit()
 
 class MinesweeperGame:
     def __init__(self, rows: int = 13, cols: int = 13, mines: int = 20):
@@ -230,12 +278,13 @@ class MinesweeperView(discord.ui.View):
         
         self.timed_out = True
         self.game.game_over = True
-        
+        await _update_stats(self.player.id, False)
+
         for child in self.children:
             child.disabled = True
-        
+
         self.stop()
-        
+
         if self.message:
             embed = self.create_embed()
             embed.color = discord.Color.orange()
@@ -248,7 +297,7 @@ class MinesweeperView(discord.ui.View):
                 # Message was deleted
                 pass
             except Exception as e:
-                print(f"Error updating timed out game: {e}")
+                logger.error(f"Error updating timed out game: {e}")
     
     def reset_timeout(self):
         """Reset the timeout timer - called when a move is made"""
@@ -270,11 +319,12 @@ class MinesweeperView(discord.ui.View):
         for child in self.children:
             child.disabled = True
         self.stop()
-        
+        await _update_stats(self.player.id, False)
+
         embed = self.create_embed()
         embed.color = discord.Color.red()
         embed.title = "💀 Game Over - Forfeited"
-        
+
         await interaction.response.edit_message(embed=embed, view=self)
     
     @discord.ui.button(label="How to Play", style=discord.ButtonStyle.secondary, emoji="❓")
@@ -282,7 +332,7 @@ class MinesweeperView(discord.ui.View):
         help_embed = discord.Embed(
             title="🎮 How to Play Minesweeper",
             description="Send messages in this channel to make moves!",
-            color=discord.Color.blue()
+            color=get_embed_color(interaction.user.id)
         )
         help_embed.add_field(
             name="📝 Move Format",
@@ -332,7 +382,7 @@ class MinesweeperView(discord.ui.View):
             embed = discord.Embed(
                 title="💣 Minesweeper",
                 description=f"{self.player.mention}'s game",
-                color=discord.Color.blue()
+                color=get_embed_color(self.player.id)
             )
         
         board = self.game.render_board()
@@ -438,7 +488,7 @@ class Minesweeper(commands.Cog):
         # Valid input - delete the player's message to reduce clutter
         try:
             await message.delete()
-        except:
+        except Exception:
             pass
         
         # Make the move
@@ -455,7 +505,9 @@ class Minesweeper(commands.Cog):
             # Cancel timeout task since game is over
             if view.timeout_task and not view.timeout_task.done():
                 view.timeout_task.cancel()
-            
+
+            await _update_stats(player_id, view.game.won)
+
             for child in view.children:
                 child.disabled = True
             view.stop()
@@ -463,7 +515,7 @@ class Minesweeper(commands.Cog):
         embed = view.create_embed()
         try:
             await view.message.edit(embed=embed, view=view)
-        except:
+        except Exception:
             pass
     
     def parse_move(self, text: str) -> tuple[int, int, bool] | None:
@@ -495,6 +547,46 @@ class Minesweeper(commands.Cog):
         is_flag = flag is not None
         
         return (col, row, is_flag)
+
+
+    @app_commands.command(name="minesweeper_stats", description="View your Minesweeper stats")
+    async def minesweeper_stats(self, interaction: discord.Interaction):
+        user_id = interaction.user.id
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS minesweeper_stats (
+                    user_id INTEGER PRIMARY KEY,
+                    played INTEGER DEFAULT 0,
+                    wins INTEGER DEFAULT 0,
+                    current_streak INTEGER DEFAULT 0,
+                    max_streak INTEGER DEFAULT 0
+                )
+            """)
+            cursor = await db.execute(
+                "SELECT played, wins, current_streak, max_streak FROM minesweeper_stats WHERE user_id=?",
+                (user_id,)
+            )
+            row = await cursor.fetchone()
+
+        if not row or row[0] == 0:
+            await interaction.response.send_message("You haven't played Minesweeper yet!", ephemeral=True)
+            return
+
+        played, wins, streak, max_streak = row
+        losses = played - wins
+        win_rate = round(wins / played * 100, 1) if played else 0
+
+        embed = discord.Embed(
+            title=f"{interaction.user.display_name}'s Minesweeper Stats",
+            color=get_embed_color(user_id)
+        )
+        embed.add_field(name="Games Played", value=str(played))
+        embed.add_field(name="Wins", value=str(wins))
+        embed.add_field(name="Losses", value=str(losses))
+        embed.add_field(name="Win Rate", value=f"{win_rate}%")
+        embed.add_field(name="Current Streak", value=str(streak))
+        embed.add_field(name="Best Streak", value=str(max_streak))
+        await interaction.response.send_message(embed=embed)
 
 
 async def setup(bot):

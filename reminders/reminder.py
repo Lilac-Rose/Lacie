@@ -1,3 +1,4 @@
+"""Reminder cog that lets users set timed reminders via slash commands."""
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
@@ -5,6 +6,10 @@ import aiosqlite
 from datetime import datetime, timedelta, timezone
 import re
 from pathlib import Path
+from embed.embed_color import get_embed_color
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def parse_timeframe(timeframe: str) -> timedelta:
@@ -85,7 +90,7 @@ class ReminderCog(commands.Cog):
                 ephemeral=True
             )
         except Exception as e:
-            print(f"Error in reminder_set: {e}")
+            logger.error(f"Error in reminder_set: {e}", exc_info=True)
             if not interaction.response.is_done():
                 await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
 
@@ -105,7 +110,7 @@ class ReminderCog(commands.Cog):
 
         embed = discord.Embed(
             title="📝 Your Reminders",
-            color=discord.Color.blurple(),
+            color=get_embed_color(interaction.user.id),
             timestamp=datetime.now(timezone.utc)
         )
 
@@ -218,7 +223,7 @@ class ReminderCog(commands.Cog):
                         embed = discord.Embed(
                             title="⏰ Reminder!",
                             description=message,
-                            color=discord.Color.blue(),
+                            color=get_embed_color(user_id),
                             timestamp=datetime.now(timezone.utc)
                         )
                         await user.send(embed=embed)

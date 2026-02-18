@@ -1,13 +1,12 @@
+"""Sparkle currency database helpers for the sparkle economy."""
 import sqlite3
-import os
+from pathlib import Path
 
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "sparkle.db")
+DB_PATH = Path(__file__).parent.parent / "data" / "sparkle.db"
 
 def get_db():
-    """Return a SQLite3 connection with initialized tables."""
     conn = sqlite3.connect(DB_PATH)
-    
-    # Create sparkles table
+
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sparkles (
             server_id TEXT,
@@ -18,8 +17,7 @@ def get_db():
             PRIMARY KEY (server_id, user_id)
         )
     """)
-    
-    # Create sparkle_events table for tracking individual sparkle occurrences
+
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sparkle_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,8 +28,7 @@ def get_db():
             timestamp INTEGER NOT NULL
         )
     """)
-    
-    # Create index for faster queries
+
     conn.execute("""
         CREATE INDEX IF NOT EXISTS idx_sparkle_events_server 
         ON sparkle_events(server_id, timestamp)

@@ -1,3 +1,4 @@
+"""Goodbot/badbot event listener that reacts to compliments or insults."""
 import discord
 from discord.ext import commands
 

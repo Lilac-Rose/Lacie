@@ -1,7 +1,11 @@
+"""Infraction logging and retrieval system for moderation actions."""
 import discord
 from discord.ext import commands, tasks
 from .loader import ModerationBase
 from datetime import datetime, timedelta
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 class InfractionCommand(ModerationBase):
 
@@ -69,7 +73,7 @@ class InfractionCommand(ModerationBase):
                     await self.check_user_eligibility(guild_id, user_id)
 
         except Exception as e:
-            print(f"Error in auto-removal check: {e}")
+            logger.error(f"Error in auto-removal check: {e}", exc_info=True)
 
     @check_auto_removals.before_loop
     async def before_check_auto_removals(self):
@@ -136,7 +140,7 @@ class InfractionCommand(ModerationBase):
             await self.send_removal_approval(guild_id, user_id, inf_id, inf_type, reason, timestamp_str, mod_id)
             
         except Exception as e:
-            print(f"Error checking eligibility for user {user_id} in guild {guild_id}: {e}")
+            logger.error(f"Error checking eligibility for user {user_id} in guild {guild_id}: {e}", exc_info=True)
 
     async def send_removal_approval(self, guild_id: int, user_id: int, inf_id: int, 
                                     inf_type: str, reason: str, timestamp: str, mod_id: int):
@@ -144,7 +148,7 @@ class InfractionCommand(ModerationBase):
         try:
             approval_channel = self.bot.get_channel(self.approval_channel_id)
             if not approval_channel:
-                print(f"Approval channel {self.approval_channel_id} not found")
+                logger.error(f"Approval channel {self.approval_channel_id} not found")
                 return
             
             # Get guild, user, and moderator info
@@ -155,13 +159,13 @@ class InfractionCommand(ModerationBase):
             try:
                 user = await self.bot.fetch_user(user_id)
                 user_tag = f"{user.name}#{user.discriminator}"
-            except:
+            except Exception:
                 user_tag = f"Unknown User ({user_id})"
             
             try:
                 moderator = await self.bot.fetch_user(mod_id)
                 mod_tag = f"{moderator.name}#{moderator.discriminator}"
-            except:
+            except Exception:
                 mod_tag = f"Unknown Mod ({mod_id})"
             
             # Create approval embed
@@ -193,7 +197,7 @@ class InfractionCommand(ModerationBase):
             self.conn.commit()
             
         except Exception as e:
-            print(f"Error sending removal approval: {e}")
+            logger.error(f"Error sending removal approval: {e}", exc_info=True)
 
     @commands.command(name="inf")
     @ModerationBase.is_admin()
@@ -551,7 +555,7 @@ class InfractionRemovalView(discord.ui.View):
                 notify_embed.set_footer(text=f"You stayed clean for 4 months! Keep up the good behavior.")
                 
                 await user.send(embed=notify_embed)
-            except:
+            except Exception:
                 pass  # User has DMs disabled or bot can't reach them
                 
         except Exception as e:

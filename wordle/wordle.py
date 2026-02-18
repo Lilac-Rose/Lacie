@@ -1,16 +1,22 @@
+"""Wordle game cog implementing the daily word-guessing game for Discord."""
 import discord
 from discord import app_commands
 from discord.ext import commands
 import aiosqlite
 import aiohttp
+from embed.embed_color import get_embed_color
 import os
 import datetime
+from pathlib import Path
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Configuration constants
 WORD_LIST_URL = "https://raw.githubusercontent.com/tabatkins/wordle-list/main/words"
 WORDLE_DIR = "wordle"
 WORD_LIST_PATH = os.path.join(WORDLE_DIR, "words.txt")
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "wordle.db")
+DB_PATH = Path(__file__).parent.parent / "data" / "wordle.db"
 
 # Emoji squares for displaying guess results
 SQUARES = {"green": "🟩", "yellow": "🟨", "gray": "⬛"}
@@ -22,9 +28,10 @@ class Wordle(commands.Cog):
         self.bot = bot
         # Create wordle directory if it doesn't exist
         os.makedirs(WORDLE_DIR, exist_ok=True)
-        # Initialize database and word list asynchronously
-        self.bot.loop.create_task(self._init_db())
-        self.bot.loop.create_task(self._ensure_wordlist())
+
+    async def cog_load(self):
+        await self._init_db()
+        await self._ensure_wordlist()
 
     async def _init_db(self):
         async with aiosqlite.connect(DB_PATH) as db:
@@ -60,7 +67,7 @@ class Wordle(commands.Cog):
         
         with open(WORD_LIST_PATH, "r", encoding="utf-8") as f:
             self.words = [w.strip() for w in f.read().splitlines() if len(w.strip()) == 5]
-        print(f"[Wordle] Loaded {len(self.words)} words.")
+        logger.info(f"Loaded {len(self.words)} words.")
 
     def get_daily_word(self):
         """
@@ -234,7 +241,7 @@ class Wordle(commands.Cog):
             embed = discord.Embed(
                 title=f"{interaction.user.display_name}'s Wordle {datetime.date.today()} Result",
                 description="\n".join(["".join(SQUARES[c] for c in self.compare_guess(g, target)) for g in guesses]),
-                color=self.bot.get_cog("EmbedColor").get_user_color(interaction.user)
+                color=get_embed_color(interaction.user.id)
             )
             await interaction.channel.send(embed=embed)
             return
@@ -249,7 +256,7 @@ class Wordle(commands.Cog):
             embed = discord.Embed(
                 title=f"{interaction.user.display_name}'s Wordle {datetime.date.today()} Result",
                 description="\n".join(["".join(SQUARES[c] for c in self.compare_guess(g, target)) for g in guesses]),
-                color=self.bot.get_cog("EmbedColor").get_user_color(interaction.user)
+                color=get_embed_color(interaction.user.id)
             )
             await interaction.channel.send(embed=embed)
             return
@@ -342,7 +349,7 @@ class Wordle(commands.Cog):
         # Build and send stats embed
         embed = discord.Embed(
             title=f"{interaction.user.display_name}'s Wordle Stats",
-            color=self.bot.get_cog("EmbedColor").get_user_color(interaction.user)
+            color=get_embed_color(interaction.user.id)
         )
         embed.add_field(name="Games Played", value=str(played))
         embed.add_field(name="Wins", value=str(wins))
@@ -374,7 +381,7 @@ class Wordle(commands.Cog):
         # Build and send server stats embed
         embed = discord.Embed(
             title="Server Wordle Stats",
-            color=self.bot.get_cog("EmbedColor").get_user_color(interaction.user)
+            color=get_embed_color(interaction.user.id)
         )
         embed.add_field(name="Total Games Played", value=str(total_played))
         embed.add_field(name="Total Wins", value=str(total_wins))

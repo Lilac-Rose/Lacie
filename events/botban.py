@@ -1,7 +1,10 @@
+"""Auto-ban cog that bans users who receive a specific bot-trap role."""
 import discord
 from discord.ext import commands
 from datetime import datetime, timedelta, timezone
-import sys
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 ROLE_ID_TO_BAN = 1439354601672282335
 LOG_CHANNEL_ID = 1440055015711703242
@@ -95,8 +98,7 @@ class AutoBanOnRole(commands.Cog):
 
     @commands.Cog.listener()
     async def on_ready(self):
-        sys.stdout.write("[INFO] AutoBanOnRole cog loaded and ready!\n")
-        sys.stdout.flush()
+        logger.info("AutoBanOnRole cog loaded and ready!")
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AutoBanOnRole(bot))

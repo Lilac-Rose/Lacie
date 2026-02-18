@@ -1,17 +1,20 @@
+"""Moderation event logger that records Discord actions to the database."""
 import discord
 from discord.ext import commands
 import sqlite3
-import os
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
-import traceback
+from utils.logger import get_logger
+
+_logger = get_logger(__name__)
 
 class Logger(commands.Cog):
     """Core logging system that listens to Discord events and logs them"""
     
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "moderation.db")
+        self.db_path = Path(__file__).parent.parent / "data" / "moderation.db"
         self.initialize_db()
         # Cache for deleted messages (for bulk delete context)
         self.message_cache = {}
@@ -76,10 +79,9 @@ class Logger(commands.Cog):
         try:
             msg = await channel.send(embed=embed)
         except discord.Forbidden as e:
-            print(f"[ERROR] Missing permissions to send log in channel {channel_id}: {e}")
+            _logger.error(f"Missing permissions to send log in channel {channel_id}: {e}")
         except Exception as e:
-            print(f"[ERROR] Error sending log: {e}")
-            traceback.print_exc()
+            _logger.error(f"Error sending log: {e}", exc_info=True)
     
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message):
@@ -188,7 +190,7 @@ class Logger(commands.Cog):
             
         except Exception as e:
             error_text = f"⚠️ **Error while logging member join:**\n`{type(e).__name__}: {e}`"
-            traceback.print_exc()
+            _logger.error(f"Error logging member join: {e}", exc_info=True)
 
             # Attempt to send the error to the designated debug channel
             try:
@@ -196,9 +198,9 @@ class Logger(commands.Cog):
                 if channel:
                     await channel.send(error_text)
                 else:
-                    print("[ERROR] Could not find error logging channel (1424145004976275617).")
+                    _logger.error("Could not find error logging channel (1424145004976275617).")
             except Exception as send_err:
-                print(f"[ERROR] Failed to send error message to debug channel: {send_err}")
+                _logger.error(f"Failed to send error message to debug channel: {send_err}")
     
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member):

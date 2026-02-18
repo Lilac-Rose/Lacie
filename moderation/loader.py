@@ -1,8 +1,11 @@
+"""Shared ModerationBase cog with DB connection and is_admin() decorator."""
 from discord.ext import commands
 import os
 import sqlite3
+from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime
+from utils.constants import LILAC_ID
 
 load_dotenv()
 
@@ -13,14 +16,12 @@ ADMIN_ROLE_IDS = {
     if role_id.strip().isdigit()
 }
 
-lilac_id = 252130669919076352
-
 class ModerationBase(commands.Cog):
     """Base cog for moderation commands with shared DB and utilities"""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db_path = os.path.join(os.path.dirname(__file__), "moderation.db")
+        self.db_path = Path(__file__).parent / "moderation.db"
         self.conn = sqlite3.connect(self.db_path)
         self.conn.row_factory = sqlite3.Row
         self.c = self.conn.cursor()
@@ -70,7 +71,7 @@ class ModerationBase(commands.Cog):
                 await send_message("Unable to check permissions in this context.", ephemeral=is_interaction)
                 return False
 
-            is_lilac = user.id == lilac_id
+            is_lilac = user.id == LILAC_ID
 
             has_admin_role = any(
                 role.id in ADMIN_ROLE_IDS

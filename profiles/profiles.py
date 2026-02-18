@@ -1,3 +1,4 @@
+"""User profile card generation with custom fonts and avatar overlays."""
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -6,10 +7,11 @@ import aiohttp
 import io
 import os
 import asyncio
+from pathlib import Path
 from textwrap import wrap
 from .database import get_db, setup_db
 
-FONTS_PATH = os.path.join(os.path.dirname(__file__), "fonts")
+FONTS_PATH = Path(__file__).parent / "fonts"
 
 def list_fonts():
     fonts = []
@@ -243,7 +245,7 @@ class Profiles(commands.GroupCog, name="profile"):
                     # Validate it's a proper hex color
                     int(bg_color[1:], 16)
                     base_color = bg_color
-                except:
+                except Exception:
                     pass  # Use default if invalid
             
             img = Image.new("RGB", (img_width, img_height), base_color)
@@ -307,7 +309,7 @@ class Profiles(commands.GroupCog, name="profile"):
                     else:
                         username_font = ImageFont.load_default()
                         break
-                except:
+                except Exception:
                     username_font = ImageFont.load_default()
                     break
                 
@@ -376,7 +378,7 @@ class Profiles(commands.GroupCog, name="profile"):
                             role_font = ImageFont.load_default()
                     else:
                         role_font = ImageFont.load_default()
-                except:
+                except Exception:
                     role_font = ImageFont.load_default()
                 
                 for role in display_roles:

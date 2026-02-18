@@ -1,3 +1,4 @@
+"""XP import/export commands for backing up and restoring user XP data."""
 import json
 import asyncio
 from io import BytesIO
@@ -8,6 +9,9 @@ from xp.utils import xp_for_level
 from xp.database import get_db
 from moderation.loader import ModerationBase
 from .groups import xp_admin_group
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class XPImportExport(commands.Cog):
@@ -37,9 +41,9 @@ class XPImportExport(commands.Cog):
                     }
                 return users
             except Exception as e:
-                print(f"Error in _db_work: {e}")
+                logger.error(f"Error in _db_work: {e}", exc_info=True)
                 raise
-        
+
         # Run everything in thread pool
         users = await asyncio.to_thread(_db_work)
         return {"users": users}
@@ -56,39 +60,31 @@ class XPImportExport(commands.Cog):
             # Defer immediately
             await interaction.response.defer()
             
-            print(f"Export started for {xp_type.value}")
-            
+            logger.info(f"Export started for {xp_type.value}")
+
             lifetime = xp_type.value == "lifetime"
-            
-            # Get data asynchronously
-            print("Fetching data from database...")
+
+            logger.debug("Fetching data from database...")
             data = await self._export_data(lifetime)
-            print(f"Data fetched: {len(data['users'])} users")
-            
-            # Create file with pretty-printed JSON
-            print("Encoding JSON...")
+            logger.info(f"Data fetched: {len(data['users'])} users")
+
             json_str = json.dumps(data, indent=2)
             json_bytes = json_str.encode("utf-8")
-            print(f"JSON size: {len(json_bytes)} bytes")
-            
-            print("Creating Discord file...")
+            logger.debug(f"JSON size: {len(json_bytes)} bytes")
+
             file = discord.File(fp=BytesIO(json_bytes), filename=f"{xp_type.value}_xp_export.json")
-            
-            # Public response
-            print("Sending response...")
+
             await interaction.followup.send(
                 f"✅ Exported `{xp_type.value}` XP data ({len(data['users'])} users).",
                 file=file
             )
-            print("Export complete!")
-            
+            logger.info("Export complete!")
+
         except Exception as e:
-            print(f"Error in export_xp: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Error in export_xp: {e}", exc_info=True)
             try:
                 await interaction.followup.send(f"❌ An error occurred during export: {str(e)}")
-            except:
+            except Exception:
                 pass
 
     # ==================== IMPORT ====================
@@ -130,9 +126,9 @@ class XPImportExport(commands.Cog):
                 conn.close()
                 return len(insert_data)
             except Exception as e:
-                print(f"Error in _db_work: {e}")
+                logger.error(f"Error in _db_work: {e}", exc_info=True)
                 raise
-        
+
         # Run database work in thread pool
         count = await asyncio.to_thread(_db_work)
         return count
@@ -154,50 +150,44 @@ class XPImportExport(commands.Cog):
             # Defer immediately
             await interaction.response.defer()
              
-            print(f"Import started for {xp_type.value}")
-            
+            logger.info(f"Import started for {xp_type.value}")
+
             lifetime = xp_type.value == "lifetime"
 
             if not attachment.filename.endswith(".json"):
                 await interaction.followup.send("❌ Please upload a valid `.json` file.")
                 return
 
-            # Download and parse JSON file
-            print("Downloading attachment...")
+            logger.debug("Downloading attachment...")
             file_bytes = await attachment.read()
-            print(f"Downloaded {len(file_bytes)} bytes")
-            
+            logger.debug(f"Downloaded {len(file_bytes)} bytes")
+
             try:
-                print("Parsing JSON...")
                 data = json.loads(file_bytes.decode("utf-8"))
             except json.JSONDecodeError as e:
                 await interaction.followup.send(f"❌ Invalid JSON file format: {str(e)}")
                 return
 
             users_data = data.get("users", {})
-            
+
             if not users_data:
                 await interaction.followup.send("❌ No user data found in the JSON file.")
                 return
-            
-            print(f"Found {len(users_data)} users to import")
-            
-            # Import data asynchronously
-            print("Importing data...")
+
+            logger.info(f"Found {len(users_data)} users to import")
+
             count = await self._import_data(users_data, lifetime)
-            print(f"Import complete: {count} users")
+            logger.info(f"Import complete: {count} users")
 
             await interaction.followup.send(
                 f"✅ Imported `{xp_type.value}` XP data from `{attachment.filename}` — {count} users imported (existing data overwritten)."
             )
-            
+
         except Exception as e:
-            print(f"Error in import_xp: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error(f"Error in import_xp: {e}", exc_info=True)
             try:
                 await interaction.followup.send(f"❌ An error occurred during import: {str(e)}")
-            except:
+            except Exception:
                 pass
 
     def cog_unload(self):
