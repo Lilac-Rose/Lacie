@@ -261,23 +261,13 @@ class LockCog(commands.Cog):
                 await ctx.message.add_reaction("❌")
                 return await ctx.send("This channel wasn't locked with !lock, so I can't restore its permissions.", allowed_mentions=discord.AllowedMentions.none())
             
-            # Clear all current overwrites
+            # Restore all original overwrites in a single API call
             failed_targets = []
-            for target in list(channel.overwrites.keys()):
-                try:
-                    await channel.set_permissions(target, overwrite=None)
-                except discord.Forbidden:
-                    failed_targets.append(target.name)
-            
-            # Restore all original overwrites
-            restored_count = 0
-            for target, overwrite in stored_overwrites.items():
-                try:
-                    await channel.set_permissions(target, overwrite=overwrite, reason=f"Channel unlocked by {ctx.author}")
-                    restored_count += 1
-                except discord.Forbidden:
-                    failed_targets.append(target.name if hasattr(target, 'name') else str(target.id))
-            
+            try:
+                await channel.edit(overwrites=stored_overwrites, reason=f"Channel unlocked by {ctx.author}")
+            except discord.Forbidden:
+                failed_targets.append("(permission denied restoring overwrites)")
+
             # Remove from database (runs in thread pool)
             await self.remove_stored_permissions(channel.id)
             
@@ -288,9 +278,7 @@ class LockCog(commands.Cog):
             try:
                 msg = f"#{channel.name} has been unlocked!"
                 if failed_targets:
-                    msg += f"\nNote: Could not restore permissions for: {', '.join(failed_targets[:5])}"
-                    if len(failed_targets) > 5:
-                        msg += f" and {len(failed_targets) - 5} more"
+                    msg += f"\nNote: Could not restore some permissions (missing permissions)."
                 await ctx.send(msg, allowed_mentions=discord.AllowedMentions.none())
             except Exception:
                 pass
