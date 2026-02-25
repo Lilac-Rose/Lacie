@@ -1,62 +1,151 @@
-import sqlite3
 import discord
+from discord import app_commands
 from discord.ext import commands
 from pathlib import Path
+import aiosqlite
 
-# The user ID to protect from pings
-PROTECTED_USER_ID = 252130669919076352
+NO_PINGS_ROLE_ID = 1439583411517001819
 
-# Users allowed to ping the protected user
-ALLOWED_PINGERS = {
+PROTECTED_USER_ID = 252130669919076352  # only lilac gets ping tracking
+
+# initial allowlist for lilac, gets seeded into DB on load
+INITIAL_ALLOWED_PINGERS = {
     505390548232699906,
     771709136051372032,
     692030310644187206,
     1153235432813895730,
+    252130669919076352,
+    1409637508689563689,
+    1407793866559721532,
+    1265042492865122358,
+    547143614099226626,
 }
 
 DB_PATH = Path(__file__).parent.parent / "data" / "ping_protect.db"
 
-def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS ping_counts (
-            user_id INTEGER PRIMARY KEY,
-            count INTEGER DEFAULT 0
-        )
-    """)
-    conn.commit()
-    return conn
 
-def record_ping(user_id: int):
-    conn = get_db()
-    conn.execute("""
-        INSERT INTO ping_counts (user_id, count) VALUES (?, 1)
-        ON CONFLICT(user_id) DO UPDATE SET count = count + 1
-    """, (user_id,))
-    conn.commit()
-    conn.close()
-
-class PingProtectListener(commands.Cog):
-    """Responds when the protected user is pinged by someone not on the allowlist."""
-
+class PingProtect(commands.GroupCog, name="noping"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    async def cog_load(self):
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS ping_counts (
+                    user_id INTEGER PRIMARY KEY,
+                    count INTEGER DEFAULT 0
+                )
+            """)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS allowlists (
+                    protected_user_id INTEGER,
+                    allowed_user_id INTEGER,
+                    PRIMARY KEY (protected_user_id, allowed_user_id)
+                )
+            """)
+            for uid in INITIAL_ALLOWED_PINGERS:
+                await db.execute("""
+                    INSERT OR IGNORE INTO allowlists (protected_user_id, allowed_user_id)
+                    VALUES (?, ?)
+                """, (PROTECTED_USER_ID, uid))
+            await db.commit()
+
+    def _has_permission(self, member: discord.Member) -> bool:
+        return (
+            member.id == PROTECTED_USER_ID or
+            any(r.id == NO_PINGS_ROLE_ID for r in member.roles)
+        )
+
+    async def _is_allowed(self, protected_user_id: int, pinger_id: int) -> bool:
+        async with aiosqlite.connect(DB_PATH) as db:
+            cursor = await db.execute(
+                "SELECT 1 FROM allowlists WHERE protected_user_id = ? AND allowed_user_id = ?",
+                (protected_user_id, pinger_id)
+            )
+            return await cursor.fetchone() is not None
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
-        if message.author.bot:
+        if message.author.bot or not message.guild:
             return
 
-        # Check if the protected user is mentioned
-        if not any(user.id == PROTECTED_USER_ID for user in message.mentions):
+        for user in message.mentions:
+            member = message.guild.get_member(user.id)
+
+            is_protected = (
+                user.id == PROTECTED_USER_ID or
+                (member and any(r.id == NO_PINGS_ROLE_ID for r in member.roles))
+            )
+            if not is_protected:
+                continue
+
+            if await self._is_allowed(user.id, message.author.id):
+                continue
+
+            if user.id == PROTECTED_USER_ID:
+                async with aiosqlite.connect(DB_PATH) as db:
+                    await db.execute("""
+                        INSERT INTO ping_counts (user_id, count) VALUES (?, 1)
+                        ON CONFLICT(user_id) DO UPDATE SET count = count + 1
+                    """, (message.author.id,))
+                    await db.commit()
+                await message.reply("Please don't ping faer", mention_author=False)
+            else:
+                name = member.display_name if member else user.name
+                await message.reply(f"Please don't ping {name}, they have pings disabled.", mention_author=False)
+
+    @app_commands.command(name="allow", description="Allow someone to ping you")
+    @app_commands.describe(user="The user to allow")
+    async def allow(self, interaction: discord.Interaction, user: discord.Member):
+        if not self._has_permission(interaction.user):
+            await interaction.response.send_message("You need the no-pings role to use this.", ephemeral=True)
             return
 
-        # Allow users on the allowlist (don't track them)
-        if message.author.id in ALLOWED_PINGERS:
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute("""
+                INSERT OR IGNORE INTO allowlists (protected_user_id, allowed_user_id)
+                VALUES (?, ?)
+            """, (interaction.user.id, user.id))
+            await db.commit()
+
+        await interaction.response.send_message(f"✅ {user.display_name} can now ping you.", ephemeral=True)
+
+    @app_commands.command(name="remove", description="Remove someone from your ping allowlist")
+    @app_commands.describe(user="The user to remove")
+    async def remove(self, interaction: discord.Interaction, user: discord.Member):
+        if not self._has_permission(interaction.user):
+            await interaction.response.send_message("You need the no-pings role to use this.", ephemeral=True)
             return
 
-        record_ping(message.author.id)
-        await message.reply("Please don't ping faer", mention_author=False)
+        async with aiosqlite.connect(DB_PATH) as db:
+            await db.execute(
+                "DELETE FROM allowlists WHERE protected_user_id = ? AND allowed_user_id = ?",
+                (interaction.user.id, user.id)
+            )
+            await db.commit()
+
+        await interaction.response.send_message(f"✅ {user.display_name} can no longer ping you.", ephemeral=True)
+
+    @app_commands.command(name="list", description="View your ping allowlist")
+    async def list_allowed(self, interaction: discord.Interaction):
+        if not self._has_permission(interaction.user):
+            await interaction.response.send_message("You need the no-pings role to use this.", ephemeral=True)
+            return
+
+        async with aiosqlite.connect(DB_PATH) as db:
+            cursor = await db.execute(
+                "SELECT allowed_user_id FROM allowlists WHERE protected_user_id = ?",
+                (interaction.user.id,)
+            )
+            rows = await cursor.fetchall()
+
+        if not rows:
+            await interaction.response.send_message("Your allowlist is empty.", ephemeral=True)
+            return
+
+        mentions = "\n".join(f"<@{row[0]}>" for row in rows)
+        await interaction.response.send_message(f"**Your ping allowlist:**\n{mentions}", ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
-    await bot.add_cog(PingProtectListener(bot))
+    await bot.add_cog(PingProtect(bot))

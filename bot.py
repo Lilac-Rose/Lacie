@@ -22,6 +22,7 @@ TOKEN = os.getenv("TOKEN")
 # All cog folders to load on startup and reload
 COG_FOLDERS = [
     "commands",
+    "games",
     "moderation",
     "xp",
     "sparkle",
