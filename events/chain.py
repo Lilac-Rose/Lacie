@@ -13,43 +13,53 @@ class ChainDetector(commands.Cog):
         # Ignore bot messages
         if message.author.bot:
             return
-        
-        # Ignore images, stickers, files, etc.
-        if message.attachments or message.stickers:
+
+        # Ignore images, files, etc. (but allow stickers)
+        if message.attachments:
             return
-        
-        content = message.content.strip()
-        if not content:
-            return
-        
+
         if message.mentions or message.role_mentions or message.channel_mentions or message.mention_everyone:
             return
-        
+
+        # Determine chain key and how to send
+        if message.stickers:
+            sticker = message.stickers[0]
+            chain_key = f"sticker:{sticker.id}"
+            async def send_chain():
+                await message.channel.send(stickers=[sticker])
+        else:
+            content = message.content.strip()
+            if not content:
+                return
+            chain_key = content
+            async def send_chain():
+                await message.channel.send(chain_key)
+
         channel_id = message.channel.id
-        
+
         # Initialize cache for this channel
         if channel_id not in self.cache:
             self.cache[channel_id] = {
-                "last_message": content,
+                "last_message": chain_key,
                 "users": [message.author.id]
             }
             return
-        
+
         chain = self.cache[channel_id]
-        
+
         # If message matches the chain message
-        if content == chain["last_message"]:
+        if chain_key == chain["last_message"]:
             # Only count if it's a DIFFERENT user
             if message.author.id not in chain["users"]:
                 chain["users"].append(message.author.id)
         else:
             # Reset chain
-            chain["last_message"] = content
+            chain["last_message"] = chain_key
             chain["users"] = [message.author.id]
-        
+
         # If three different users said the same thing
         if len(chain["users"]) == 3:
-            await message.channel.send(content)
+            await send_chain()
             # Reset the chain completely
             chain["last_message"] = ""
             chain["users"] = []
