@@ -166,6 +166,90 @@ class EmoteCredits(ModerationBase, commands.Cog):
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
 
+    @app_commands.command(name="emote_artists", description="List all artists who have credited emotes or stickers")
+    async def emote_artists(self, interaction: discord.Interaction):
+        await interaction.response.defer()
+
+        async with aiosqlite.connect(self.db_path) as conn:
+            async with conn.execute(
+                "SELECT artist, COUNT(*) as count FROM emote_credits GROUP BY LOWER(artist) ORDER BY count DESC"
+            ) as cursor:
+                rows = await cursor.fetchall()
+
+        if not rows:
+            await interaction.followup.send("No credits in the database yet.", ephemeral=True)
+            return
+
+        lines = [f"**{artist}** — {count} emote{'s' if count != 1 else ''}" for artist, count in rows]
+        chunks = [lines[i:i+20] for i in range(0, len(lines), 20)]
+
+        embeds = []
+        for i, chunk in enumerate(chunks):
+            embed = discord.Embed(
+                title=f"🎨 Emote Artists (Page {i+1}/{len(chunks)})",
+                description="\n".join(chunk),
+                color=get_embed_color(interaction.user.id)
+            )
+            embed.set_footer(text=f"Total artists: {len(rows)} • Use /emote_by_artist to see an artist's work")
+            embeds.append(embed)
+
+        await interaction.followup.send(embed=embeds[0])
+        for embed in embeds[1:]:
+            await interaction.followup.send(embed=embed)
+
+    @app_commands.command(name="emote_by_artist", description="View all emotes and stickers credited to a specific artist")
+    @app_commands.describe(artist="The artist's name to look up")
+    async def emote_by_artist(self, interaction: discord.Interaction, artist: str):
+        await interaction.response.defer()
+
+        async with aiosqlite.connect(self.db_path) as conn:
+            async with conn.execute(
+                "SELECT emote_name FROM emote_credits WHERE LOWER(artist) = LOWER(?) ORDER BY emote_name",
+                (artist,)
+            ) as cursor:
+                rows = await cursor.fetchall()
+
+        if not rows:
+            # Try a partial match and suggest
+            async with aiosqlite.connect(self.db_path) as conn:
+                async with conn.execute(
+                    "SELECT DISTINCT artist FROM emote_credits WHERE LOWER(artist) LIKE LOWER(?) ORDER BY artist",
+                    (f"%{artist}%",)
+                ) as cursor:
+                    suggestions = [r[0] for r in await cursor.fetchall()]
+
+            if suggestions:
+                await interaction.followup.send(
+                    f"No artist named **{artist}** found. Did you mean: {', '.join(f'`{s}`' for s in suggestions[:5])}?",
+                    ephemeral=True
+                )
+            else:
+                await interaction.followup.send(f"No artist named **{artist}** found.", ephemeral=True)
+            return
+
+        emote_names = [r[0] for r in rows]
+        guild_emoji_map = {e.name.lower(): e for e in interaction.guild.emojis}
+
+        lines = []
+        for name in emote_names:
+            emoji = guild_emoji_map.get(name.lower())
+            lines.append(f"{emoji} `{name}`" if emoji else f"`{name}`")
+
+        chunks = [lines[i:i+20] for i in range(0, len(lines), 20)]
+        embeds = []
+        for i, chunk in enumerate(chunks):
+            embed = discord.Embed(
+                title=f"🎨 Emotes by {artist} (Page {i+1}/{len(chunks)})",
+                description="\n".join(chunk),
+                color=get_embed_color(interaction.user.id)
+            )
+            embed.set_footer(text=f"Total: {len(emote_names)} emote{'s' if len(emote_names) != 1 else ''}")
+            embeds.append(embed)
+
+        await interaction.followup.send(embed=embeds[0])
+        for embed in embeds[1:]:
+            await interaction.followup.send(embed=embed)
+
     @app_commands.command(name="missing_credits", description="[Admin] List all server emotes and stickers without credits")
     @app_commands.checks.has_permissions(administrator=True)
     async def missing_credits(self, interaction: discord.Interaction):

@@ -5,6 +5,7 @@ from pathlib import Path
 import aiosqlite
 
 NO_PINGS_ROLE_ID = 1439583411517001819
+PINGS_OK_ROLE_ID = 1439583327844827227
 
 PROTECTED_USER_ID = 252130669919076352  # only lilac gets ping tracking
 
@@ -71,6 +72,9 @@ class PingProtect(commands.GroupCog, name="noping"):
 
         for user in message.mentions:
             member = message.guild.get_member(user.id)
+
+            if member and any(r.id == PINGS_OK_ROLE_ID for r in member.roles):
+                continue
 
             is_protected = (
                 user.id == PROTECTED_USER_ID or
