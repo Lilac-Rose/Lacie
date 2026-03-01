@@ -12,7 +12,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
         super().__init__(bot)
         self.bot = bot
         self.db_path = Path(__file__).parent.parent / "data" / "emote_credits.db"
-        self.approval_channel_id = 1424145004976275617
+        self.approval_channel_id = 1470441786810826884
 
     async def cog_load(self):
         await self._init_db()
@@ -251,7 +251,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
             await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="missing_credits", description="[Admin] List all server emotes and stickers without credits")
-    @app_commands.checks.has_permissions(administrator=True)
+    @ModerationBase.is_admin()
     async def missing_credits(self, interaction: discord.Interaction):
         """List all server emotes and stickers that don't have credits"""
         await interaction.response.defer()
