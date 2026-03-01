@@ -643,6 +643,46 @@ class Suggestion(commands.GroupCog, name="suggest"):
             logger.error(f"Error in listsuggestions command: {e}", exc_info=True)
             await interaction.followup.send(error_msg[:2000])
 
+    @app_commands.command(name="stats", description="View suggestion stats for yourself or another user")
+    async def suggestionstats(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+        await interaction.response.defer(ephemeral=False)
+
+        try:
+            target = member or interaction.user
+
+            async with self.db.execute(
+                "SELECT COUNT(*) FROM suggestions WHERE user_id = ?", (target.id,)
+            ) as cursor:
+                total = (await cursor.fetchone())[0]
+
+            async with self.db.execute(
+                "SELECT COUNT(*) FROM suggestions WHERE user_id = ? AND status IN (?, ?)",
+                (target.id, "Approved", "Completed")
+            ) as cursor:
+                accepted = (await cursor.fetchone())[0]
+
+            async with self.db.execute(
+                "SELECT COUNT(*) FROM suggestions WHERE user_id = ? AND status = ?",
+                (target.id, "Denied")
+            ) as cursor:
+                rejected = (await cursor.fetchone())[0]
+
+            embed = discord.Embed(
+                title=f"📊 Suggestion Stats — {target.display_name}",
+                color=get_embed_color(target.id)
+            )
+            embed.set_thumbnail(url=target.display_avatar.url)
+            embed.add_field(name="Total Submitted", value=str(total), inline=True)
+            embed.add_field(name="Accepted", value=str(accepted), inline=True)
+            embed.add_field(name="Rejected", value=str(rejected), inline=True)
+
+            await interaction.followup.send(embed=embed)
+
+        except Exception as e:
+            error_msg = f"❌ An error occurred: {str(e)}\n```{traceback.format_exc()}```"
+            logger.error(f"Error in suggestionstats command: {e}", exc_info=True)
+            await interaction.followup.send(error_msg[:2000])
+
     @app_commands.command(name="todo", description="View your approved suggestions to-do list")
     async def todolist(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
         await interaction.response.defer(ephemeral=False)
