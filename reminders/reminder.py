@@ -35,8 +35,11 @@ def encrypt(text: str) -> str:
 def decrypt(token: str) -> str:
     try:
         return fernet.decrypt(token.encode()).decode()
-    except (InvalidToken, Exception):
-        # Fallback for any pre-encryption reminders still in the DB
+    except InvalidToken:
+        logger.warning("Failed to decrypt reminder message (InvalidToken) — returning raw value. This may indicate a key mismatch or a pre-encryption entry.")
+        return token
+    except Exception as e:
+        logger.error(f"Unexpected error decrypting reminder message: {e}", exc_info=True)
         return token
 
 
