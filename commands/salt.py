@@ -38,7 +38,7 @@ class SaltCommand(ModerationBase):
 
     @commands.Cog.listener()
     async def on_message(self, message):
-        if message.author.bot or not message.guild:
+        if message.author.bot and message.author.id != 1409637508689563689 or not message.guild:
             return
 
         guild_targets = self.salt_targets.get(message.guild.id, {})
