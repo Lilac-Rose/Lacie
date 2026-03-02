@@ -20,6 +20,7 @@ INITIAL_ALLOWED_PINGERS = {
     1407793866559721532,
     1265042492865122358,
     547143614099226626,
+    987681568585814036
 }
 
 DB_PATH = Path(__file__).parent.parent / "data" / "ping_protect.db"
