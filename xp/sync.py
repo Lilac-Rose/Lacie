@@ -5,10 +5,11 @@ from moderation.loader import ModerationBase, ADMIN_ROLE_IDS
 from utils.constants import LILAC_ID
 from .database import get_db
 from .utils import load_config, xp_for_level
-from .groups import xp_group
+from .groups import xp_group, xp_admin_group
 from discord.utils import get
 import asyncio
 from utils.logger import get_logger
+from commands.prestige_color import load_color_role_ids, PRESTIGE_ROLES
 
 logger = get_logger(__name__)
 
@@ -17,8 +18,8 @@ class XPSync(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        # Register this command onto the shared xp group
         xp_group.add_command(app_commands.command(name="sync", description="Sync your XP role rewards.")(self.sync))
+        xp_admin_group.add_command(app_commands.command(name="prestige-sync", description="[ADMIN] Sync all members: remove prestige originals where color copies are active.")(self.prestige_sync))
 
     def check_is_admin(self, user: discord.Member) -> bool:
         """Check if user has admin permissions."""
@@ -153,8 +154,42 @@ class XPSync(commands.Cog):
             except Exception as followup_error:
                 logger.error(f"Could not send error message: {followup_error}")
 
+    @ModerationBase.is_admin()
+    async def prestige_sync(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        if not guild:
+            await interaction.followup.send("Server only.", ephemeral=True)
+            return
+
+        color_ids = load_color_role_ids()
+        if not color_ids:
+            await interaction.followup.send("No prestige color roles set up yet. Run `/prestige setup` first.", ephemeral=True)
+            return
+
+        copy_to_original = {v: guild.get_role(int(k)) for k, v in color_ids.items()}
+        all_copy_ids = set(color_ids.values())
+        updated = 0
+
+        async for member in guild.fetch_members(limit=None):
+            member_copy_ids = [r.id for r in member.roles if r.id in all_copy_ids]
+            if not member_copy_ids:
+                continue
+
+            to_remove = [
+                copy_to_original[cid] for cid in member_copy_ids
+                if copy_to_original.get(cid) and copy_to_original[cid] in member.roles
+            ]
+            if to_remove:
+                await member.remove_roles(*to_remove, reason="Prestige color sync: original replaced by color copy")
+                updated += 1
+                await asyncio.sleep(0.5)
+
+        await interaction.followup.send(f"Sync complete. Updated {updated} member(s).", ephemeral=True)
+
     def cog_unload(self):
         xp_group.remove_command("sync")
+        xp_admin_group.remove_command("prestige-sync")
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(XPSync(bot))

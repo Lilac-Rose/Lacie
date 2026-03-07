@@ -331,12 +331,12 @@ class InfractionCommand(ModerationBase):
                     await interaction.response.edit_message(content=self.pages[self.current], view=self)
 
                 @discord.ui.button(label="Previous", style=discord.ButtonStyle.blurple)
-                async def previous(self, button: discord.ui.Button, interaction: discord.Interaction):
+                async def previous(self, interaction: discord.Interaction, button: discord.ui.Button):
                     self.current = (self.current - 1) % len(self.pages)
                     await self.update_message(interaction)
 
                 @discord.ui.button(label="Next", style=discord.ButtonStyle.blurple)
-                async def next(self, button: discord.ui.Button, interaction: discord.Interaction):
+                async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
                     self.current = (self.current + 1) % len(self.pages)
                     await self.update_message(interaction)
 
@@ -483,12 +483,12 @@ class InfractionCommand(ModerationBase):
                 await interaction.response.edit_message(content=self.pages[self.current], view=self)
 
             @discord.ui.button(label="Previous", style=discord.ButtonStyle.blurple)
-            async def previous(self, button: discord.ui.Button, interaction: discord.Interaction):
+            async def previous(self, interaction: discord.Interaction, button: discord.ui.Button):
                 self.current = (self.current - 1) % len(self.pages)
                 await self.update_message(interaction)
 
             @discord.ui.button(label="Next", style=discord.ButtonStyle.blurple)
-            async def next(self, button: discord.ui.Button, interaction: discord.Interaction):
+            async def next(self, interaction: discord.Interaction, button: discord.ui.Button):
                 self.current = (self.current + 1) % len(self.pages)
                 await self.update_message(interaction)
 

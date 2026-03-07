@@ -8,3 +8,6 @@ venv/
 .txt
 logs/
 data/
+
+# ARG — keep out of public repo to prevent spoilers
+arg/

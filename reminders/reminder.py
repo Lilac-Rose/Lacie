@@ -34,7 +34,7 @@ def encrypt(text: str) -> str:
 
 def decrypt(token: str) -> str:
     try:
-        return fernet.decrypt(token.encode()).decode()
+        return fernet.decrypt(token.strip().encode()).decode()
     except InvalidToken:
         logger.warning("Failed to decrypt reminder message (InvalidToken) — returning raw value. This may indicate a key mismatch or a pre-encryption entry.")
         return token
@@ -299,23 +299,28 @@ class ReminderCog(commands.Cog):
             ) as cursor:
                 reminders_due = await cursor.fetchall()
 
-            for reminder_id, user_id, message in reminders_due:
-                message = decrypt(message)
-                user = self.bot.get_user(user_id)
-                if user:
-                    try:
-                        embed = discord.Embed(
-                            title="⏰ Reminder!",
-                            description=message,
-                            color=get_embed_color(user_id),
-                            timestamp=datetime.now(timezone.utc)
-                        )
-                        await user.send(embed=embed)
-                    except discord.Forbidden:
-                        pass
+            if reminders_due:
+                ids = [r[0] for r in reminders_due]
+                await db.execute(
+                    f"DELETE FROM reminders WHERE id IN ({','.join('?' * len(ids))})",
+                    ids,
+                )
+                await db.commit()
 
-                await db.execute("DELETE FROM reminders WHERE id = ?", (reminder_id,))
-            await db.commit()
+        for reminder_id, user_id, message in reminders_due:
+            decrypted = decrypt(message)
+            user = self.bot.get_user(user_id)
+            if user:
+                try:
+                    embed = discord.Embed(
+                        title="⏰ Reminder!",
+                        description=decrypted,
+                        color=get_embed_color(user_id),
+                        timestamp=datetime.now(timezone.utc)
+                    )
+                    await user.send(embed=embed)
+                except (discord.Forbidden, discord.HTTPException):
+                    pass
 
     @check_reminders.before_loop
     async def before_check_reminders(self):
