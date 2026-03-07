@@ -13,11 +13,13 @@ class Ping(commands.Cog):
 
     @app_commands.command(name="ping", description="Check the bot's latency")
     async def ping(self, interaction: discord.Interaction):
+        # send a message first, then measure how long it took — that's our API round-trip
         start_time = time.perf_counter()
         await interaction.response.send_message("Pinging...")
         end_time = time.perf_counter()
         api_latency = round((end_time - start_time) * 1000)
 
+        # ws latency comes from the heartbeat, already tracked by discord.py
         ws_latency = round(self.bot.latency * 1000)
 
         # Measure database latency
@@ -40,6 +42,7 @@ class Ping(commands.Cog):
         embed.add_field(name="API Latency", value=f"{api_latency}ms", inline=True)
         embed.add_field(name="Database Latency", value=f"{db_latency}ms", inline=True)
 
+        # edit the original "Pinging..." message to show the embed
         await interaction.edit_original_response(content=None, embed=embed)
 
 async def setup(bot: commands.Bot):

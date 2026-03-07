@@ -8,8 +8,8 @@ class CleanBanCommand(ModerationBase):
     @ModerationBase.is_admin()
     async def cleanban(self, ctx, user: discord.User | discord.Member | str, days: int = 1, *, reason: str = None):
         """Ban a user and delete their messages from past specified days (1-7)"""
-        
-        # Validate days parameter
+
+        # Discord only supports 1-7 for delete_message_days
         if days < 1 or days > 7:
             await ctx.send("Days must be between 1 and 7.")
             return
@@ -23,7 +23,7 @@ class CleanBanCommand(ModerationBase):
                 await ctx.send("Could not find that user. Please provide a valid mention or ID.")
                 return
 
-        # Ask for confirmation
+        # Ask for confirmation — extra warning since this also wipes their message history
         view = View(timeout=30)
         confirmed = {"value": False}
 
@@ -61,7 +61,7 @@ class CleanBanCommand(ModerationBase):
         if not confirmed["value"]:
             return
 
-        # Attempt to DM user
+        # DM before banning so they receive it before we delete them from the server
         try:
             if isinstance(user, discord.User):
                 await user.send(
@@ -75,7 +75,7 @@ class CleanBanCommand(ModerationBase):
         # Perform the ban with message deletion
         try:
             await ctx.guild.ban(
-                discord.Object(id=user.id), 
+                discord.Object(id=user.id),
                 reason=reason,
                 delete_message_days=days
             )

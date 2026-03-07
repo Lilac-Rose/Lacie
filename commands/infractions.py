@@ -10,27 +10,25 @@ class InfractionsCommand(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        # Path to moderation database (go up to project root, then into moderation/)
         self.db_path = Path(__file__).parent.parent / "data" / "moderation.db"
 
     @app_commands.command(name="infractions", description="View your infractions in this server")
     async def infractions(self, interaction: discord.Interaction):
-        """DM the user their active infractions without showing moderator names."""
+        # send via DM so it doesn't expose their infraction history publicly
         await interaction.response.defer(ephemeral=True)
 
         try:
-            # Connect to the moderation database
             conn = sqlite3.connect(self.db_path)
             c = conn.cursor()
 
-            # Fetch active infractions for this user in this guild
+            # only show active (not removed) infractions for this user in this guild
             c.execute("""
                 SELECT id, type, reason, timestamp
                 FROM infractions
                 WHERE user_id=? AND guild_id=? AND removed=0
                 ORDER BY timestamp DESC
             """, (interaction.user.id, interaction.guild.id))
-            
+
             results = c.fetchall()
             conn.close()
 
@@ -42,6 +40,7 @@ class InfractionsCommand(commands.Cog):
             rows = []
             for row in results:
                 inf_id, inf_type, reason, timestamp = row
+                # strip the T and milliseconds out of the ISO timestamp for readability
                 timestamp_formatted = timestamp.replace("T", " ")[:19]
                 reason_text = reason or "None"
 
@@ -52,12 +51,12 @@ class InfractionsCommand(commands.Cog):
                     "reason": reason_text
                 })
 
-            # Prepare table formatting
+            # auto-size each column to the widest value in it
             widths = {key: max(len(key), *(len(r[key]) for r in rows)) for key in rows[0].keys()}
             header = " | ".join(f"{key.capitalize():{widths[key]}}" for key in rows[0].keys())
             separator = "-" * len(header)
 
-            # Build pages (in case there are many infractions)
+            # split into pages in case they have a lot of infractions — Discord has a 2000 char limit
             chunk_size = 1800
             pages = []
             current_chunk = [header, separator]
@@ -76,14 +75,12 @@ class InfractionsCommand(commands.Cog):
             if current_chunk:
                 pages.append("```md\n" + "\n".join(current_chunk) + "\n```")
 
-            # Try to DM the user
             try:
                 dm_header = f"**Your Active Infractions in {interaction.guild.name}**\n\n"
-                
-                # Send all pages to DM
+
                 for page in pages:
                     await interaction.user.send(dm_header + page)
-                    dm_header = ""  # Only show header on first message
+                    dm_header = ""  # only show the header on the first page
 
                 await interaction.followup.send("Your infractions have been sent to your DMs!", ephemeral=True)
 

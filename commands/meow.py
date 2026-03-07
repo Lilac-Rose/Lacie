@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import random
 
+# add more here whenever
 MEOW_LIST = ["Meowwwww~", "Purrrrrr", "Nyaaaaaa", "Meow Meow", "Nya!", "Meow :3"]
 
 class Meow(commands.Cog):

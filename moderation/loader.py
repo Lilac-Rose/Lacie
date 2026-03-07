@@ -20,7 +20,8 @@ class ModerationBase(commands.Cog):
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.db_path = Path(__file__).parent / "moderation.db"
+        self.db_path = Path(__file__).parent.parent / "data" / "moderation.db"
+        # one shared connection per cog instance — closed in cog_unload
         self.conn = sqlite3.connect(self.db_path)
         self.conn.row_factory = sqlite3.Row
         self.c = self.conn.cursor()
@@ -48,9 +49,11 @@ class ModerationBase(commands.Cog):
     def is_admin():
         """Decorator that works for both prefix and slash commands."""
         async def predicate(target):
+            # target is either a Context (prefix) or Interaction (slash)
             user = getattr(target, "author", None) or getattr(target, "user", None)
             is_interaction = hasattr(target, "response")
 
+            # unified send helper so we don't have to branch everywhere
             async def send_message(msg, ephemeral=False):
                 if is_interaction:
                     try:
@@ -70,7 +73,7 @@ class ModerationBase(commands.Cog):
                 await send_message("Unable to check permissions in this context.", ephemeral=is_interaction)
                 return False
 
-            is_lilac = user.id == LILAC_ID
+            is_lilac = user.id == LILAC_ID  # owner bypass
 
             has_admin_role = any(
                 role.id in ADMIN_ROLE_IDS
@@ -87,6 +90,7 @@ class ModerationBase(commands.Cog):
         from discord import app_commands
         from discord.ext import commands
 
+        # apply both checks so it works regardless of command type
         def decorator(func):
             func = commands.check(predicate)(func)
             func = app_commands.check(predicate)(func)

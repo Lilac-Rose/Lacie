@@ -13,6 +13,8 @@ logger = get_logger(__name__)
 
 DEBUG = False
 
+# keep this list in sync with the actual roles on the server
+# generate_role_color_images.py reads from this too, so order matters for the image layout
 COLOR_ROLE_NAMES = [
     "Turquoise", "Green Sea", "Emerald", "Nephritis", "River", "Belize",
     "Amethyst", "Wisteria", "Linen", "Alizarin", "Pomegranate", "Tangerine",
@@ -38,9 +40,10 @@ class ColorRoles(commands.Cog):
             if not guild:
                 await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
                 return
-            
+
             member = interaction.user
             if not isinstance(member, discord.Member):
+                # interaction.user can come back as a User in some edge cases, so fetch the full Member
                 try:
                     member = await guild.fetch_member(interaction.user.id)
                 except discord.NotFound:
@@ -57,12 +60,12 @@ class ColorRoles(commands.Cog):
             if not bot_member.guild_permissions.manage_roles:
                 await interaction.followup.send("I don't have permission to manage roles.", ephemeral=True)
                 return
-            
+
             if selected_role >= bot_member.top_role:
                 await interaction.followup.send("I cannot assign this role because it's higher than or equal to my highest role.", ephemeral=True)
                 return
 
-            # Remove previous color roles
+            # strip off any existing color roles before assigning the new one
             previous = [r for r in member.roles if r.name in COLOR_ROLE_NAMES]
             if previous:
                 try:
@@ -83,7 +86,7 @@ class ColorRoles(commands.Cog):
             except discord.HTTPException as e:
                 await interaction.followup.send(f"Failed to assign role: {str(e)}", ephemeral=True)
                 return
-            
+
             await interaction.followup.send(
                 f"You now have the **{selected_role.name}** color role!",
                 ephemeral=True
@@ -107,7 +110,7 @@ class ColorRoles(commands.Cog):
             if not guild:
                 await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
                 return
-            
+
             selected_role = discord.utils.get(guild.roles, name=color.value)
             if not selected_role:
                 await interaction.followup.send(f"The role **{color.value}** doesn't exist on this server.", ephemeral=True)
@@ -118,7 +121,7 @@ class ColorRoles(commands.Cog):
             if not bot_member.guild_permissions.manage_roles:
                 await interaction.followup.send("I don't have permission to manage roles.", ephemeral=True)
                 return
-            
+
             if selected_role >= bot_member.top_role:
                 await interaction.followup.send("I cannot assign this role because it's higher than or equal to my highest role.", ephemeral=True)
                 return
@@ -144,7 +147,7 @@ class ColorRoles(commands.Cog):
             except discord.HTTPException as e:
                 await interaction.followup.send(f"Failed to assign role: {str(e)}", ephemeral=True)
                 return
-            
+
             await interaction.followup.send(
                 f"Set **{selected_role.name}** color role for {user.mention}!",
                 ephemeral=False
@@ -162,7 +165,7 @@ class ColorRoles(commands.Cog):
             if not guild:
                 await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
                 return
-            
+
             member = interaction.user
             if not isinstance(member, discord.Member):
                 try:
@@ -172,7 +175,7 @@ class ColorRoles(commands.Cog):
                     return
 
             color_roles = [r for r in member.roles if r.name in COLOR_ROLE_NAMES]
-            
+
             if not color_roles:
                 await interaction.followup.send(
                     "You don't have any color role to remove.",
@@ -194,7 +197,7 @@ class ColorRoles(commands.Cog):
             except discord.HTTPException as e:
                 await interaction.followup.send(f"Failed to remove roles: {str(e)}", ephemeral=True)
                 return
-            
+
             removed_names = ", ".join([r.name for r in color_roles])
             await interaction.followup.send(
                 f"Removed your color role(s): **{removed_names}**",
@@ -215,9 +218,9 @@ class ColorRoles(commands.Cog):
             if not guild:
                 await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
                 return
-            
+
             color_roles = [r for r in user.roles if r.name in COLOR_ROLE_NAMES]
-            
+
             if not color_roles:
                 await interaction.followup.send(
                     f"{user.mention} doesn't have any color role to remove.",
@@ -239,7 +242,7 @@ class ColorRoles(commands.Cog):
             except discord.HTTPException as e:
                 await interaction.followup.send(f"Failed to remove roles: {str(e)}", ephemeral=True)
                 return
-            
+
             removed_names = ", ".join([r.name for r in color_roles])
             await interaction.followup.send(
                 f"Removed color role(s) from {user.mention}: **{removed_names}**",
@@ -254,29 +257,27 @@ class ColorRoles(commands.Cog):
     async def list_colors(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=False)
         try:
-            # Get absolute path to project root (parent of commands/)
             media_dir = Path(__file__).resolve().parent.parent / "media"
             if not media_dir.exists():
                 raise FileNotFoundError(f"Media folder not found: {media_dir}")
-            
-            # Look for the generated color image
+
             img_path = media_dir / "colorimage.png"
-            
+
             if not img_path.exists():
-                # Fallback to old images if colorimage.png doesn't exist
+                # fall back to the old split images if colorimage.png hasn't been generated yet
                 color_image_files = []
                 for filename in ["colorimage1.png", "colorimage2.png"]:
                     fallback_path = media_dir / filename
                     if fallback_path.exists():
                         color_image_files.append(fallback_path)
-                
+
                 if not color_image_files:
                     await interaction.followup.send(
                         "No color images found. An admin needs to run `!generateimages` first.",
                         ephemeral=True
                     )
                     return
-                
+
                 # Send old format with multiple images
                 file1 = discord.File(color_image_files[0], filename=color_image_files[0].name)
                 embed1 = discord.Embed(
@@ -286,7 +287,7 @@ class ColorRoles(commands.Cog):
                 )
                 embed1.set_image(url=f"attachment://{color_image_files[0].name}")
                 await interaction.followup.send(embed=embed1, file=file1, ephemeral=False)
-                
+
                 if len(color_image_files) > 1:
                     file2 = discord.File(color_image_files[1], filename=color_image_files[1].name)
                     embed2 = discord.Embed(
@@ -306,7 +307,7 @@ class ColorRoles(commands.Cog):
                 )
                 embed.set_image(url="attachment://colorimage.png")
                 await interaction.followup.send(embed=embed, file=file, ephemeral=False)
-                
+
         except Exception as e:
             logger.error(f"/color list: {e}", exc_info=True)
             msg = f"Error in `/color list`: `{e}`" if DEBUG else "Something went wrong loading color images."

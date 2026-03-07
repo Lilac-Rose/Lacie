@@ -9,7 +9,7 @@ class Coinflip(commands.Cog):
 
     @app_commands.command(name="coinflip")
     async def coinflip(self, interaction: discord.Interaction):
-
+        # 0 = tails, 1 = heads
         coin = random.randrange(0,2)
         if coin == 1:
             await interaction.response.send_message("Heads!")

@@ -20,7 +20,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
     async def _init_db(self):
         """Initialize the database"""
         async with aiosqlite.connect(self.db_path) as conn:
-            # Create credits table
+            # stores finalized credits
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS emote_credits (
                     emote_name TEXT PRIMARY KEY COLLATE NOCASE,
@@ -29,8 +29,8 @@ class EmoteCredits(ModerationBase, commands.Cog):
                     added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            
-            # Create pending submissions table
+
+            # stores submissions waiting for admin approval
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS pending_credits (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,9 +41,9 @@ class EmoteCredits(ModerationBase, commands.Cog):
                     message_id INTEGER
                 )
             """)
-            
+
             await conn.commit()
-    
+
     async def get_credit(self, emote_name: str):
         """Get credit for an emote from database"""
         async with aiosqlite.connect(self.db_path) as conn:
@@ -53,7 +53,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
             ) as cursor:
                 result = await cursor.fetchone()
                 return result[0] if result else None
-    
+
     async def add_credit(self, emote_name: str, artist: str, added_by: int = None):
         """Add a credit to the database"""
         async with aiosqlite.connect(self.db_path) as conn:
@@ -62,7 +62,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
                 (emote_name, artist, added_by)
             )
             await conn.commit()
-    
+
     async def get_all_credits(self):
         """Get all credits from database"""
         async with aiosqlite.connect(self.db_path) as conn:
@@ -72,20 +72,22 @@ class EmoteCredits(ModerationBase, commands.Cog):
 
     def parse_emoji_name(self, emote_input: str) -> str:
         """Extract emoji name from Discord emoji format or return as-is"""
+        # Discord custom emojis look like <:name:id> or <a:name:id> for animated
         emoji_pattern = r'<a?:([^:]+):\d+>'
         match = re.match(emoji_pattern, emote_input)
         if match:
             return match.group(1)
+        # plain text name, just pass it through
         return emote_input
 
     @app_commands.command(name="emote_credit", description="Find out who created a specific emoji or sticker")
     @app_commands.describe(emote="The emoji or sticker name (you can type the emoji directly!)")
     async def emote_credit(self, interaction: discord.Interaction, emote: str):
         await interaction.response.defer()
-        
+
         emoji_name = self.parse_emoji_name(emote)
         credit = await self.get_credit(emoji_name)
-        
+
         if credit:
             embed = discord.Embed(
                 title=f"🎨 Credit for: {emoji_name}",
@@ -110,10 +112,10 @@ class EmoteCredits(ModerationBase, commands.Cog):
     )
     async def emote_credits_add(self, interaction: discord.Interaction, emote: str, artist: str):
         await interaction.response.defer(ephemeral=True)
-        
+
         emoji_name = self.parse_emoji_name(emote)
-        
-        # Check if credit already exists
+
+        # block duplicate submissions — let them know what's already there
         existing_credit = await self.get_credit(emoji_name)
         if existing_credit:
             embed = discord.Embed(
@@ -123,7 +125,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
             return
-        
+
         # Add to pending submissions
         async with aiosqlite.connect(self.db_path) as conn:
             cursor = await conn.execute(
@@ -132,12 +134,12 @@ class EmoteCredits(ModerationBase, commands.Cog):
             )
             submission_id = cursor.lastrowid
             await conn.commit()
-        
+
         approval_channel = self.bot.get_channel(self.approval_channel_id)
         if not approval_channel:
             await interaction.followup.send("❌ Approval channel not found. Please contact an admin.", ephemeral=True)
             return
-        
+
         approval_embed = discord.Embed(
             title="🎨 New Credit Submission",
             color=get_embed_color(interaction.user.id)
@@ -146,18 +148,19 @@ class EmoteCredits(ModerationBase, commands.Cog):
         approval_embed.add_field(name="Artist", value=artist, inline=False)
         approval_embed.add_field(name="Submitted By", value=interaction.user.mention, inline=False)
         approval_embed.set_footer(text=f"Submission ID: {submission_id}")
-        
+
         view = CreditApprovalView(self, submission_id, emoji_name, artist, interaction.user.id)
-        
+
         approval_msg = await approval_channel.send(embed=approval_embed, view=view)
-        
+
+        # store the message id so we can edit/delete the approval post later
         async with aiosqlite.connect(self.db_path) as conn:
             await conn.execute(
                 "UPDATE pending_credits SET message_id = ? WHERE id = ?",
                 (approval_msg.id, submission_id)
             )
             await conn.commit()
-        
+
         # Confirm to user
         embed = discord.Embed(
             title="✅ Submission Sent",
@@ -181,6 +184,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
             return
 
         lines = [f"**{artist}** — {count} emote{'s' if count != 1 else ''}" for artist, count in rows]
+        # split into pages of 20 to stay within embed limits
         chunks = [lines[i:i+20] for i in range(0, len(lines), 20)]
 
         embeds = []
@@ -210,7 +214,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
                 rows = await cursor.fetchall()
 
         if not rows:
-            # Try a partial match and suggest
+            # exact match failed — try partial and suggest
             async with aiosqlite.connect(self.db_path) as conn:
                 async with conn.execute(
                     "SELECT DISTINCT artist FROM emote_credits WHERE LOWER(artist) LIKE LOWER(?) ORDER BY artist",
@@ -228,6 +232,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
             return
 
         emote_names = [r[0] for r in rows]
+        # build a quick lookup map so we can render the actual emoji inline
         guild_emoji_map = {e.name.lower(): e for e in interaction.guild.emojis}
 
         lines = []
@@ -255,22 +260,22 @@ class EmoteCredits(ModerationBase, commands.Cog):
     async def missing_credits(self, interaction: discord.Interaction):
         """List all server emotes and stickers that don't have credits"""
         await interaction.response.defer()
-        
+
         missing_emojis = []
         missing_stickers = []
-        
+
         credited_emotes = await self.get_all_credits()
-        
+
         # Check server emojis
         for emoji in interaction.guild.emojis:
             if emoji.name.lower() not in credited_emotes:
                 missing_emojis.append(emoji)
-        
+
         # Check server stickers
         for sticker in interaction.guild.stickers:
             if sticker.name.lower() not in credited_emotes:
                 missing_stickers.append(sticker)
-        
+
         # Build response
         if not missing_emojis and not missing_stickers:
             embed = discord.Embed(
@@ -280,10 +285,10 @@ class EmoteCredits(ModerationBase, commands.Cog):
             )
             await interaction.followup.send(embed=embed)
             return
-        
+
         # Create embeds for missing items
         embeds = []
-        
+
         if missing_emojis:
             emoji_chunks = [missing_emojis[i:i+20] for i in range(0, len(missing_emojis), 20)]
             for i, chunk in enumerate(emoji_chunks):
@@ -295,7 +300,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
                 )
                 embed.set_footer(text=f"Total missing emojis: {len(missing_emojis)}")
                 embeds.append(embed)
-        
+
         if missing_stickers:
             sticker_chunks = [missing_stickers[i:i+20] for i in range(0, len(missing_stickers), 20)]
             for i, chunk in enumerate(sticker_chunks):
@@ -307,15 +312,15 @@ class EmoteCredits(ModerationBase, commands.Cog):
                 )
                 embed.set_footer(text=f"Total missing stickers: {len(missing_stickers)}")
                 embeds.append(embed)
-        
+
         # Send first embed as response
         if embeds:
             await interaction.followup.send(embed=embeds[0])
-            
+
             # Send remaining embeds as followup messages
             for embed in embeds[1:]:
                 await interaction.followup.send(embed=embed)
-        
+
         # Send summary
         summary = f"**Summary:**\n"
         summary += f"Missing emojis: {len(missing_emojis)}\n"
@@ -329,19 +334,19 @@ class EmoteCredits(ModerationBase, commands.Cog):
         """List all server emotes and stickers that don't have credits"""
         missing_emojis = []
         missing_stickers = []
-        
+
         credited_emotes = await self.get_all_credits()
-        
+
         # Check server emojis
         for emoji in ctx.guild.emojis:
             if emoji.name.lower() not in credited_emotes:
                 missing_emojis.append(emoji)
-        
+
         # Check server stickers
         for sticker in ctx.guild.stickers:
             if sticker.name.lower() not in credited_emotes:
                 missing_stickers.append(sticker)
-        
+
         # Build response
         if not missing_emojis and not missing_stickers:
             embed = discord.Embed(
@@ -351,10 +356,10 @@ class EmoteCredits(ModerationBase, commands.Cog):
             )
             await ctx.send(embed=embed)
             return
-        
+
         # Create embeds for missing items
         embeds = []
-        
+
         if missing_emojis:
             emoji_chunks = [missing_emojis[i:i+20] for i in range(0, len(missing_emojis), 20)]
             for i, chunk in enumerate(emoji_chunks):
@@ -366,7 +371,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
                 )
                 embed.set_footer(text=f"Total missing emojis: {len(missing_emojis)}")
                 embeds.append(embed)
-        
+
         if missing_stickers:
             sticker_chunks = [missing_stickers[i:i+20] for i in range(0, len(missing_stickers), 20)]
             for i, chunk in enumerate(sticker_chunks):
@@ -378,11 +383,11 @@ class EmoteCredits(ModerationBase, commands.Cog):
                 )
                 embed.set_footer(text=f"Total missing stickers: {len(missing_stickers)}")
                 embeds.append(embed)
-        
+
         # Send all embeds
         for embed in embeds:
             await ctx.send(embed=embed)
-        
+
         # Send summary
         summary = f"**Summary:**\n"
         summary += f"Missing emojis: {len(missing_emojis)}\n"
@@ -399,17 +404,17 @@ class CreditApprovalView(discord.ui.View):
         self.emote_name = emote_name
         self.artist = artist
         self.submitted_by = submitted_by
-    
+
     @discord.ui.button(label="Approve", style=discord.ButtonStyle.green, custom_id="approve_credit")
     async def approve_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         # Add to database
         await self.cog.add_credit(self.emote_name, self.artist, interaction.user.id)
-        
+
         # Remove from pending
         async with aiosqlite.connect(self.cog.db_path) as conn:
             await conn.execute("DELETE FROM pending_credits WHERE id = ?", (self.submission_id,))
             await conn.commit()
-        
+
         # Update message
         embed = discord.Embed(
             title="✅ Credit Approved",
@@ -418,9 +423,9 @@ class CreditApprovalView(discord.ui.View):
         embed.add_field(name="Emote Name", value=f"`{self.emote_name}`", inline=False)
         embed.add_field(name="Artist", value=self.artist, inline=False)
         embed.add_field(name="Approved By", value=interaction.user.mention, inline=False)
-        
+
         await interaction.response.edit_message(embed=embed, view=None)
-        
+
         # Notify submitter
         try:
             submitter = await self.cog.bot.fetch_user(self.submitted_by)
@@ -432,14 +437,14 @@ class CreditApprovalView(discord.ui.View):
             await submitter.send(embed=notify_embed)
         except Exception:
             pass
-    
+
     @discord.ui.button(label="Deny", style=discord.ButtonStyle.red, custom_id="deny_credit")
     async def deny_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         # Remove from pending
         async with aiosqlite.connect(self.cog.db_path) as conn:
             await conn.execute("DELETE FROM pending_credits WHERE id = ?", (self.submission_id,))
             await conn.commit()
-        
+
         # Update message
         embed = discord.Embed(
             title="❌ Credit Denied",
@@ -448,9 +453,9 @@ class CreditApprovalView(discord.ui.View):
         embed.add_field(name="Emote Name", value=f"`{self.emote_name}`", inline=False)
         embed.add_field(name="Artist", value=self.artist, inline=False)
         embed.add_field(name="Denied By", value=interaction.user.mention, inline=False)
-        
+
         await interaction.response.edit_message(embed=embed, view=None)
-        
+
         # Notify submitter
         try:
             submitter = await self.cog.bot.fetch_user(self.submitted_by)
