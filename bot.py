@@ -55,10 +55,17 @@ bot.tree.add_command(xp_admin_group)
 # --- Cog loading ---
 async def load_cogs(folder: str):
     non_cog_files = {"add_xp.py", "database.py", "utils.py", "__init__.py", "groups.py", "loader.py"}
+    disabled_cogs = {"archipelago_monitor.py"}
     for file in glob.glob(f"{folder}/*.py"):
         filename = os.path.basename(file)
         if filename in non_cog_files:
             logger.debug(f"Skipping {filename} (utility file)")
+            continue
+        if filename in disabled_cogs:
+            module_name = f"{folder}.{os.path.splitext(filename)[0]}"
+            if module_name in bot.extensions:
+                await bot.unload_extension(module_name)
+                logger.info(f"Unloaded disabled cog {module_name}")
             continue
         module_name = f"{folder}.{os.path.splitext(filename)[0]}"
         try:

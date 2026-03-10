@@ -18,7 +18,6 @@ PRESTIGE_ROLES: dict[str, int] = {
     "Elite Ritualist": 1296055376009101384,
     "Honorable Ritualist": 1213171315259736155,
     "Content Creator": 1038402681376612413,
-    "Ritual Sponsor": 881560923494547477,
 }
 
 # Color copies get placed just above this role in the hierarchy
@@ -172,6 +171,24 @@ class PrestigeColor(commands.Cog):
             )
             return
 
+        # Block equipping the color copy of the user's highest prestige role.
+        # The copy sits lower in the hierarchy than the original, so swapping it out
+        # would actually demote the user's display position in the member list.
+        member_prestige_roles = [
+            guild.get_role(pid)
+            for pid in PRESTIGE_ROLES.values()
+            if guild.get_role(pid) and guild.get_role(pid) in member.roles
+        ]
+        if member_prestige_roles:
+            highest_prestige = max(member_prestige_roles, key=lambda r: r.position)
+            if highest_prestige.id == original_id:
+                await interaction.followup.send(
+                    f"**{prestige}** is already your highest role — its color is already showing correctly. "
+                    f"You can only equip a color for a role that isn't your highest.",
+                    ephemeral=True
+                )
+                return
+
         all_copy_ids = set(color_ids.values())
 
         # If they had a different color active, swap it out and give back the original.
@@ -182,7 +199,7 @@ class PrestigeColor(commands.Cog):
             await member.remove_roles(*old_copies, reason="Switching prestige color")
             to_restore = [
                 copy_to_original[r.id] for r in old_copies
-                if copy_to_original.get(r.id) and copy_to_original[r.id] not in member.roles
+                if copy_to_original.get(r.id)
             ]
             if to_restore:
                 await member.add_roles(*to_restore, reason="Restoring prestige role after color switch")
@@ -223,7 +240,7 @@ class PrestigeColor(commands.Cog):
         copy_to_original = {v: guild.get_role(int(k)) for k, v in color_ids.items()}
         to_restore = [
             copy_to_original[r.id] for r in to_remove
-            if copy_to_original.get(r.id) and copy_to_original[r.id] not in member.roles
+            if copy_to_original.get(r.id)
         ]
         if to_restore:
             await member.add_roles(*to_restore, reason="Restoring prestige role after color removal")

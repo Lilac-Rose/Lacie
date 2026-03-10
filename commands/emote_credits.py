@@ -38,9 +38,18 @@ class EmoteCredits(ModerationBase, commands.Cog):
                     artist TEXT NOT NULL,
                     submitted_by INTEGER NOT NULL,
                     submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    message_id INTEGER
+                    message_id INTEGER,
+                    is_update BOOLEAN DEFAULT 0,
+                    old_artist TEXT
                 )
             """)
+
+            # migrate existing tables that predate is_update / old_artist columns
+            for col, definition in [("is_update", "BOOLEAN DEFAULT 0"), ("old_artist", "TEXT")]:
+                try:
+                    await conn.execute(f"ALTER TABLE pending_credits ADD COLUMN {col} {definition}")
+                except Exception:
+                    pass  # column already exists
 
             await conn.commit()
 
@@ -165,6 +174,75 @@ class EmoteCredits(ModerationBase, commands.Cog):
         embed = discord.Embed(
             title="✅ Submission Sent",
             description=f"Your credit submission for **{emoji_name}** by **{artist}** has been sent for approval!",
+            color=discord.Color.green()
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @app_commands.command(name="emote_credits_update", description="Submit a correction to an existing emote or sticker credit")
+    @app_commands.describe(
+        emote="The emoji or sticker (you can type it directly!)",
+        artist="The corrected artist name"
+    )
+    async def emote_credits_update(self, interaction: discord.Interaction, emote: str, artist: str):
+        await interaction.response.defer(ephemeral=True)
+
+        emoji_name = self.parse_emoji_name(emote)
+
+        existing_credit = await self.get_credit(emoji_name)
+        if not existing_credit:
+            embed = discord.Embed(
+                title="❌ No Existing Credit",
+                description=f"**{emoji_name}** doesn't have a credit yet. Use `/emote_credits_add` to submit one.",
+                color=discord.Color.red()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+
+        if existing_credit.lower() == artist.lower():
+            embed = discord.Embed(
+                title="⚠️ No Change",
+                description=f"**{emoji_name}** is already credited to **{existing_credit}**.",
+                color=discord.Color.orange()
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+
+        async with aiosqlite.connect(self.db_path) as conn:
+            cursor = await conn.execute(
+                "INSERT INTO pending_credits (emote_name, artist, submitted_by, is_update, old_artist) VALUES (?, ?, ?, 1, ?)",
+                (emoji_name, artist, interaction.user.id, existing_credit)
+            )
+            submission_id = cursor.lastrowid
+            await conn.commit()
+
+        approval_channel = self.bot.get_channel(self.approval_channel_id)
+        if not approval_channel:
+            await interaction.followup.send("❌ Approval channel not found. Please contact an admin.", ephemeral=True)
+            return
+
+        approval_embed = discord.Embed(
+            title="✏️ Credit Update Submission",
+            color=discord.Color.blue()
+        )
+        approval_embed.add_field(name="Emote Name", value=f"`{emoji_name}`", inline=False)
+        approval_embed.add_field(name="Current Credit", value=existing_credit, inline=False)
+        approval_embed.add_field(name="Proposed Credit", value=artist, inline=False)
+        approval_embed.add_field(name="Submitted By", value=interaction.user.mention, inline=False)
+        approval_embed.set_footer(text=f"Submission ID: {submission_id}")
+
+        view = CreditApprovalView(self, submission_id, emoji_name, artist, interaction.user.id, is_update=True, old_artist=existing_credit)
+        approval_msg = await approval_channel.send(embed=approval_embed, view=view)
+
+        async with aiosqlite.connect(self.db_path) as conn:
+            await conn.execute(
+                "UPDATE pending_credits SET message_id = ? WHERE id = ?",
+                (approval_msg.id, submission_id)
+            )
+            await conn.commit()
+
+        embed = discord.Embed(
+            title="✅ Update Submitted",
+            description=f"Your correction for **{emoji_name}** (changing credit from **{existing_credit}** to **{artist}**) has been sent for approval!",
             color=discord.Color.green()
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
@@ -397,13 +475,15 @@ class EmoteCredits(ModerationBase, commands.Cog):
 
 
 class CreditApprovalView(discord.ui.View):
-    def __init__(self, cog, submission_id, emote_name, artist, submitted_by):
+    def __init__(self, cog, submission_id, emote_name, artist, submitted_by, is_update=False, old_artist=None):
         super().__init__(timeout=None)
         self.cog = cog
         self.submission_id = submission_id
         self.emote_name = emote_name
         self.artist = artist
         self.submitted_by = submitted_by
+        self.is_update = is_update
+        self.old_artist = old_artist
 
     @discord.ui.button(label="Approve", style=discord.ButtonStyle.green, custom_id="approve_credit")
     async def approve_button(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -417,11 +497,15 @@ class CreditApprovalView(discord.ui.View):
 
         # Update message
         embed = discord.Embed(
-            title="✅ Credit Approved",
+            title="✅ Credit Update Approved" if self.is_update else "✅ Credit Approved",
             color=discord.Color.green()
         )
         embed.add_field(name="Emote Name", value=f"`{self.emote_name}`", inline=False)
-        embed.add_field(name="Artist", value=self.artist, inline=False)
+        if self.is_update and self.old_artist:
+            embed.add_field(name="Old Credit", value=self.old_artist, inline=False)
+            embed.add_field(name="New Credit", value=self.artist, inline=False)
+        else:
+            embed.add_field(name="Artist", value=self.artist, inline=False)
         embed.add_field(name="Approved By", value=interaction.user.mention, inline=False)
 
         await interaction.response.edit_message(embed=embed, view=None)
@@ -429,11 +513,18 @@ class CreditApprovalView(discord.ui.View):
         # Notify submitter
         try:
             submitter = await self.cog.bot.fetch_user(self.submitted_by)
-            notify_embed = discord.Embed(
-                title="✅ Your Credit Submission Was Approved!",
-                description=f"**{self.emote_name}** by **{self.artist}** has been added to the credits database.",
-                color=discord.Color.green()
-            )
+            if self.is_update and self.old_artist:
+                notify_embed = discord.Embed(
+                    title="✅ Your Credit Update Was Approved!",
+                    description=f"The credit for **{self.emote_name}** has been updated from **{self.old_artist}** to **{self.artist}**.",
+                    color=discord.Color.green()
+                )
+            else:
+                notify_embed = discord.Embed(
+                    title="✅ Your Credit Submission Was Approved!",
+                    description=f"**{self.emote_name}** by **{self.artist}** has been added to the credits database.",
+                    color=discord.Color.green()
+                )
             await submitter.send(embed=notify_embed)
         except Exception:
             pass
@@ -459,11 +550,18 @@ class CreditApprovalView(discord.ui.View):
         # Notify submitter
         try:
             submitter = await self.cog.bot.fetch_user(self.submitted_by)
-            notify_embed = discord.Embed(
-                title="❌ Your Credit Submission Was Denied",
-                description=f"Your submission for **{self.emote_name}** by **{self.artist}** was not approved.",
-                color=discord.Color.red()
-            )
+            if self.is_update and self.old_artist:
+                notify_embed = discord.Embed(
+                    title="❌ Your Credit Update Was Denied",
+                    description=f"Your proposed change for **{self.emote_name}** (from **{self.old_artist}** to **{self.artist}**) was not approved.",
+                    color=discord.Color.red()
+                )
+            else:
+                notify_embed = discord.Embed(
+                    title="❌ Your Credit Submission Was Denied",
+                    description=f"Your submission for **{self.emote_name}** by **{self.artist}** was not approved.",
+                    color=discord.Color.red()
+                )
             await submitter.send(embed=notify_embed)
         except Exception:
             pass
