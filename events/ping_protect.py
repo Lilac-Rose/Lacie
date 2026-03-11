@@ -66,6 +66,21 @@ class PingProtect(commands.GroupCog, name="noping"):
             )
             return await cursor.fetchone() is not None
 
+    def _get_subject_pronoun(self, member: discord.Member | None) -> str:
+        if not member:
+            return "They"
+        role_names = {r.name.lower() for r in member.roles}
+        if "he/him" in role_names:
+            return "He"
+        if "she/her" in role_names:
+            return "She"
+        if "it/its" in role_names:
+            return "It"
+        return "They"
+
+    def _get_verb(self, pronoun: str) -> str:
+        return "have" if pronoun == "They" else "has"
+
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         if message.author.bot or not message.guild:
@@ -96,8 +111,12 @@ class PingProtect(commands.GroupCog, name="noping"):
                     await db.commit()
                 await message.reply("Please don't ping faer", mention_author=False)
             else:
-                name = member.display_name if member else user.name
-                await message.reply(f"Please don't ping {name}, they have pings disabled.", mention_author=False)
+                pronoun = self._get_subject_pronoun(member)
+                verb = self._get_verb(pronoun)
+                await message.reply(
+                    f"Please don't ping {user.name}. {pronoun} {verb} pings disabled.",
+                    mention_author=False
+                )
 
     @app_commands.command(name="allow", description="Allow someone to ping you")
     @app_commands.describe(user="The user to allow")
