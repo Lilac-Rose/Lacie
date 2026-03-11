@@ -406,6 +406,69 @@ class EmoteCredits(ModerationBase, commands.Cog):
         summary += f"Total missing: {len(missing_emojis) + len(missing_stickers)}"
         await interaction.followup.send(summary)
 
+    @app_commands.command(name="emote_credits_resolve", description="[Admin] Auto-convert @username credits to user mentions where possible")
+    @ModerationBase.is_admin()
+    async def emote_credits_resolve(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        guild = interaction.guild
+        if not guild:
+            await interaction.followup.send("Server only.", ephemeral=True)
+            return
+
+        # Fetch all members so we can search by username/display name
+        await guild.chunk()
+
+        async with aiosqlite.connect(self.db_path) as conn:
+            async with conn.execute(
+                "SELECT emote_name, artist FROM emote_credits WHERE artist LIKE '@%'"
+            ) as cursor:
+                rows = await cursor.fetchall()
+
+        if not rows:
+            await interaction.followup.send("No raw @username credits found.", ephemeral=True)
+            return
+
+        resolved = []
+        skipped = []
+
+        async with aiosqlite.connect(self.db_path) as conn:
+            for emote_name, artist in rows:
+                # Strip leading @ and any trailing whitespace
+                raw_name = artist.lstrip("@").strip()
+
+                # Try to match against username, global_name, or display_name (case-insensitive)
+                match = discord.utils.find(
+                    lambda m, n=raw_name: (
+                        m.name.lower() == n.lower()
+                        or (m.global_name and m.global_name.lower() == n.lower())
+                        or m.display_name.lower() == n.lower()
+                    ),
+                    guild.members
+                )
+
+                if match:
+                    new_artist = f"<@{match.id}>"
+                    await conn.execute(
+                        "UPDATE emote_credits SET artist = ? WHERE LOWER(emote_name) = LOWER(?)",
+                        (new_artist, emote_name)
+                    )
+                    resolved.append(f"`{emote_name}`: {artist} → {new_artist}")
+                else:
+                    skipped.append(f"`{emote_name}`: {artist}")
+
+            await conn.commit()
+
+        lines = []
+        if resolved:
+            lines.append(f"**Resolved ({len(resolved)}):**\n" + "\n".join(resolved))
+        if skipped:
+            lines.append(f"**Not found ({len(skipped)}):**\n" + "\n".join(skipped))
+
+        # Split into chunks if needed to stay under Discord's message limit
+        output = "\n\n".join(lines)
+        for chunk in [output[i:i+1900] for i in range(0, len(output), 1900)]:
+            await interaction.followup.send(chunk, ephemeral=True)
+
     @commands.command(name="missing_credits")
     @ModerationBase.is_admin()
     async def missing_credits_text(self, ctx):
