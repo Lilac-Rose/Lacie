@@ -19,6 +19,23 @@ class InfractionCommand(ModerationBase):
         self.check_auto_removals.cancel()
         super().cog_unload()
 
+    async def cog_load(self):
+        """Re-register persistent views for all pending approval messages."""
+        self.c.execute("""
+            SELECT id, user_id, guild_id, type, reason, timestamp, moderator_id, approval_message_id
+            FROM infractions
+            WHERE pending_approval=1 AND approval_message_id IS NOT NULL
+        """)
+        for row in self.c.fetchall():
+            inf_id, user_id, guild_id, inf_type, reason, timestamp, mod_id, msg_id = row
+            try:
+                user = await self.bot.fetch_user(user_id)
+                user_tag = f"{user.name}#{user.discriminator}"
+            except Exception:
+                user_tag = f"Unknown User ({user_id})"
+            view = InfractionRemovalView(self, inf_id, user_id, guild_id, user_tag, inf_type, reason, timestamp)
+            self.bot.add_view(view, message_id=msg_id)
+
     def migrate_existing_infractions(self):
         """Add new columns to existing infractions table for auto-removal system."""
         try:
@@ -50,7 +67,13 @@ class InfractionCommand(ModerationBase):
             self.c.execute("ALTER TABLE infractions ADD COLUMN pending_approval INTEGER DEFAULT 0")
         except Exception:
             pass
-        
+
+        try:
+            # Add approval_message_id column so views can be re-registered after restarts
+            self.c.execute("ALTER TABLE infractions ADD COLUMN approval_message_id INTEGER")
+        except Exception:
+            pass
+
         self.conn.commit()
 
     @tasks.loop(hours=24)
@@ -185,14 +208,14 @@ class InfractionCommand(ModerationBase):
             # Create approval view
             view = InfractionRemovalView(self, inf_id, user_id, guild_id, user_tag, inf_type, reason, timestamp)
             
-            await approval_channel.send(embed=embed, view=view)
-            
-            # Mark infraction as pending approval so we don't send duplicate requests
+            msg = await approval_channel.send(embed=embed, view=view)
+
+            # Mark infraction as pending and store message ID for view re-registration on restart
             self.c.execute("""
-                UPDATE infractions 
-                SET pending_approval=1
+                UPDATE infractions
+                SET pending_approval=1, approval_message_id=?
                 WHERE id=?
-            """, (inf_id,))
+            """, (msg.id, inf_id))
             self.conn.commit()
             
         except Exception as e:
@@ -414,8 +437,42 @@ class InfractionCommand(ModerationBase):
 
             return
 
+        elif action == "resend":
+            if not args:
+                await ctx.send("You must provide an infraction ID to resend the approval embed for.")
+                return
+
+            try:
+                inf_id = int(args[0])
+            except ValueError:
+                await ctx.send("Invalid infraction ID.")
+                return
+
+            self.c.execute("""
+                SELECT user_id, guild_id, type, reason, timestamp, moderator_id, pending_approval
+                FROM infractions
+                WHERE id=? AND guild_id=?
+            """, (inf_id, ctx.guild.id))
+            row = self.c.fetchone()
+
+            if not row:
+                await ctx.send(f"Infraction {inf_id} not found.")
+                return
+
+            user_id, guild_id, inf_type, reason, timestamp, mod_id, pending = row
+
+            # Clear pending flag and message ID so send_removal_approval runs fresh
+            self.c.execute("""
+                UPDATE infractions SET pending_approval=0, approval_message_id=NULL WHERE id=?
+            """, (inf_id,))
+            self.conn.commit()
+
+            await self.send_removal_approval(guild_id, user_id, inf_id, inf_type, reason, timestamp, mod_id)
+            await ctx.send(f"Re-sent approval embed for infraction {inf_id}. Delete the old one.")
+            return
+
         else:
-            await ctx.send("Unknown action. Use search, search_full, list, or delete.")
+            await ctx.send("Unknown action. Use search, search_full, list, delete, or resend.")
             return
 
         # Cache users to avoid repeated API calls (for search and list)
@@ -513,13 +570,17 @@ class InfractionRemovalView(discord.ui.View):
     async def approve_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Approve the removal - mark infraction as removed."""
         try:
-            # Mark infraction as removed and clear pending flag
-            self.cog.c.execute("""
-                UPDATE infractions 
-                SET removed=1, removed_date=?, removed_by=?, pending_approval=0
-                WHERE id=?
-            """, (datetime.utcnow().isoformat(), interaction.user.id, self.inf_id))
-            self.cog.conn.commit()
+            import sqlite3
+            conn = sqlite3.connect(self.cog.db_path)
+            try:
+                conn.execute("""
+                    UPDATE infractions
+                    SET removed=1, removed_date=?, removed_by=?, pending_approval=0
+                    WHERE id=?
+                """, (datetime.utcnow().isoformat(), interaction.user.id, self.inf_id))
+                conn.commit()
+            finally:
+                conn.close()
             
             # Update embed
             embed = discord.Embed(
@@ -564,13 +625,17 @@ class InfractionRemovalView(discord.ui.View):
     async def deny_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         """Deny the removal - mark to skip future auto-removal checks."""
         try:
-            # Mark infraction to skip future checks and clear pending flag
-            self.cog.c.execute("""
-                UPDATE infractions 
-                SET skip_auto_removal=1, pending_approval=0
-                WHERE id=?
-            """, (self.inf_id,))
-            self.cog.conn.commit()
+            import sqlite3
+            conn = sqlite3.connect(self.cog.db_path)
+            try:
+                conn.execute("""
+                    UPDATE infractions
+                    SET skip_auto_removal=1, pending_approval=0
+                    WHERE id=?
+                """, (self.inf_id,))
+                conn.commit()
+            finally:
+                conn.close()
             
             # Update embed
             embed = discord.Embed(

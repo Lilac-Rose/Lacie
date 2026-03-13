@@ -7,13 +7,29 @@ from embed.embed_color import get_embed_color
 import asyncio
 import aiohttp
 import os
+import tempfile
 from pathlib import Path
 import numpy as np
 from scipy.ndimage import uniform_filter
 import cv2
+import imageio_ffmpeg
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+def _composite_frame(dark, changed, dual, frame_h, frame_w, t1_rgb, t1_alpha, t2_rgb, t2_alpha):
+    if dual:
+        output = np.zeros((frame_h, frame_w, 3), dtype=np.uint8)
+        show1 = dark & changed & (t1_alpha > 0)
+        show2 = ~dark & changed & (t2_alpha > 0)
+        output[show1] = t1_rgb[show1]
+        output[show2] = t2_rgb[show2]
+    else:
+        output = np.zeros((frame_h, frame_w, 4), dtype=np.uint8)
+        show1 = dark & changed & (t1_alpha > 0)
+        output[show1, :3] = t1_rgb[show1]
+        output[show1, 3] = t1_alpha[show1]
+    return output.tobytes()
 
 class AvatarCommands(commands.Cog):
     def __init__(self, bot):
@@ -21,9 +37,14 @@ class AvatarCommands(commands.Cog):
         self.session = None
         self.explosion_path = Path(__file__).parent.parent / "media" / "explosion-deltarune.gif"
         self.obama_path = Path(__file__).parent.parent / "media" / "obama.jpg"
+        self.bad_apple_path = Path(__file__).parent.parent / "media" / "bad-apple"
+        self.bad_apple_audio_path = Path(__file__).parent.parent / "media" / "bad_apple.mp3"
+        self._bad_apple_frames: list[Path] = []
     
     async def cog_load(self):
         self.session = aiohttp.ClientSession()
+        if self.bad_apple_path.exists():
+            self._bad_apple_frames = sorted(self.bad_apple_path.glob("*.jpg"))
     
     async def cog_unload(self):
         if self.session:
@@ -33,11 +54,12 @@ class AvatarCommands(commands.Cog):
         """Returns a valid avatar object (never None)."""
         use_global = avatar_type_choice and avatar_type_choice.value == "global"
 
-        # always safe
-        if isinstance(user, discord.Member) and not use_global and user.guild_avatar:
+        if use_global:
+            # user.avatar is always the global avatar; fall back for default-avatar accounts
+            return user.avatar or user.display_avatar
+        if isinstance(user, discord.Member) and user.guild_avatar:
             return user.guild_avatar
-        else:
-            return user.display_avatar
+        return user.display_avatar
 
     avatar_group = app_commands.Group(name="avatar", description="Avatar manipulation commands")
 
@@ -507,6 +529,210 @@ class AvatarCommands(commands.Cog):
         output.save(buf, format="PNG")
         buf.seek(0)
         return buf
+
+    @avatar_group.command(name="bad_apple", description="Play Bad Apple with avatar(s) tiled as the fill")
+    @app_commands.describe(
+        user="User for the black silhouette (defaults to you)",
+        user2="User for the white background (omit for transparent background)",
+        tile_count="Number of avatar tiles per row (default 16, range 1–64)",
+        delta_only="Only show pixels that changed from the previous frame",
+        avatar_type="Choose between server or global avatar"
+    )
+    @app_commands.choices(
+        avatar_type=[
+            app_commands.Choice(name="Server Avatar", value="server"),
+            app_commands.Choice(name="Global Avatar", value="global")
+        ]
+    )
+    async def avatar_bad_apple(self, interaction: discord.Interaction, user: discord.User = None, user2: discord.User = None, tile_count: int = 16, delta_only: bool = False, avatar_type: app_commands.Choice[str] = None):
+        await interaction.response.defer(thinking=True)
+
+        user = user or interaction.user
+
+        if tile_count < 1 or tile_count > 64:
+            await interaction.followup.send("Tile count must be 1–64.", ephemeral=True)
+            return
+
+        if not self.bad_apple_path.exists():
+            await interaction.followup.send("Error: Bad Apple frames not found.", ephemeral=True)
+            return
+
+        try:
+            if not self.session or self.session.closed:
+                self.session = aiohttp.ClientSession()
+
+            avatar = self.get_avatar_url(user, avatar_type)
+            async with self.session.get(str(avatar.with_format("png").with_size(512))) as resp:
+                resp.raise_for_status()
+                avatar_bytes = await resp.read()
+
+            avatar2_bytes = None
+            if user2 is not None:
+                avatar2 = self.get_avatar_url(user2, avatar_type)
+                async with self.session.get(str(avatar2.with_format("png").with_size(512))) as resp:
+                    resp.raise_for_status()
+                    avatar2_bytes = await resp.read()
+
+            tmp_raw = tempfile.NamedTemporaryFile(suffix=".raw", delete=False)
+            tmp_raw.close()
+            raw_path = tmp_raw.name
+
+            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+            audio_offset = await self._detect_audio_offset(ffmpeg_exe)
+            frame_skip = int(audio_offset * 30)
+
+            frame_w, frame_h, has_alpha = await asyncio.to_thread(
+                self._process_bad_apple_frames, avatar_bytes, tile_count, raw_path, avatar2_bytes, frame_skip, delta_only
+            )
+
+            buf = await self._encode_bad_apple_video(raw_path, frame_w, frame_h, has_alpha, ffmpeg_exe, audio_offset)
+
+            label = f"{user.display_name} vs {user2.display_name}" if user2 else user.display_name
+            ext = "webm" if has_alpha else "mp4"
+            await interaction.followup.send(
+                f"Bad Apple, but it's {label}:",
+                file=discord.File(buf, filename=f"bad_apple.{ext}")
+            )
+        except Exception:
+            logger.exception("Error in avatar bad_apple")
+            await interaction.followup.send("An error occurred while generating the video.", ephemeral=True)
+
+    def _build_tiled(self, avatar_bytes: bytes, frame_w: int, frame_h: int, tile_count: int) -> np.ndarray:
+        """Build a tiled RGBA canvas of the avatar at frame resolution."""
+        img = Image.open(io.BytesIO(avatar_bytes)).convert("RGBA")
+        tile_w = frame_w // tile_count
+        tile_h = tile_w
+        tile_arr = np.array(img.resize((tile_w, tile_h), Image.Resampling.LANCZOS))
+        tiles_x = -(-frame_w // tile_w)  # ceiling division
+        tiles_y = -(-frame_h // tile_h)
+        return np.tile(tile_arr, (tiles_y, tiles_x, 1))[:frame_h, :frame_w]
+
+    def _process_bad_apple_frames(self, avatar_bytes: bytes, tile_count: int, raw_path: str, avatar2_bytes: bytes | None = None, frame_skip: int = 0, delta_only: bool = False) -> tuple[int, int, bool]:
+        """Process frames and write raw video data to raw_path. Returns (frame_w, frame_h, has_alpha)."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        FPS = 30
+        MAX_FRAMES = FPS * 30
+
+        frame_files = (self._bad_apple_frames or sorted(self.bad_apple_path.glob("*.jpg")))[frame_skip:frame_skip + MAX_FRAMES]
+        if not frame_files:
+            raise ValueError("No Bad Apple frames found")
+
+        first = Image.open(frame_files[0])
+        frame_w, frame_h = first.size
+
+        t1 = self._build_tiled(avatar_bytes, frame_w, frame_h, tile_count)
+        t1_rgb, t1_alpha = t1[:, :, :3], t1[:, :, 3]
+
+        dual = avatar2_bytes is not None
+        if dual:
+            t2 = self._build_tiled(avatar2_bytes, frame_w, frame_h, tile_count)
+            t2_rgb, t2_alpha = t2[:, :, :3], t2[:, :, 3]
+        else:
+            t2_rgb = t2_alpha = None
+
+        workers = min(8, os.cpu_count() or 4)
+
+        def load_mask(path):
+            return np.array(Image.open(path).convert("L").resize((frame_w, frame_h), Image.Resampling.NEAREST))
+
+        if delta_only:
+            # Need all masks up front so each frame can reference the previous one
+            with ThreadPoolExecutor(max_workers=workers) as ex:
+                masks = list(ex.map(load_mask, frame_files))
+
+            def composite(i):
+                mask = masks[i]
+                dark = mask < 128
+                changed = np.abs(mask.astype(np.int16) - masks[i - 1].astype(np.int16)) > 20 if i > 0 else np.ones((frame_h, frame_w), dtype=bool)
+                return _composite_frame(dark, changed, dual, frame_h, frame_w, t1_rgb, t1_alpha, t2_rgb, t2_alpha)
+
+            with ThreadPoolExecutor(max_workers=workers) as ex:
+                frame_bytes = list(ex.map(composite, range(len(frame_files))))
+        else:
+            # Single pass: load + composite together, no intermediate mask storage
+            ones = np.ones((frame_h, frame_w), dtype=bool)
+
+            def load_and_composite(path):
+                mask = load_mask(path)
+                return _composite_frame(mask < 128, ones, dual, frame_h, frame_w, t1_rgb, t1_alpha, t2_rgb, t2_alpha)
+
+            with ThreadPoolExecutor(max_workers=workers) as ex:
+                frame_bytes = list(ex.map(load_and_composite, frame_files))
+
+        with open(raw_path, "wb") as f:
+            f.writelines(frame_bytes)
+
+        return frame_w, frame_h, not dual
+
+    async def _detect_audio_offset(self, ffmpeg_exe: str) -> float:
+        """Detect duration of silence at the start of the Bad Apple audio."""
+        proc = await asyncio.create_subprocess_exec(
+            ffmpeg_exe,
+            "-i", str(self.bad_apple_audio_path),
+            "-af", "silencedetect=n=-50dB:d=0.1",
+            "-f", "null", "-",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await proc.communicate()
+        for line in stderr.decode().splitlines():
+            if "silence_end" in line:
+                try:
+                    return float(line.split("silence_end:")[1].split("|")[0].strip())
+                except (IndexError, ValueError):
+                    pass
+        return 0.0
+
+    async def _encode_bad_apple_video(self, raw_path: str, frame_w: int, frame_h: int, has_alpha: bool = True, ffmpeg_exe: str = None, audio_offset: float = 0.0) -> io.BytesIO:
+        """Encode raw frames + audio into MP4 (dual-user) or WebM with alpha (single-user)."""
+        if ffmpeg_exe is None:
+            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+
+        suffix = ".webm" if has_alpha else ".mp4"
+        tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+        tmp.close()
+        out_path = tmp.name
+
+        if has_alpha:
+            video_flags = ["-vcodec", "libvpx-vp9", "-pix_fmt", "yuva420p", "-auto-alt-ref", "0", "-crf", "30", "-b:v", "0"]
+        else:
+            video_flags = ["-vcodec", "libx264", "-pix_fmt", "yuv420p", "-preset", "fast", "-crf", "23"]
+
+        # Use atrim filter to cut silence at sample level and reset timestamps to 0,
+        # so the output file contains zero leading silence for players to strip.
+        audio_filter = f"atrim=start={audio_offset:.6f},asetpts=PTS-STARTPTS" if audio_offset > 0 else "anull"
+
+        cmd = [
+            ffmpeg_exe, "-y",
+            "-f", "rawvideo", "-vcodec", "rawvideo",
+            "-s", f"{frame_w}x{frame_h}",
+            "-pix_fmt", "rgba" if has_alpha else "rgb24", "-r", "30",
+            "-i", raw_path,
+            "-i", str(self.bad_apple_audio_path),
+            "-map", "0:v", "-map", "1:a",
+            "-af", audio_filter,
+            *video_flags,
+            "-t", "30",
+            "-shortest",
+            out_path,
+        ]
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        await proc.wait()
+
+        with open(out_path, "rb") as f:
+            video_bytes = f.read()
+
+        os.unlink(out_path)
+        os.unlink(raw_path)
+
+        return io.BytesIO(video_bytes)
+
 
 async def setup(bot):
     await bot.add_cog(AvatarCommands(bot))
