@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord.ui import View, Button
 import base64
+import zlib
 import json
 from .loader import ModerationBase
 
@@ -17,8 +18,12 @@ class SendEmbedCommand(ModerationBase):
         # Decode the embed string
         try:
             async with ctx.typing():
-                decoded_json = base64.urlsafe_b64decode(embed_string.encode()).decode()
-                embed_data = json.loads(decoded_json)
+                raw = base64.urlsafe_b64decode(embed_string.encode())
+                try:
+                    raw = zlib.decompress(raw)
+                except zlib.error:
+                    pass  # Legacy uncompressed string
+                embed_data = json.loads(raw.decode())
                 
                 # Ensure embed_data is a list (for embed chains)
                 if not isinstance(embed_data, list):

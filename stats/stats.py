@@ -63,6 +63,13 @@ class Stats(commands.Cog):
             cursor.execute("INSERT INTO command_usage (id, total) VALUES (1, 0)")
 
         cursor.execute("""
+            CREATE TABLE IF NOT EXISTS per_command_usage (
+                command_name TEXT PRIMARY KEY,
+                count INTEGER DEFAULT 0
+            )
+        """)
+
+        cursor.execute("""
             CREATE TABLE IF NOT EXISTS message_stats (
                 channel_id INTEGER PRIMARY KEY,
                 message_count INTEGER DEFAULT 0,
@@ -87,12 +94,26 @@ class Stats(commands.Cog):
         db.commit()
         db.close()
 
-    def increment_usage(self):
+    def increment_usage(self, command_name: str = None):
         db = sqlite3.connect(DB_PATH)
         cursor = db.cursor()
         cursor.execute("UPDATE command_usage SET total = total + 1 WHERE id=1")
+        if command_name:
+            cursor.execute("""
+                INSERT INTO per_command_usage (command_name, count)
+                VALUES (?, 1)
+                ON CONFLICT(command_name) DO UPDATE SET count = count + 1
+            """, (command_name,))
         db.commit()
         db.close()
+
+    def get_per_command_usage(self) -> List[Tuple[str, int]]:
+        db = sqlite3.connect(DB_PATH)
+        cursor = db.cursor()
+        cursor.execute("SELECT command_name, count FROM per_command_usage ORDER BY count DESC")
+        results = cursor.fetchall()
+        db.close()
+        return results
 
     def get_usage(self):
         db = sqlite3.connect(DB_PATH)
@@ -286,6 +307,7 @@ class Stats(commands.Cog):
         avg_messages_per_day = self.get_average_messages_per_day()
         total_messages = self.get_total_messages()
         top_words = self.get_top_words(10)
+        per_command = self.get_per_command_usage()
 
         return {
             'server': {
@@ -317,18 +339,22 @@ class Stats(commands.Cog):
                 },
                 'averageMessagesPerDay': avg_messages_per_day,
                 'topWords': [{'word': word, 'count': count} for word, count in top_words]
+            },
+            'commandStats': {
+                'perCommand': [{'command': name, 'count': count} for name, count in per_command]
             }
         }
 
     @commands.Cog.listener()
     async def on_command(self, ctx):
-        self.increment_usage()
+        self.increment_usage(ctx.command.qualified_name if ctx.command else None)
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
         # Only count application commands (slash commands)
         if interaction.type == discord.InteractionType.application_command:
-            self.increment_usage()
+            name = interaction.data.get("name") if interaction.data else None
+            self.increment_usage(name)
 
     @commands.Cog.listener()
     async def on_message(self, message):
