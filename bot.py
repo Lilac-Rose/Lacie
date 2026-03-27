@@ -35,7 +35,6 @@ COG_FOLDERS = [
     "stats",
     "wordle",
     "reminders",
-    "arg",
 ]
 
 # --- Bot setup ---

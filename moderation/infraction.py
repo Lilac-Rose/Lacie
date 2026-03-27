@@ -124,7 +124,7 @@ class InfractionCommand(ModerationBase):
             member = guild.get_member(user_id)
             if not member:
                 return  # User not in server, skip
-            
+
             # Get the most recent ACTIVE infraction for this user (not removed, not skipped, not pending)
             self.c.execute("""
                 SELECT id, timestamp, type, reason, moderator_id
@@ -140,11 +140,19 @@ class InfractionCommand(ModerationBase):
             
             inf_id, timestamp_str, inf_type, reason, mod_id = most_recent
             infraction_date = datetime.fromisoformat(timestamp_str)
-            
+
             # Check if 4 months have passed
             four_months_ago = datetime.utcnow() - timedelta(days=120)
             if infraction_date > four_months_ago:
                 return  # Not eligible yet
+
+            # Check that the user hasn't left and rejoined since the infraction.
+            # If joined_at is after the infraction date, they left and came back — clock resets.
+            joined_at = member.joined_at
+            if joined_at:
+                joined_naive = joined_at.replace(tzinfo=None)
+                if joined_naive > infraction_date:
+                    return  # Left and rejoined after infraction, not eligible
             
             # Check if user got ANY infractions after this one
             self.c.execute("""
@@ -591,6 +599,7 @@ class InfractionRemovalView(discord.ui.View):
             embed.add_field(name="User", value=self.user_tag, inline=True)
             embed.add_field(name="Infraction ID", value=str(self.inf_id), inline=True)
             embed.add_field(name="Type", value=self.inf_type, inline=True)
+            embed.add_field(name="Reason", value=self.reason or "None", inline=False)
             embed.add_field(name="Original Date", value=self.timestamp.replace("T", " ")[:19], inline=True)
             embed.add_field(name="Removed By", value=interaction.user.mention, inline=True)
             embed.add_field(name="Removed At", value=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), inline=True)
@@ -646,6 +655,7 @@ class InfractionRemovalView(discord.ui.View):
             embed.add_field(name="User", value=self.user_tag, inline=True)
             embed.add_field(name="Infraction ID", value=str(self.inf_id), inline=True)
             embed.add_field(name="Type", value=self.inf_type, inline=True)
+            embed.add_field(name="Reason", value=self.reason or "None", inline=False)
             embed.add_field(name="Original Date", value=self.timestamp.replace("T", " ")[:19], inline=True)
             embed.add_field(name="Decision By", value=interaction.user.mention, inline=True)
             embed.add_field(name="Decision At", value=datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), inline=True)

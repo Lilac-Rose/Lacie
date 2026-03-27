@@ -8,6 +8,9 @@ venv/
 .txt
 logs/
 data/
+*.zip
+bad_apple.mp3
+*/bad-apple/
 
 # ARG — keep out of public repo to prevent spoilers
 arg/
