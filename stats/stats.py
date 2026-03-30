@@ -340,7 +340,7 @@ class Stats(commands.Cog):
                 'averageMessagesPerDay': avg_messages_per_day,
                 'topWords': [{'word': word, 'count': count} for word, count in top_words]
             },
-            'commandStats': {
+            'commandStats': {  # Tracking since 27th March 2026
                 'perCommand': [{'command': name, 'count': count} for name, count in per_command]
             }
         }
@@ -379,8 +379,7 @@ class Stats(commands.Cog):
 
         embed = discord.Embed(
             title=f"🌟 {guild.name} Statistics 🌟",
-            color=get_embed_color(interaction.user.id),
-            timestamp=datetime.now(timezone.utc)
+            color=get_embed_color(interaction.user.id)
         )
 
         if guild.icon:
@@ -410,7 +409,7 @@ class Stats(commands.Cog):
             inline=False
         )
 
-        embed.set_footer(text=f"Server ID: {guild.id}")
+        embed.set_footer(text=f"Server ID: {guild.id} • Tracking total commands since October 25th 2025")
 
         await interaction.response.send_message(embed=embed)
 
@@ -422,8 +421,7 @@ class Stats(commands.Cog):
 
         embed = discord.Embed(
             title="📊 Message Statistics",
-            color=get_embed_color(interaction.user.id),
-            timestamp=datetime.now(timezone.utc)
+            color=get_embed_color(interaction.user.id)
         )
 
         embed.add_field(
@@ -437,7 +435,7 @@ class Stats(commands.Cog):
             inline=False
         )
 
-        embed.set_footer(text="Use /stats channels for channel breakdown")
+        embed.set_footer(text="Use /stats channels for channel breakdown • Tracking since December 1st 2025")
         await interaction.response.send_message(embed=embed)
 
     @stats_group.command(name="words", description="Show detailed word frequency statistics")
@@ -446,8 +444,7 @@ class Stats(commands.Cog):
 
         embed = discord.Embed(
             title="🔤 Word Frequency Statistics",
-            color=get_embed_color(interaction.user.id),
-            timestamp=datetime.now(timezone.utc)
+            color=get_embed_color(interaction.user.id)
         )
 
         if top_words:
@@ -461,7 +458,7 @@ class Stats(commands.Cog):
         else:
             embed.description = "No word frequency data available yet. Start chatting to build up statistics!"
 
-        embed.set_footer(text="Common words like 'the', 'and', etc. are excluded")
+        embed.set_footer(text="Common words like 'the', 'and', etc. are excluded • Tracking since December 1st 2025")
         await interaction.response.send_message(embed=embed)
 
     @stats_group.command(name="channels", description="Show most active channels")
@@ -470,8 +467,7 @@ class Stats(commands.Cog):
 
         embed = discord.Embed(
             title="📊 Most Active Channels",
-            color=get_embed_color(interaction.user.id),
-            timestamp=datetime.now(timezone.utc)
+            color=get_embed_color(interaction.user.id)
         )
 
         if top_channels:
@@ -484,10 +480,10 @@ class Stats(commands.Cog):
             if right_column:
                 embed.add_field(name="\u200b", value=right_column, inline=True)
         else:
-            embed.description = "No channel activity data available yet."
+            embed.description = "No channel activity data available yet. Start chatting to build up statistics!"
 
         total_messages = self.get_total_messages()
-        embed.set_footer(text=f"Total messages tracked: {total_messages}")
+        embed.set_footer(text=f"Total messages tracked: {total_messages} • Tracking since December 1st 2025")
         await interaction.response.send_message(embed=embed)
 
 
