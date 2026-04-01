@@ -133,6 +133,8 @@ class GitWebhook(commands.Cog):
                 url=compare_url if compare_url else repo_url,
                 color=discord.Color.blue()
             )
+            if len(message) > 1024:
+                message = message[:1021] + "..."
             embed.add_field(name="Commit", value=f"[`{short_sha}`]({url})", inline=True)
             embed.add_field(name="Author", value=author, inline=True)
             embed.add_field(name="Message", value=message, inline=False)
@@ -194,6 +196,8 @@ class GitWebhook(commands.Cog):
                 url=repo_url,
                 color=0xFC6D26  # GitLab orange
             )
+            if len(message) > 1024:
+                message = message[:1021] + "..."
             embed.add_field(name="Commit", value=f"[`{short_sha}`]({url})", inline=True)
             embed.add_field(name="Author", value=author, inline=True)
             embed.add_field(name="Message", value=message, inline=False)

@@ -325,8 +325,7 @@ class Stats(commands.Cog):
             'bot': {
                 'uptime': f"{hours}h {minutes}m {seconds}s",
                 'totalCommands': self.get_usage(),
-                'serverCount': len(self.bot.guilds),
-                'botUsers': len(self.bot.users),
+                'memberCount': guild.member_count,
                 'latency': round(self.bot.latency * 1000),
                 'developer': 'Lilac Aria Rose',
                 'lastUpdated': datetime.now(timezone.utc).isoformat()
@@ -347,11 +346,15 @@ class Stats(commands.Cog):
 
     @commands.Cog.listener()
     async def on_command(self, ctx):
+        if ctx.guild is None or ctx.guild.id != self.guild_id:
+            return
         self.increment_usage(ctx.command.qualified_name if ctx.command else None)
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
-        # Only count application commands (slash commands)
+        # Only count application commands (slash commands) from the tracked guild
+        if interaction.guild_id != self.guild_id:
+            return
         if interaction.type == discord.InteractionType.application_command:
             name = interaction.data.get("name") if interaction.data else None
             self.increment_usage(name)
@@ -402,9 +405,7 @@ class Stats(commands.Cog):
             value=(
                 f"**Developer:** Lilac Aria Rose\n"
                 f"**Uptime:** {uptime_str}\n"
-                f"**Total Commands Used:** {total_commands}\n"
-                f"**Servers:** {len(self.bot.guilds)}\n"
-                f"**Bot Users:** {len(self.bot.users)}"
+                f"**Total Commands Used:** {total_commands}"
             ),
             inline=False
         )

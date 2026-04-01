@@ -18,7 +18,7 @@ PALETTE_NAMES = [
     "Crimson", "Gold Rush", "Midnight", "Lava", "Rainbow",
 ]
 
-DAILY_POST_TIME = time(hour=12, minute=0, tzinfo=timezone.utc)
+DAILY_POST_TIME = time(hour=10, minute=0, tzinfo=timezone.utc)
 
 
 class DailyFractal(commands.Cog):
