@@ -26,7 +26,7 @@ class DailyFractal(commands.Cog):
         self.bot = bot
         self.daily_fractal.start()
 
-    def cog_unload(self):
+    async def cog_unload(self):
         self.daily_fractal.cancel()
 
     async def _post_fractal(self):
@@ -57,8 +57,8 @@ class DailyFractal(commands.Cog):
             logger.error(f"Daily fractal: failed to fetch fractal: {e}")
             return
 
-        fractal_name = meta.get("name", "Unknown")
-        fractal_type = meta.get("type", "unknown").replace("_", " ").title()
+        fractal_name = meta.get("name") or "Unknown"
+        fractal_type = (meta.get("type") or "unknown").replace("_", " ").title()
         seed = meta.get("seed")
         palette = meta.get("palette") or (PALETTE_NAMES[seed % len(PALETTE_NAMES)] if seed is not None else "Unknown")
 
@@ -74,7 +74,28 @@ class DailyFractal(commands.Cog):
         embed.set_footer(text="lilacrose.dev/fractal")
 
         file = discord.File(io.BytesIO(image_bytes), filename="fractal.png")
-        await channel.send(embed=embed, file=file)
+
+        try:
+            pins = await channel.pins()
+            for pin in pins:
+                if (
+                    pin.author == self.bot.user
+                    and pin.embeds
+                    and pin.embeds[0].title
+                    and pin.embeds[0].title.startswith("Fractal of the Day")
+                ):
+                    await pin.unpin()
+                    break
+        except Exception as e:
+            logger.warning(f"Daily fractal: failed to unpin previous: {e}")
+
+        message = await channel.send(embed=embed, file=file)
+
+        try:
+            await message.pin()
+        except Exception as e:
+            logger.warning(f"Daily fractal: failed to pin message: {e}")
+
         logger.info(f"Daily fractal posted for {today}: {fractal_name}")
 
     @tasks.loop(time=DAILY_POST_TIME)
