@@ -5,17 +5,13 @@ class Welcome(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
     
-    @commands.Cog.listener()
-    async def on_member_join(self, member):
-        
+    async def _send_welcome(self, member):
         bot_trap_role_id = 1439354601672282335
         if any(role.id == bot_trap_role_id for role in member.roles):
             return
-        
-        # Welcome channel
+
         welcome_channel = self.bot.get_channel(876772600704020533)
-        
-        # Create DM embed with updated message
+
         dm_embed = discord.Embed(
             title="Welcome to the server!",
             description=(
@@ -29,22 +25,33 @@ class Welcome(commands.Cog):
         )
         dm_embed.set_footer(text=f"Joined {member.guild.name}")
         dm_embed.timestamp = discord.utils.utcnow()
-        
-        # Try to send DM
+
         try:
             await member.send(embed=dm_embed)
             dm_success = True
         except discord.Forbidden:
             dm_success = False
-        except discord.HTTPException as e:
+        except discord.HTTPException:
             dm_success = False
-        
-        # Send welcome message in channel
+
         if welcome_channel:
             if dm_success:
                 await welcome_channel.send(f"Welcome {member.mention} to the server!")
             else:
                 await welcome_channel.send(f"Welcome {member.mention} to the server! I couldn't DM you the welcome message, so <@692683410132566016> will do that")
+
+    @commands.Cog.listener()
+    async def on_member_join(self, member):
+        # If the server uses membership screening/onboarding, wait until they complete it
+        if member.pending:
+            return
+        await self._send_welcome(member)
+
+    @commands.Cog.listener()
+    async def on_member_update(self, before, after):
+        # Fires when a member completes onboarding (pending: True -> False)
+        if before.pending and not after.pending:
+            await self._send_welcome(after)
 
 async def setup(bot):
     await bot.add_cog(Welcome(bot))
