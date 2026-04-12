@@ -11,6 +11,8 @@ data/
 *.zip
 bad_apple.mp3
 */bad-apple/
+.*/
+*.swp
 
 # ARG — keep out of public repo to prevent spoilers
 arg/
