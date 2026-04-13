@@ -184,32 +184,20 @@ class SparkleCommands(commands.Cog):
             )
             total_epic, total_rare, total_regular = cursor.fetchone()
 
-            # Top holder per type
-            top_holders = {}
-            for sparkle_type in ("epic", "rare", "regular"):
-                cursor = conn.execute(
-                    f"SELECT user_id, {sparkle_type} FROM sparkles "
-                    f"WHERE server_id = ? AND {sparkle_type} > 0 "
-                    f"ORDER BY {sparkle_type} DESC LIMIT 1",
-                    (sid,)
-                )
-                top_holders[sparkle_type] = cursor.fetchone()
-
-            # Get sparkle events (for timing data)
+            # Get sparkle events split by type (for timing data)
             cursor = conn.execute(
-                """SELECT sparkle_type, timestamp, message_id FROM sparkle_events
+                """SELECT sparkle_type, timestamp FROM sparkle_events
                    WHERE server_id = ? ORDER BY timestamp ASC""",
                 (sid,)
             )
-            events = cursor.fetchall()
-
-            # Events broken down by type
-            type_counts = {"epic": 0, "rare": 0, "regular": 0}
-            for sparkle_type, _, _ in events:
-                if sparkle_type in type_counts:
-                    type_counts[sparkle_type] += 1
-
+            all_events = cursor.fetchall()
             conn.close()
+
+            # Separate events per type
+            by_type: dict[str, list] = {"epic": [], "rare": [], "regular": []}
+            for sparkle_type, ts in all_events:
+                if sparkle_type in by_type:
+                    by_type[sparkle_type].append(ts)
 
             # Get total message count from stats.db
             stats_db_path = Path(__file__).parent.parent / "data" / "stats.db"
@@ -224,24 +212,23 @@ class SparkleCommands(commands.Cog):
             except Exception:
                 pass
 
-            return total_epic, total_rare, total_regular, events, total_messages, top_holders, type_counts
+            return total_epic, total_rare, total_regular, all_events, total_messages, by_type
 
-        total_epic, total_rare, total_regular, events, total_messages, top_holders, type_counts = await asyncio.to_thread(db_task)
+        total_epic, total_rare, total_regular, all_events, total_messages, by_type = await asyncio.to_thread(db_task)
 
-        # Calculate actual totals from sparkles table (for display)
-        epic = total_epic
-        rare = total_rare
+        epic  = total_epic
+        rare  = total_rare
         regular = total_regular
         total = epic + rare + regular
-
-        # Count sparkles from events (for average calculation)
-        event_count = len(events)
 
         if total == 0:
             return await interaction.followup.send(
                 "This server has **no sparkles yet!** ✨",
                 ephemeral=True
             )
+
+        def humanize(seconds: float) -> str:
+            return str(datetime.timedelta(seconds=int(seconds)))
 
         embed = discord.Embed(
             title=f"📊 Sparkle Stats for {interaction.guild.name}",
@@ -254,62 +241,61 @@ class SparkleCommands(commands.Cog):
                 f"💫 **Epic:** {epic}\n"
                 f"🌟 **Rare:** {rare}\n"
                 f"✨ **Regular:** {regular}\n"
-                f"**Total Sparkles:** {total}"
+                f"**Total:** {total}"
             ),
             inline=False
         )
 
-        # Per-type top holders
-        breakdown_lines = []
-        for sparkle_type, emoji in (("epic", "💫"), ("rare", "🌟"), ("regular", "✨")):
-            row = top_holders.get(sparkle_type)
-            if row:
-                uid, count = row
-                member = interaction.guild.get_member(int(uid))
-                name = member.display_name if member else f"<@{uid}>"
-                breakdown_lines.append(f"{emoji} **{sparkle_type.title()} leader:** {name} ({count:,})")
+        all_timestamps = sorted(ts for events in by_type.values() for ts in events)
+        has_event_data = bool(all_timestamps)
 
-        if breakdown_lines:
-            embed.add_field(
-                name="Top Holders",
-                value="\n".join(breakdown_lines),
-                inline=False
-            )
+        # Combined message stats + timing
+        if has_event_data:
+            event_count = len(all_timestamps)
 
-        # Calculate average messages per sparkle using real message count
-        # Only use sparkles from events (since old sparkles have no corresponding message data)
-        if total_messages > 0 and event_count > 0:
-            avg_messages_per_sparkle = total_messages / event_count
-            embed.add_field(
-                name="Message Statistics",
-                value=f"**Average messages per sparkle:** ~{int(avg_messages_per_sparkle):,}",
-                inline=False
-            )
+            if total_messages > 0:
+                embed.add_field(
+                    name="Message Statistics",
+                    value=f"**Average messages per sparkle:** ~{int(total_messages / event_count):,}",
+                    inline=False
+                )
 
-        # Only show timing data if we have events
-        if events:
-            timestamps = [e[1] for e in events]
-            
-            # Calculate time deltas
-            deltas = [
-                timestamps[i+1] - timestamps[i]
-                for i in range(len(timestamps) - 1)
-            ]
-            avg_time = sum(deltas) / len(deltas) if deltas else 0
-            
-            last_sparkle = timestamps[-1]
+            if event_count >= 2:
+                deltas = [all_timestamps[i+1] - all_timestamps[i] for i in range(event_count - 1)]
+                avg_time = sum(deltas) / len(deltas)
+                embed.add_field(
+                    name="Timing",
+                    value=(
+                        f"**Average time between sparkles:** {humanize(avg_time)}\n"
+                        f"**Last sparkle:** <t:{int(all_timestamps[-1])}:R>"
+                    ),
+                    inline=False
+                )
 
-            def humanize(seconds):
-                return str(datetime.timedelta(seconds=int(seconds)))
+        # Per-type breakdown
+        for sparkle_type, emoji, label in (
+            ("epic",    "💫", "Epic"),
+            ("rare",    "🌟", "Rare"),
+            ("regular", "✨", "Regular"),
+        ):
+            timestamps = by_type[sparkle_type]
+            if not timestamps:
+                continue
 
-            embed.add_field(
-                name="Timing",
-                value=(
-                    f"**Average time between sparkles:** {humanize(avg_time)}\n"
-                    f"**Last sparkle:** <t:{int(last_sparkle)}:R>"
-                ),
-                inline=False
-            )
+            lines = []
+
+            if total_messages > 0:
+                lines.append(f"**Avg messages per sparkle:** ~{int(total_messages / len(timestamps)):,}")
+
+            if len(timestamps) >= 2:
+                deltas = [timestamps[i+1] - timestamps[i] for i in range(len(timestamps) - 1)]
+                lines.append(f"**Avg time between:** {humanize(sum(deltas) / len(deltas))}")
+
+            lines.append(f"**Last sparkle:** <t:{int(timestamps[-1])}:R>")
+
+            embed.add_field(name=f"{emoji} {label}", value="\n".join(lines), inline=False)
+
+        if has_event_data:
             embed.set_footer(text="Message statistics are server-wide. Timing data from logged events.")
         else:
             embed.set_footer(text="All sparkles are from before event logging was added.")
