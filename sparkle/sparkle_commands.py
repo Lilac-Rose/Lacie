@@ -174,44 +174,59 @@ class SparkleCommands(commands.Cog):
 
         def db_task():
             conn = get_db()
-            
+            sid = str(interaction.guild.id)
+
             # Get all sparkles from sparkles table (historical totals)
             cursor = conn.execute(
                 """SELECT COALESCE(SUM(epic), 0), COALESCE(SUM(rare), 0), COALESCE(SUM(regular), 0)
-                   FROM sparkles
-                   WHERE server_id = ?""",
-                (str(interaction.guild.id),)
+                   FROM sparkles WHERE server_id = ?""",
+                (sid,)
             )
             total_epic, total_rare, total_regular = cursor.fetchone()
-            
+
+            # Top holder per type
+            top_holders = {}
+            for sparkle_type in ("epic", "rare", "regular"):
+                cursor = conn.execute(
+                    f"SELECT user_id, {sparkle_type} FROM sparkles "
+                    f"WHERE server_id = ? AND {sparkle_type} > 0 "
+                    f"ORDER BY {sparkle_type} DESC LIMIT 1",
+                    (sid,)
+                )
+                top_holders[sparkle_type] = cursor.fetchone()
+
             # Get sparkle events (for timing data)
             cursor = conn.execute(
                 """SELECT sparkle_type, timestamp, message_id FROM sparkle_events
-                   WHERE server_id = ?
-                   ORDER BY timestamp ASC""",
-                (str(interaction.guild.id),)
+                   WHERE server_id = ? ORDER BY timestamp ASC""",
+                (sid,)
             )
             events = cursor.fetchall()
+
+            # Events broken down by type
+            type_counts = {"epic": 0, "rare": 0, "regular": 0}
+            for sparkle_type, _, _ in events:
+                if sparkle_type in type_counts:
+                    type_counts[sparkle_type] += 1
+
             conn.close()
-            
-            # Get total message count from stats.db (located in ../stats/)
+
+            # Get total message count from stats.db
             stats_db_path = Path(__file__).parent.parent / "data" / "stats.db"
             total_messages = 0
             try:
                 stats_conn = sqlite3.connect(stats_db_path)
-                stats_cursor = stats_conn.execute(
-                    "SELECT SUM(message_count) FROM message_stats"
-                )
+                stats_cursor = stats_conn.execute("SELECT SUM(message_count) FROM message_stats")
                 result = stats_cursor.fetchone()
                 if result and result[0]:
                     total_messages = result[0]
                 stats_conn.close()
             except Exception:
-                pass  # If stats.db doesn't exist or has issues, just use 0
-            
-            return total_epic, total_rare, total_regular, events, total_messages
+                pass
 
-        total_epic, total_rare, total_regular, events, total_messages = await asyncio.to_thread(db_task)
+            return total_epic, total_rare, total_regular, events, total_messages, top_holders, type_counts
+
+        total_epic, total_rare, total_regular, events, total_messages, top_holders, type_counts = await asyncio.to_thread(db_task)
 
         # Calculate actual totals from sparkles table (for display)
         epic = total_epic
@@ -243,6 +258,23 @@ class SparkleCommands(commands.Cog):
             ),
             inline=False
         )
+
+        # Per-type top holders
+        breakdown_lines = []
+        for sparkle_type, emoji in (("epic", "💫"), ("rare", "🌟"), ("regular", "✨")):
+            row = top_holders.get(sparkle_type)
+            if row:
+                uid, count = row
+                member = interaction.guild.get_member(int(uid))
+                name = member.display_name if member else f"<@{uid}>"
+                breakdown_lines.append(f"{emoji} **{sparkle_type.title()} leader:** {name} ({count:,})")
+
+        if breakdown_lines:
+            embed.add_field(
+                name="Top Holders",
+                value="\n".join(breakdown_lines),
+                inline=False
+            )
 
         # Calculate average messages per sparkle using real message count
         # Only use sparkles from events (since old sparkles have no corresponding message data)

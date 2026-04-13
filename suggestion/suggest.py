@@ -595,7 +595,11 @@ class Suggestion(commands.GroupCog, name="suggest"):
             logger.error(f"Error in completesuggestion command: {e}", exc_info=True)
             await interaction.followup.send(error_msg[:2000])
 
-    @app_commands.command(name="list", description="List suggestions with optional status filter")
+    @app_commands.command(name="list", description="List suggestions with optional status and member filter")
+    @app_commands.describe(
+        status="Filter by status",
+        member="Only show suggestions from this member"
+    )
     @app_commands.choices(status=[
         app_commands.Choice(name="All", value="All"),
         app_commands.Choice(name="Pending", value="Pending"),
@@ -603,18 +607,25 @@ class Suggestion(commands.GroupCog, name="suggest"):
         app_commands.Choice(name="Denied", value="Denied"),
         app_commands.Choice(name="Completed", value="Completed")
     ])
-    async def listsuggestions(self, interaction: discord.Interaction, status: Optional[app_commands.Choice[str]] = None):
+    async def listsuggestions(self, interaction: discord.Interaction, status: Optional[app_commands.Choice[str]] = None, member: Optional[discord.Member] = None):
         await interaction.response.defer(ephemeral=False)
 
         try:
             selected = status.value if status else "All"
 
-            if selected == "All":
-                query = "SELECT id, user_id, suggestion, status FROM suggestions ORDER BY id DESC"
-                params = ()
-            else:
-                query = "SELECT id, user_id, suggestion, status FROM suggestions WHERE status = ? ORDER BY id DESC"
-                params = (selected,)
+            conditions = []
+            params: list = []
+
+            if selected != "All":
+                conditions.append("status = ?")
+                params.append(selected)
+
+            if member:
+                conditions.append("user_id = ?")
+                params.append(member.id)
+
+            where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+            query = f"SELECT id, user_id, suggestion, status FROM suggestions {where} ORDER BY id DESC"
 
             async with self.db.execute(query, params) as cursor:
                 rows = await cursor.fetchall()
@@ -623,10 +634,21 @@ class Suggestion(commands.GroupCog, name="suggest"):
                 await interaction.followup.send("No suggestions found.")
                 return
 
+            title_parts = []
+            if member:
+                title_parts.append(member.display_name)
+            title_parts.append(selected)
+            title_base = " · ".join(title_parts)
+
             embeds = []
             per_page = 10
             for i in range(0, len(rows), per_page):
-                embed = discord.Embed(title=f"📋 Suggestions — {selected} (Page {i//per_page + 1})", color=discord.Color.green())
+                embed = discord.Embed(
+                    title=f"📋 Suggestions — {title_base} (Page {i//per_page + 1})",
+                    color=discord.Color.green()
+                )
+                if member:
+                    embed.set_thumbnail(url=member.display_avatar.url)
                 for sid, uid, suggestion_text, st in rows[i:i+per_page]:
                     embed.add_field(
                         name=f"ID: {sid} | Status: {st}",
