@@ -1,15 +1,17 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageColor
+from math import ceil
 import aiohttp
 import io
 import os
 import asyncio
 from pathlib import Path
 from textwrap import wrap
-from typing import Optional
 from .database import get_db, setup_db
+import numpy as np
+import traceback
 
 FONTS_PATH = Path(__file__).parent / "fonts"
 
@@ -20,6 +22,47 @@ def list_fonts():
             if f.lower().endswith((".ttf", ".otf")):
                 fonts.append(os.path.splitext(f)[0])
     return fonts
+
+def generate_gradient_image(colors: Array[String], width, height):
+    try:
+        # source: https://note.nkmk.me/en/python-numpy-generate-gradation-image/
+
+        def get_gradient_2d(start, stop, width, height, is_horizontal):
+            if is_horizontal:
+                return np.tile(np.linspace(start, stop, width), (height, 1))
+            else:
+                return np.tile(np.linspace(start, stop, height), (width, 1)).T
+
+        def get_gradient_3d(width, height, start_list, stop_list, is_horizontal_list):
+            result = np.zeros((height, width, len(start_list)), dtype=float)
+
+            for i, (start, stop, is_horizontal) in enumerate(zip(start_list, stop_list, is_horizontal_list)):
+                result[:, :, i] = get_gradient_2d(start, stop, width, height, is_horizontal)
+
+            return result
+
+        # Generate all the gradients
+        gradient_images = []
+
+        gradient_image_width = ceil(width / (len(colors) - 1))
+
+        i = 0
+        while i < len(colors) - 1:
+            # colors is an array of stringified hex codes
+            gradient_images.append(Image.fromarray(np.uint8(get_gradient_3d(gradient_image_width, height, ImageColor.getcolor(colors[i], "RGB"), ImageColor.getcolor(colors[i+1], "RGB"), (True, True, True)))))
+            i += 1
+
+        # Paste them into one image
+        i = 0
+        final_img = Image.new('RGB', (width, height))
+        for i, image in enumerate(gradient_images):
+            final_img.paste(image, (gradient_image_width * i, 0))
+
+        return final_img
+    except Exception as e:
+        print(e)
+        print(traceback.format_exc())
+
 
 class Profiles(commands.GroupCog, name="profile"):
     """Profile commands"""
@@ -102,27 +145,31 @@ class Profiles(commands.GroupCog, name="profile"):
         pronouns="Your pronouns",
         about_me="A short description about you",
         fav_color="Your favorite color (name or hex)",
-        bg_color="Background color (hex with #, e.g. #FF5733)",
+        bg_color="Background color (hex with #, e.g. #FF5733), can have multiple colors as a gradient",
         fav_game="Your favorite game",
         fav_artist="Your favorite music artist",
         birthday="Your birthday (MM-DD)",
         font_name="Font to use (see /profile fonts)"
     )
-    async def setprofile(self, interaction: discord.Interaction, pronouns: Optional[str] = None, about_me: Optional[str] = None, fav_color: Optional[str] = None, bg_color: Optional[str] = None, fav_game: Optional[str] = None, fav_artist: Optional[str] = None, birthday: Optional[str] = None, font_name: Optional[str] = None):
+    async def setprofile(self, interaction: discord.Interaction, pronouns: str = None, about_me: str = None, fav_color: str = None, bg_color: str = None, fav_game: str = None, fav_artist: str = None, birthday: str = None, font_name: str = None):
         # Defer the response to show "thinking"
         await interaction.response.defer(thinking=True)
         
         # Validate bg_color format
         if bg_color is not None:
-            if not bg_color.startswith('#') or len(bg_color) not in [4, 7]:
-                await interaction.followup.send("Background color must be a hex color starting with # (e.g. #FF5733 or #F57)")
-                return
-            # Validate hex characters
-            try:
-                int(bg_color[1:], 16)
-            except ValueError:
-                await interaction.followup.send("Invalid hex color format. Use # followed by hex digits (e.g. #FF5733)")
-                return
+            for color in bg_color.split(' '):
+                if not color.startswith('#') or len(color) not in [4, 7]:
+                    await interaction.followup.send("Background colors must be hex colors starting with # (e.g. #FF5733 or #F57). To set gradients, do multiple hex colors separated with spaces (e.g. #FF5733 #BB153A).")
+                    return
+                if len(bg_color) > 5:
+                    await interaction.followup.send("That's too many colors! Please use 5 colors or fewer.")
+                    return
+                # Validate hex characters
+                try:
+                    int(color[1:], 16)
+                except ValueError:
+                    await interaction.followup.send("Invalid hex color format. Use # followed by hex digits (e.g. #FF5733)")
+                    return
         
         if font_name and font_name not in list_fonts():
             await interaction.followup.send("That font is not avaliable. use /profile fonts to see the options.")
@@ -187,15 +234,12 @@ class Profiles(commands.GroupCog, name="profile"):
         await interaction.followup.send("Your profile has been saved!")
 
     @app_commands.command(name="view", description="View your or another user's profile.")
-    async def profile(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+    async def profile(self, interaction: discord.Interaction, member: discord.Member = None):
         # Defer immediately to show "thinking"
         await interaction.response.defer(thinking=True)
         
         member = member or interaction.user
-        if not isinstance(member, discord.Member):
-            await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
-            return
-
+        
         db = get_db()
         cursor = db.cursor()
         cursor.execute("SELECT * FROM profiles WHERE user_id=?", (member.id,))
@@ -243,15 +287,18 @@ class Profiles(commands.GroupCog, name="profile"):
             
             # Parse background color - only accept hex with #
             base_color = "#0f1419"  # default
-            if bg_color and bg_color.startswith('#'):
-                try:
-                    # Validate it's a proper hex color
-                    int(bg_color[1:], 16)
-                    base_color = bg_color
-                except Exception:
-                    pass  # Use default if invalid
+            for color in bg_color.split(' '):
+                if bg_color and bg_color.startswith('#'):
+                    try:
+                        # Validate it's a proper hex color
+                        int(bg_color[1:], 16)
+                        base_color = bg_color
+                    except Exception:
+                        pass  # Use default if invalid
             
             img = Image.new("RGB", (img_width, img_height), base_color)
+            if len(bg_color.split(' ')) >= 2:
+                img.paste(generate_gradient_image(bg_color.split(' '), img_width, img_height))
             draw = ImageDraw.Draw(img)
             
             # Draw semi-transparent panel for avatar section
