@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from discord.utils import escape_markdown
+from typing import Optional
 from .database import get_db
 import asyncio
 import datetime
@@ -27,7 +28,11 @@ class SparkleCommands(commands.Cog):
     # ========== /sparkle check ==========
     @sparkle_group.command(name="check", description="Check your sparkle count or another user's")
     @app_commands.describe(user="The user to check sparkle count for (leave empty for yourself)")
-    async def sparkle_check(self, interaction: discord.Interaction, user: discord.User = None):
+    async def sparkle_check(self, interaction: discord.Interaction, user: Optional[discord.User] = None):
+        if not interaction.guild:
+            await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
+            return
+
         user = user or interaction.user
 
         def db_task():
@@ -95,6 +100,10 @@ class SparkleCommands(commands.Cog):
     @sparkle_group.command(name="leaderboard", description="Show random sparkle leaderboard")
     @app_commands.describe(limit="Number of users to show (max 20, default 10)")
     async def sparkle_leaderboard(self, interaction: discord.Interaction, limit: int = 10):
+        if not interaction.guild:
+            await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
+            return
+
         limit = max(1, min(20, limit))
         guild_member_ids = {str(member.id) for member in interaction.guild.members}
 
@@ -157,6 +166,9 @@ class SparkleCommands(commands.Cog):
     # ========== /sparkle stats ==========
     @sparkle_group.command(name="stats", description="View server sparkle statistics")
     async def sparkle_stats(self, interaction: discord.Interaction):
+        if not interaction.guild:
+            await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
+            return
 
         await interaction.response.defer()
 

@@ -3,6 +3,7 @@ import time
 import math
 from discord.ext import commands
 from discord import app_commands
+from typing import Optional
 from .database import get_db
 from .utils import xp_for_level, get_multiplier, MULTIPLIERS, COOLDOWN
 from .groups import xp_group
@@ -28,8 +29,8 @@ class Rank(commands.Cog):
     async def rank(
         self, 
         interaction: discord.Interaction, 
-        user: discord.User = None, 
-        board_type: app_commands.Choice[str] = None
+        user: Optional[discord.User] = None,
+        board_type: Optional[app_commands.Choice[str]] = None
     ):
         try:
             # Defer the response immediately to prevent timeout
@@ -148,7 +149,7 @@ class Rank(commands.Cog):
             except Exception:
                 pass
 
-    def cog_unload(self):
+    async def cog_unload(self):
         # Remove our command from the group when the cog is unloaded (e.g. on !reload)
         xp_group.remove_command("rank")
 

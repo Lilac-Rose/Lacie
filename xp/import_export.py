@@ -189,7 +189,7 @@ class XPImportExport(commands.Cog):
             except Exception:
                 pass
 
-    def cog_unload(self):
+    async def cog_unload(self):
         xp_admin_group.remove_command("export")
         xp_admin_group.remove_command("import")
 

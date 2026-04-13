@@ -45,7 +45,7 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
             if self.admin_message_id:
                 try:
                     admin_channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
-                    if admin_channel:
+                    if admin_channel and isinstance(admin_channel, discord.abc.Messageable):
                         orig_msg = await admin_channel.fetch_message(self.admin_message_id)
 
                         updated_embed = self.original_embed.copy()
@@ -84,7 +84,7 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
                 logger.error(f"Failed to DM user: {e}")
 
             channel = self.bot.get_channel(self.channel_id)
-            if channel:
+            if channel and isinstance(channel, discord.abc.Messageable):
                 try:
                     msg = f"❌ Suggestion **#{self.suggestion_id}** (`{self.suggestion_text}`) has been **denied**."
                     if reason_text:
@@ -133,7 +133,7 @@ class SuggestionButtons(discord.ui.View):
         try:
             has_permission = (
                 interaction.user.id == ADMIN_ID or
-                any(role.id == BOT_DEV_ROLE_ID for role in interaction.user.roles)
+                (isinstance(interaction.user, discord.Member) and any(role.id == BOT_DEV_ROLE_ID for role in interaction.user.roles))
             )
 
             if not has_permission:
@@ -156,7 +156,7 @@ class SuggestionButtons(discord.ui.View):
             if self.admin_message_id:
                 try:
                     admin_channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
-                    if admin_channel:
+                    if admin_channel and isinstance(admin_channel, discord.abc.Messageable):
                         orig_msg = await admin_channel.fetch_message(self.admin_message_id)
 
                         updated_embed = orig_msg.embeds[0].copy()
@@ -188,7 +188,7 @@ class SuggestionButtons(discord.ui.View):
                 logger.error(f"Failed to DM user: {e}")
 
             channel = self.bot.get_channel(self.channel_id)
-            if channel:
+            if channel and isinstance(channel, discord.abc.Messageable):
                 try:
                     await channel.send(f"✅ Suggestion **#{self.suggestion_id}** (`{self.suggestion_text}`) has been **approved!**")
                 except Exception as e:
@@ -209,7 +209,7 @@ class SuggestionButtons(discord.ui.View):
         try:
             has_permission = (
                 interaction.user.id == ADMIN_ID or
-                any(role.id == BOT_DEV_ROLE_ID for role in interaction.user.roles)
+                (isinstance(interaction.user, discord.Member) and any(role.id == BOT_DEV_ROLE_ID for role in interaction.user.roles))
             )
 
             if not has_permission:
@@ -221,7 +221,7 @@ class SuggestionButtons(discord.ui.View):
                 return
 
             admin_channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
-            if admin_channel and self.admin_message_id:
+            if admin_channel and isinstance(admin_channel, discord.abc.Messageable) and self.admin_message_id:
                 try:
                     orig_msg = await admin_channel.fetch_message(self.admin_message_id)
                     original_embed = orig_msg.embeds[0] if orig_msg.embeds else None
@@ -255,7 +255,7 @@ class SuggestionButtons(discord.ui.View):
         try:
             has_permission = (
                 interaction.user.id == ADMIN_ID or
-                any(role.id == BOT_DEV_ROLE_ID for role in interaction.user.roles)
+                (isinstance(interaction.user, discord.Member) and any(role.id == BOT_DEV_ROLE_ID for role in interaction.user.roles))
             )
 
             if not has_permission:
@@ -284,7 +284,7 @@ class SuggestionButtons(discord.ui.View):
             if self.admin_message_id:
                 try:
                     admin_channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
-                    if admin_channel:
+                    if admin_channel and isinstance(admin_channel, discord.abc.Messageable):
                         orig_msg = await admin_channel.fetch_message(self.admin_message_id)
 
                         updated_embed = orig_msg.embeds[0].copy()
@@ -320,7 +320,7 @@ class SuggestionButtons(discord.ui.View):
                 logger.error(f"Failed to DM user: {e}")
 
             channel = self.bot.get_channel(self.channel_id)
-            if channel:
+            if channel and isinstance(channel, discord.abc.Messageable):
                 try:
                     await channel.send(f"🎉 Suggestion **#{self.suggestion_id}** (`{self.suggestion_text}`) has been marked as **completed!**")
                 except Exception as e:
@@ -524,7 +524,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
         try:
             has_permission = (
                 interaction.user.id == ADMIN_ID or
-                any(role.id == BOT_DEV_ROLE_ID for role in interaction.user.roles)
+                (isinstance(interaction.user, discord.Member) and any(role.id == BOT_DEV_ROLE_ID for role in interaction.user.roles))
             )
 
             if not has_permission:
@@ -603,7 +603,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
         app_commands.Choice(name="Denied", value="Denied"),
         app_commands.Choice(name="Completed", value="Completed")
     ])
-    async def listsuggestions(self, interaction: discord.Interaction, status: app_commands.Choice[str] = None):
+    async def listsuggestions(self, interaction: discord.Interaction, status: Optional[app_commands.Choice[str]] = None):
         await interaction.response.defer(ephemeral=False)
 
         try:
@@ -690,7 +690,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
         try:
             has_permission = (
                 interaction.user.id == ADMIN_ID or
-                any(role.id == BOT_DEV_ROLE_ID for role in interaction.user.roles)
+                (isinstance(interaction.user, discord.Member) and any(role.id == BOT_DEV_ROLE_ID for role in interaction.user.roles))
             )
             if not has_permission:
                 await interaction.followup.send("This command is restricted to Lacie bot devs.", ephemeral=True)
@@ -699,7 +699,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
             target_user = member if member else interaction.user
 
             admin_channel = self.bot.get_channel(ADMIN_CHANNEL_ID)
-            if not admin_channel:
+            if not admin_channel or not isinstance(admin_channel, discord.abc.Messageable):
                 await interaction.followup.send("❌ Admin channel not found.")
                 return
 

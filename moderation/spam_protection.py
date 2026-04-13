@@ -127,7 +127,7 @@ class SpamProtection(commands.Cog):
                 )
 
             notif_channel = guild.get_channel(NOTIFICATIONS_CHANNEL_ID)
-            if notif_channel:
+            if notif_channel and isinstance(notif_channel, discord.abc.Messageable):
                 await notif_channel.send(
                     f"⚠️ No staff action taken on spam report for {member.mention}. "
                     f"Timeout automatically extended to 24 hours."
@@ -272,7 +272,7 @@ class SpamProtection(commands.Cog):
             pass
 
         notif_channel = guild.get_channel(NOTIFICATIONS_CHANNEL_ID)
-        if not notif_channel:
+        if not notif_channel or not isinstance(notif_channel, discord.abc.Messageable):
             logger.error(f"Notifications channel {NOTIFICATIONS_CHANNEL_ID} not found")
             return
 
@@ -318,9 +318,11 @@ class SpamProtection(commands.Cog):
             embed.add_field(name="Channels", value=channel_list, inline=False)
 
         elif spam_data["type"] == "same_channel":
+            ch = spam_data["channel"]
+            ch_ref = ch.mention if ch and isinstance(ch, discord.abc.Messageable) else f"<#{spam_data.get('channel_id', '?')}>"
             embed.add_field(
                 name="Spam Pattern",
-                value=f"**{spam_data['count']} messages** in {spam_data['channel'].mention} within {SAME_CHANNEL_WINDOW_SECONDS}s",
+                value=f"**{spam_data['count']} messages** in {ch_ref} within {SAME_CHANNEL_WINDOW_SECONDS}s",
                 inline=False
             )
 
@@ -394,6 +396,8 @@ class SpamActionView(View):
             conn.close()
 
     def _check_mod(self, interaction: discord.Interaction) -> bool:
+        if not isinstance(interaction.user, discord.Member):
+            return False
         return interaction.user.guild_permissions.moderate_members
 
     @discord.ui.button(label="Undo Timeout", style=discord.ButtonStyle.green, emoji="✅")
@@ -473,7 +477,7 @@ class SpamActionView(View):
 
     @discord.ui.button(label="Ban User", style=discord.ButtonStyle.red, emoji="🔨")
     async def ban_button(self, interaction: discord.Interaction, button: Button):
-        if not interaction.user.guild_permissions.ban_members:
+        if not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.ban_members:
             await interaction.response.send_message("❌ You don't have permission to ban members.", ephemeral=True)
             return
 

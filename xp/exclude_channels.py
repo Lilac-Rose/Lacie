@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 import json
 from pathlib import Path
+from typing import Optional
 from dotenv import load_dotenv
 from moderation.loader import ModerationBase
 
@@ -51,7 +52,7 @@ class ExcludeChannel(commands.Cog):
 
     @commands.command(name="excludechannel")
     @ModerationBase.is_admin()
-    async def exclude_channel(self, ctx, channel: discord.TextChannel = None):
+    async def exclude_channel(self, ctx, channel: Optional[discord.TextChannel] = None):
         """Exclude a channel from XP gain."""
         if not channel:
             return await ctx.send("Please specify a channel, e.g. '!excludechannel #chat'")
@@ -63,7 +64,7 @@ class ExcludeChannel(commands.Cog):
 
     @commands.command(name="includechannel")
     @ModerationBase.is_admin()
-    async def include_channel(self, ctx, channel: discord.TextChannel = None):
+    async def include_channel(self, ctx, channel: Optional[discord.TextChannel] = None):
         """Remove a channel from the XP exclusion list."""
         if not channel:
             return await ctx.send("Please specify a channel, e.g. '!includechannel #chat'")

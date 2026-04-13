@@ -6,6 +6,7 @@ import random
 import os
 from datetime import datetime, timezone as dt_timezone
 from pathlib import Path
+from typing import Optional
 
 from reminders.reminder import parse_timeframe, parse_datetime
 from moderation.loader import ModerationBase
@@ -41,7 +42,7 @@ class GiveawayRollAgainView(discord.ui.View):
         self.add_item(btn)
 
     async def _roll_callback(self, interaction: discord.Interaction):
-        if not _is_admin(interaction.user):
+        if not isinstance(interaction.user, discord.Member) or not _is_admin(interaction.user):
             return await interaction.response.send_message(
                 "Only admins can re-roll a giveaway.", ephemeral=True
             )
@@ -61,7 +62,7 @@ class GiveawayRollAgainView(discord.ui.View):
 
         channel_id, message_id, prize = row
         channel = self.bot.get_channel(channel_id)
-        if not channel:
+        if not channel or not isinstance(channel, discord.abc.Messageable):
             return await interaction.followup.send("Giveaway channel not found.", ephemeral=True)
 
         try:
@@ -117,7 +118,7 @@ class GiveawayCog(commands.Cog):
         if not self.check_giveaways.is_running():
             self.check_giveaways.start()
 
-    def cog_unload(self):
+    async def cog_unload(self):
         self.check_giveaways.cancel()
 
     async def _setup_db(self):
@@ -157,7 +158,7 @@ class GiveawayCog(commands.Cog):
         interaction: discord.Interaction,
         prize: str,
         deadline: str,
-        timezone: str = None,
+        timezone: Optional[str] = None,
     ):
         # Parse deadline — try duration first, then datetime string
         try:
@@ -241,7 +242,7 @@ class GiveawayCog(commands.Cog):
             await db.commit()
 
         channel = self.bot.get_channel(channel_id)
-        if channel is None:
+        if channel is None or not isinstance(channel, discord.abc.Messageable):
             logger.warning(f"Giveaway #{giveaway_id}: channel {channel_id} not found")
             return
 

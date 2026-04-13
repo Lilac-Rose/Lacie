@@ -189,7 +189,8 @@ class Wordle(commands.Cog):
                 description="\n".join(["".join(SQUARES[c] for c in self.compare_guess(g, target)) for g in guesses]),
                 color=get_embed_color(interaction.user.id)
             )
-            await interaction.channel.send(embed=embed)
+            if isinstance(interaction.channel, discord.abc.Messageable):
+                await interaction.channel.send(embed=embed)
             return
 
         if len(guesses) >= 6:
@@ -202,7 +203,8 @@ class Wordle(commands.Cog):
                 description="\n".join(["".join(SQUARES[c] for c in self.compare_guess(g, target)) for g in guesses]),
                 color=get_embed_color(interaction.user.id)
             )
-            await interaction.channel.send(embed=embed)
+            if isinstance(interaction.channel, discord.abc.Messageable):
+                await interaction.channel.send(embed=embed)
             return
 
         await self.update_user_game(user_id, ",".join(guesses), 0)

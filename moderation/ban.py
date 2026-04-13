@@ -6,7 +6,7 @@ from .loader import ModerationBase
 class BanCommand(ModerationBase):
     @commands.command(name="ban")
     @ModerationBase.is_admin()
-    async def ban(self, ctx, user: discord.User | discord.Member | str, *, reason: str = None):
+    async def ban(self, ctx, user: discord.User | discord.Member | str, *, reason: str | None = None):
         """Ban a user (even if not in the server) with confirmation and log infraction"""
         # Convert raw ID or mention to user object if needed
         if isinstance(user, str):
@@ -52,6 +52,9 @@ class BanCommand(ModerationBase):
 
         await view.wait()
         if not confirmed["value"]:
+            return
+
+        if not ctx.guild:
             return
 
         # Attempt to DM user

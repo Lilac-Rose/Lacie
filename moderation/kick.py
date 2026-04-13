@@ -6,7 +6,7 @@ from .loader import ModerationBase
 class KickCommand(ModerationBase):
     @commands.command(name="kick")
     @ModerationBase.is_admin()
-    async def kick(self, ctx, user: discord.Member, *, reason: str = None):
+    async def kick(self, ctx, user: discord.Member, *, reason: str | None = None):
         """Kick a user with confirmation and log infraction"""
         view = View(timeout=30)
         confirmed = {"value": False}
@@ -37,6 +37,9 @@ class KickCommand(ModerationBase):
         await ctx.send(f"Are you sure you want to kick {user.mention}? Reason: {reason or 'No reason provided'}", view=view)
         await view.wait()
         if not confirmed["value"]:
+            return
+
+        if not ctx.guild:
             return
 
         try:

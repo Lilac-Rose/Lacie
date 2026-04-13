@@ -53,7 +53,7 @@ class AprilFools(commands.Cog):
             logger.info("April Fools: backup found on load, scheduling auto-revert")
             self._schedule_revert()
 
-    def cog_unload(self):
+    async def cog_unload(self):
         if self._revert_task and not self._revert_task.done():
             self._revert_task.cancel()
 
@@ -148,6 +148,9 @@ class AprilFools(commands.Cog):
     @ModerationBase.is_admin()
     async def johnify(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
+        if not interaction.guild:
+            await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+            return
         ok, msg = await self._do_johnify(interaction.guild)
         await interaction.followup.send(msg, ephemeral=True)
 

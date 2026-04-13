@@ -6,7 +6,7 @@ from embed.embed_color import get_embed_color
 FAQ_ITEMS = [
     (
         "When is Chapter 2 coming out?",
-        "> We don't know yet — stay tuned!",
+        "We don't know yet, stay tuned!",
     ),
     (
         "How do I not ping someone when I reply to them?",
@@ -14,7 +14,7 @@ FAQ_ITEMS = [
     ),
     (
         "I can't see all the channels — why?",
-        "Not all channels are visible by default. You can:\n- Right-click the server icon → **Show All Channels**\n- Or open **Channels & Roles** at the top of the channel list to pick specific ones",
+        "Not all channels are visible by default. You can:\n- Right-click the server icon and select **Show All Channels**\n- Or open **Channels & Roles** at the top of the channel list to pick specific ones",
     ),
     (
         "How do I check my level?",
@@ -22,11 +22,19 @@ FAQ_ITEMS = [
     ),
     (
         "Is this server affiliated with Leef?",
-        "> No.",
+        "No.",
     ),
     (
         "How do I post images / why can't I send embeds?",
-        "You need to reach **Level 8** first — keep chatting to earn XP!",
+        "You need to reach **Level 8** first. Keep chatting to earn XP!",
+    ),
+    (
+        "How do I do something in Paper Lily / Project Kat?",
+        "Ask in <#1229700606155821096> or <#1229700691602178098> and someone will help you out!",
+    ),
+    (
+        "How can I contact staff if I have an issue?",
+        "DM <@575252669443211264> to open a private thread directly with staff.",
     ),
 ]
 

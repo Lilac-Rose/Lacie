@@ -31,7 +31,7 @@ class DailyFractal(commands.Cog):
 
     async def _post_fractal(self):
         channel = self.bot.get_channel(FRACTAL_CHANNEL_ID)
-        if channel is None:
+        if channel is None or not isinstance(channel, discord.TextChannel):
             logger.error("Daily fractal: channel not found")
             return
 

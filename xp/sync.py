@@ -80,8 +80,7 @@ class XPSync(commands.Cog):
             
             # If syncing someone else, check admin permission BEFORE deferring
             if user and user.id != interaction.user.id:
-                member = interaction.user
-                if not self.check_is_admin(member):
+                if not isinstance(interaction.user, discord.Member) or not self.check_is_admin(interaction.user):
                     await interaction.response.send_message(
                         "You do not have permission to sync roles for other users.",
                         ephemeral=True
@@ -91,6 +90,10 @@ class XPSync(commands.Cog):
             # NOW defer the interaction after permission checks pass
             await interaction.response.defer(ephemeral=False)
             logger.debug(f"Deferred interaction for user {interaction.user.id}")
+
+            if not interaction.guild:
+                await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+                return
 
             # Fetch target member
             try:
@@ -187,7 +190,7 @@ class XPSync(commands.Cog):
 
         await interaction.followup.send(f"Sync complete. Updated {updated} member(s).", ephemeral=True)
 
-    def cog_unload(self):
+    async def cog_unload(self):
         xp_group.remove_command("sync")
         xp_admin_group.remove_command("prestige-sync")
 

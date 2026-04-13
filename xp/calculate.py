@@ -1,6 +1,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
+from typing import Optional
 from .database import get_db
 from .utils import xp_for_level, can_get_xp, get_multiplier, load_config
 from .groups import xp_group
@@ -26,8 +27,8 @@ class CalculateCommand(commands.Cog):
         self,
         interaction: discord.Interaction,
         level: int,
-        user: discord.Member = None,
-        board_type: app_commands.Choice[str] = None
+        user: Optional[discord.Member] = None,
+        board_type: Optional[app_commands.Choice[str]] = None
     ):
         # Immediately defer to prevent timeout
         await interaction.response.defer(thinking=True, ephemeral=False)
@@ -125,7 +126,7 @@ class CalculateCommand(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"⚠️ **Error:** {e}", ephemeral=False)
 
-    def cog_unload(self):
+    async def cog_unload(self):
         xp_group.remove_command("calculate")
 
 async def setup(bot):

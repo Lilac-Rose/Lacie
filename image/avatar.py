@@ -9,6 +9,7 @@ import aiohttp
 import os
 import tempfile
 from pathlib import Path
+from typing import Optional
 import numpy as np
 from scipy.ndimage import uniform_filter
 import cv2
@@ -78,7 +79,7 @@ class AvatarCommands(commands.Cog):
             app_commands.Choice(name="Global Avatar", value="global")
         ]
     )
-    async def avatar_show(self, interaction: discord.Interaction, user: discord.User = None, avatar_type: app_commands.Choice[str] = None):
+    async def avatar_show(self, interaction: discord.Interaction, user: Optional[discord.User] = None, avatar_type: Optional[app_commands.Choice[str]] = None):
         await interaction.response.defer(thinking=True)
 
         target = user or interaction.user
@@ -106,7 +107,7 @@ class AvatarCommands(commands.Cog):
             app_commands.Choice(name="Global Avatar", value="global")
         ]
     )
-    async def avatar_bitcrush(self, interaction: discord.Interaction, bpp: int = 8, user: discord.User = None, avatar_type: app_commands.Choice[str] = None):
+    async def avatar_bitcrush(self, interaction: discord.Interaction, bpp: int = 8, user: Optional[discord.User] = None, avatar_type: Optional[app_commands.Choice[str]] = None):
         await interaction.response.defer(thinking=True)
 
         user = user or interaction.user
@@ -159,7 +160,7 @@ class AvatarCommands(commands.Cog):
             app_commands.Choice(name="Global Avatar", value="global")
         ]
     )
-    async def avatar_canny_edge(self, interaction: discord.Interaction, threshold1: int = 100, threshold2: int = 200, user: discord.User = None, avatar_type: app_commands.Choice[str] = None):
+    async def avatar_canny_edge(self, interaction: discord.Interaction, threshold1: int = 100, threshold2: int = 200, user: Optional[discord.User] = None, avatar_type: Optional[app_commands.Choice[str]] = None):
         await interaction.response.defer(thinking=True)
 
         user = user or interaction.user
@@ -231,7 +232,7 @@ class AvatarCommands(commands.Cog):
             app_commands.Choice(name="Global Avatar", value="global")
         ]
     )
-    async def avatar_explode(self, interaction: discord.Interaction, user: discord.User = None, avatar_type: app_commands.Choice[str] = None):
+    async def avatar_explode(self, interaction: discord.Interaction, user: Optional[discord.User] = None, avatar_type: Optional[app_commands.Choice[str]] = None):
         await interaction.response.defer(thinking=True)
 
         user = user or interaction.user
@@ -293,7 +294,7 @@ class AvatarCommands(commands.Cog):
             app_commands.Choice(name="Global Avatar", value="global")
         ]
     )
-    async def avatar_grayscale(self, interaction: discord.Interaction, user: discord.User = None, avatar_type: app_commands.Choice[str] = None):
+    async def avatar_grayscale(self, interaction: discord.Interaction, user: Optional[discord.User] = None, avatar_type: Optional[app_commands.Choice[str]] = None):
         await interaction.response.defer(thinking=True)
 
         user = user or interaction.user
@@ -336,7 +337,7 @@ class AvatarCommands(commands.Cog):
             app_commands.Choice(name="Global Avatar", value="global")
         ]
     )
-    async def avatar_inverse(self, interaction: discord.Interaction, user: discord.User = None, avatar_type: app_commands.Choice[str] = None):
+    async def avatar_inverse(self, interaction: discord.Interaction, user: Optional[discord.User] = None, avatar_type: Optional[app_commands.Choice[str]] = None):
         await interaction.response.defer(thinking=True)
 
         user = user or interaction.user
@@ -380,7 +381,7 @@ class AvatarCommands(commands.Cog):
             app_commands.Choice(name="Global Avatar", value="global")
         ]
     )
-    async def avatar_kuwahara(self, interaction: discord.Interaction, kernel_size: int = 5, user: discord.User = None, avatar_type: app_commands.Choice[str] = None):
+    async def avatar_kuwahara(self, interaction: discord.Interaction, kernel_size: int = 5, user: Optional[discord.User] = None, avatar_type: Optional[app_commands.Choice[str]] = None):
         await interaction.response.defer(thinking=True)
 
         user = user or interaction.user
@@ -472,7 +473,7 @@ class AvatarCommands(commands.Cog):
             app_commands.Choice(name="Global Avatar", value="global")
         ]
     )
-    async def avatar_obamify(self, interaction: discord.Interaction, tile_count: int = 32, user: discord.User = None, avatar_type: app_commands.Choice[str] = None):
+    async def avatar_obamify(self, interaction: discord.Interaction, tile_count: int = 32, user: Optional[discord.User] = None, avatar_type: Optional[app_commands.Choice[str]] = None):
         await interaction.response.defer(thinking=True)
 
         user = user or interaction.user
@@ -548,7 +549,7 @@ class AvatarCommands(commands.Cog):
             app_commands.Choice(name="Global Avatar", value="global")
         ]
     )
-    async def avatar_bad_apple(self, interaction: discord.Interaction, user: discord.User = None, user2: discord.User = None, tile_count: int = 16, delta_only: bool = False, invert: bool = False, avatar_type: app_commands.Choice[str] = None):
+    async def avatar_bad_apple(self, interaction: discord.Interaction, user: Optional[discord.User] = None, user2: Optional[discord.User] = None, tile_count: int = 16, delta_only: bool = False, invert: bool = False, avatar_type: Optional[app_commands.Choice[str]] = None):
         await interaction.response.defer(thinking=True)
 
         user = user or interaction.user
@@ -743,7 +744,7 @@ class AvatarCommands(commands.Cog):
                     pass
         return 0.0
 
-    async def _encode_bad_apple_video(self, raw_path: str, frame_w: int, frame_h: int, ffmpeg_exe: str = None, audio_offset: float = 0.0, total_frames: int = 0, progress_callback=None) -> io.BytesIO:
+    async def _encode_bad_apple_video(self, raw_path: str, frame_w: int, frame_h: int, ffmpeg_exe: Optional[str] = None, audio_offset: float = 0.0, total_frames: int = 0, progress_callback=None) -> io.BytesIO:
         """Encode raw frames + audio into MP4 (dual-user) or WebM with alpha (single-user)."""
         if ffmpeg_exe is None:
             ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()

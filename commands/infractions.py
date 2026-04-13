@@ -17,6 +17,10 @@ class InfractionsCommand(commands.Cog):
         # send via DM so it doesn't expose their infraction history publicly
         await interaction.response.defer(ephemeral=True)
 
+        if not interaction.guild:
+            await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+            return
+
         try:
             conn = sqlite3.connect(self.db_path)
             c = conn.cursor()

@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from moderation.loader import ModerationBase
+from typing import Optional
 import asyncio
 import random
 
@@ -15,7 +16,7 @@ class SaltCommand(ModerationBase):
 
     @commands.command(name="salt")
     @ModerationBase.is_admin()
-    async def salt(self, ctx, member: discord.Member, *, reason: str = None):
+    async def salt(self, ctx, member: discord.Member, *, reason: Optional[str] = None):
         """React with salt emoji to the user's next message"""
 
         # easter egg — 1% chance of denying the command if used on this specific user
@@ -27,6 +28,9 @@ class SaltCommand(ModerationBase):
 
         if member.id == ctx.author.id:
             await ctx.send("You cant salt yourself")
+            return
+
+        if not ctx.guild:
             return
 
         # setdefault so we don't have to check if the guild key exists

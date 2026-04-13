@@ -6,7 +6,7 @@ from .loader import ModerationBase
 class CleanBanCommand(ModerationBase):
     @commands.command(name="cleanban")
     @ModerationBase.is_admin()
-    async def cleanban(self, ctx, user: discord.User | discord.Member | str, days: int = 1, *, reason: str = None):
+    async def cleanban(self, ctx, user: discord.User | discord.Member | str, days: int = 1, *, reason: str | None = None):
         """Ban a user and delete their messages from past specified days (1-7)"""
 
         # Discord only supports 1-7 for delete_message_days
@@ -59,6 +59,9 @@ class CleanBanCommand(ModerationBase):
 
         await view.wait()
         if not confirmed["value"]:
+            return
+
+        if not ctx.guild:
             return
 
         # DM before banning so they receive it before we delete them from the server

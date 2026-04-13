@@ -72,9 +72,9 @@ class Logger(commands.Cog):
             return
         
         channel = self.bot.get_channel(channel_id)
-        if not channel:
+        if not channel or not isinstance(channel, discord.abc.Messageable):
             return
-        
+
         try:
             msg = await channel.send(embed=embed)
         except discord.Forbidden as e:
@@ -194,7 +194,7 @@ class Logger(commands.Cog):
             # Attempt to send the error to the designated debug channel
             try:
                 channel = member.guild.get_channel(1424145004976275617)
-                if channel:
+                if channel and isinstance(channel, discord.abc.Messageable):
                     await channel.send(error_text)
                 else:
                     _logger.error("Could not find error logging channel (1424145004976275617).")
@@ -238,8 +238,8 @@ class Logger(commands.Cog):
         # Try to get ban reason from audit log
         try:
             async for entry in guild.audit_logs(limit=5, action=discord.AuditLogAction.ban):
-                if entry.target.id == user.id:
-                    embed.add_field(name="Banned By", value=f"{entry.user.mention} ({entry.user})", inline=False)
+                if entry.target and entry.target.id == user.id:
+                    embed.add_field(name="Banned By", value=f"{entry.user.mention} ({entry.user})" if entry.user else "Unknown", inline=False)
                     if entry.reason:
                         embed.add_field(name="Reason", value=entry.reason, inline=False)
                     break
@@ -264,8 +264,8 @@ class Logger(commands.Cog):
         # Try to get unban info from audit log
         try:
             async for entry in guild.audit_logs(limit=5, action=discord.AuditLogAction.unban):
-                if entry.target.id == user.id:
-                    embed.add_field(name="Unbanned By", value=f"{entry.user.mention} ({entry.user})", inline=False)
+                if entry.target and entry.target.id == user.id:
+                    embed.add_field(name="Unbanned By", value=f"{entry.user.mention} ({entry.user})" if entry.user else "Unknown", inline=False)
                     if entry.reason:
                         embed.add_field(name="Reason", value=entry.reason, inline=False)
                     break
@@ -340,8 +340,8 @@ class Logger(commands.Cog):
                 # Try to get timeout reason from audit log
                 try:
                     async for entry in after.guild.audit_logs(limit=5, action=discord.AuditLogAction.member_update):
-                        if entry.target.id == after.id and entry.after.timed_out_until:
-                            embed.add_field(name="Timed Out By", value=f"{entry.user.mention} ({entry.user})", inline=False)
+                        if entry.target and entry.target.id == after.id and entry.after.timed_out_until:
+                            embed.add_field(name="Timed Out By", value=f"{entry.user.mention} ({entry.user})" if entry.user else "Unknown", inline=False)
                             if entry.reason:
                                 embed.add_field(name="Reason", value=entry.reason, inline=False)
                             break

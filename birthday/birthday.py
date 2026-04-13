@@ -21,7 +21,7 @@ class Birthday(commands.Cog):
         self.check_birthdays.start()
         self.remove_birthday_roles.start()
     
-    def cog_unload(self):
+    async def cog_unload(self):
         self.check_birthdays.cancel()
         self.remove_birthday_roles.cancel()
 
@@ -200,6 +200,10 @@ class Birthday(commands.Cog):
     @birthday_group.command(name="list", description="List all birthdays for a specific month")
     @app_commands.describe(month="Specify a month (1-12) to see birthdays for that month")
     async def list_birthdays(self, interaction: discord.Interaction, month: int):
+        if not interaction.guild:
+            await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
+            return
+
         if month < 1 or month > 12:
             await interaction.response.send_message("Invalid month! Please use a number between 1 and 12.", ephemeral=True)
             return
@@ -221,21 +225,35 @@ class Birthday(commands.Cog):
             if bday_month == month:
                 display_date = datetime(now.year, bday_month, day, tzinfo=timezone.utc)
                 birthdays_list.append((user_id, display_date, day))
-        
+
         if not birthdays_list:
             month_name = datetime(now.year, month, 1).strftime('%B')
             await interaction.response.send_message(f"No birthdays in {month_name}!", ephemeral=True)
             return
-        
+
+        # Remove entries for users who have left the server
+        gone = [user_id for user_id, _, _ in birthdays_list if not interaction.guild.get_member(user_id)]
+        if gone:
+            conn = sqlite3.connect(self.db_path)
+            c = conn.cursor()
+            c.executemany("DELETE FROM birthdays WHERE user_id = ?", [(uid,) for uid in gone])
+            conn.commit()
+            conn.close()
+            birthdays_list = [(uid, date, day) for uid, date, day in birthdays_list if uid not in gone]
+
+        if not birthdays_list:
+            month_name = datetime(now.year, month, 1).strftime('%B')
+            await interaction.response.send_message(f"No birthdays in {month_name}!", ephemeral=True)
+            return
+
         # Sort by day of month
         birthdays_list.sort(key=lambda x: x[2])
         month_name = datetime(now.year, month, 1).strftime('%B')
-        
+
         lines = []
         for user_id, date, _ in birthdays_list:
-            user = interaction.guild.get_member(user_id)
-            name = user.display_name if user else f"User {user_id}"
-            lines.append(f"**{name}** - {date.strftime('%B %d')}")
+            member = interaction.guild.get_member(user_id)
+            lines.append(f"**{member.display_name}** - {date.strftime('%B %d')}")
         
         embed = discord.Embed(
             title=f"🎂 Birthdays in {month_name}",
@@ -247,7 +265,11 @@ class Birthday(commands.Cog):
     @birthday_group.command(name="channel", description="Set the channel for birthday announcements")
     @app_commands.describe(channel="Channel where birthday announcements will be sent")
     @ModerationBase.is_admin()
-    async def set_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):        
+    async def set_channel(self, interaction: discord.Interaction, channel: discord.TextChannel):
+        if not interaction.guild:
+            await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
+            return
+
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
         c.execute("""
@@ -289,8 +311,8 @@ class Birthday(commands.Cog):
                             continue
                         channel_id = row[0]
                         channel = guild.get_channel(channel_id)
-                        
-                        if channel:
+
+                        if channel and isinstance(channel, discord.abc.Messageable):
                             try:
                                 # Send birthday message
                                 await channel.send(f"🎉 Happy Birthday, {member.mention}! 🎂")

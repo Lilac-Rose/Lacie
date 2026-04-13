@@ -14,7 +14,7 @@ class GoodBotListener(commands.Cog):
             return
 
         # Check if bot is mentioned and message contains "good bot" (case insensitive)
-        if self.bot.user.mentioned_in(message) and "good bot" in message.content.lower():
+        if self.bot.user and self.bot.user.mentioned_in(message) and "good bot" in message.content.lower():
             await message.reply("<:CatgirlLacieBlush:1283389963018440754>")
 
 async def setup(bot: commands.Bot):

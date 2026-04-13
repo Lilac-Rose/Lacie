@@ -121,7 +121,7 @@ class XPAdmin(commands.Cog):
             )
         conn.close()
 
-    def cog_unload(self):
+    async def cog_unload(self):
         xp_admin_group.remove_command("set")
         xp_admin_group.remove_command("add")
         xp_admin_group.remove_command("remove")

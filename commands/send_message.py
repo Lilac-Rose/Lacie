@@ -107,7 +107,7 @@ class SendMessage(commands.Cog):
         async def _send():
             await asyncio.sleep(delay)
             channel = self.bot.get_channel(channel_id)
-            if channel is not None:
+            if channel is not None and isinstance(channel, discord.abc.Messageable):
                 try:
                     await channel.send(message)
                 except Exception:
@@ -133,7 +133,7 @@ class SendMessage(commands.Cog):
             return
 
         channel = guild.get_channel(channel_id)
-        if channel is None:
+        if channel is None or not isinstance(channel, discord.abc.Messageable):
             await ctx.send(f"Could not find channel with ID `{channel_id}` in that server.")
             return
 

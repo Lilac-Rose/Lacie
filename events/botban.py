@@ -33,7 +33,8 @@ class AutoBanOnRole(commands.Cog):
         guild = after.guild
 
         # Check how long they've been in the server
-        server_join_age = datetime.now(timezone.utc) - after.joined_at
+        joined_at = after.joined_at or datetime.now(timezone.utc)
+        server_join_age = datetime.now(timezone.utc) - joined_at
         is_new_member = server_join_age < timedelta(days=NEW_MEMBER_THRESHOLD_DAYS)
 
         if is_new_member:
@@ -47,7 +48,7 @@ class AutoBanOnRole(commands.Cog):
                 return
             
             channel = guild.get_channel(LOG_CHANNEL_ID)
-            if channel is not None:
+            if channel is not None and isinstance(channel, discord.abc.Messageable):
                 embed = discord.Embed(
                     title="🚫 Bot Detected & Auto-Banned",
                     description=(
@@ -77,11 +78,11 @@ class AutoBanOnRole(commands.Cog):
             
             if not dm_sent:
                 fallback_channel = guild.get_channel(FALLBACK_CHANNEL_ID)
-                if fallback_channel is not None:
+                if fallback_channel is not None and isinstance(fallback_channel, discord.abc.Messageable):
                     await fallback_channel.send(f"{after.mention}\n{warning_message}")
 
             log_channel = guild.get_channel(LOG_CHANNEL_ID)
-            if log_channel is not None:
+            if log_channel is not None and isinstance(log_channel, discord.abc.Messageable):
                 embed = discord.Embed(
                     title="⚠️ Trap Role Given to Existing User",
                     description=(

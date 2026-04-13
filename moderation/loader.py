@@ -27,7 +27,7 @@ class ModerationBase(commands.Cog):
         self.c = self.conn.cursor()
         self.initialize_db()
 
-    def cog_unload(self):
+    async def cog_unload(self):
         """Ensure database connection closes when the cog unloads."""
         self.conn.close()
 

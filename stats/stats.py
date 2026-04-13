@@ -11,7 +11,7 @@ import asyncio
 import aiofiles
 import re
 from collections import Counter
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -94,7 +94,7 @@ class Stats(commands.Cog):
         db.commit()
         db.close()
 
-    def increment_usage(self, command_name: str = None):
+    def increment_usage(self, command_name: Optional[str] = None):
         db = sqlite3.connect(DB_PATH)
         cursor = db.cursor()
         cursor.execute("UPDATE command_usage SET total = total + 1 WHERE id=1")
@@ -367,6 +367,10 @@ class Stats(commands.Cog):
 
     @stats_group.command(name="server", description="Shows server and bot statistics")
     async def stats_server(self, interaction: discord.Interaction):
+        if not interaction.guild:
+            await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
+            return
+
         guild = interaction.guild
 
         uptime = datetime.now(timezone.utc) - self.bot.start_time

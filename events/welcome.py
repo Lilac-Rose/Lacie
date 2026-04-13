@@ -34,7 +34,7 @@ class Welcome(commands.Cog):
         except discord.HTTPException:
             dm_success = False
 
-        if welcome_channel:
+        if welcome_channel and isinstance(welcome_channel, discord.abc.Messageable):
             if dm_success:
                 await welcome_channel.send(f"Welcome {member.mention} to the server!")
             else:

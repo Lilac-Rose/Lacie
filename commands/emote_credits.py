@@ -5,6 +5,7 @@ from moderation.loader import ModerationBase
 import re
 import aiosqlite
 from pathlib import Path
+from typing import Optional
 from embed.embed_color import get_embed_color
 
 class EmoteCredits(ModerationBase, commands.Cog):
@@ -63,7 +64,10 @@ class EmoteCredits(ModerationBase, commands.Cog):
                 result = await cursor.fetchone()
                 return result[0] if result else None
 
-    async def add_credit(self, emote_name: str, artist: str, added_by: int = None):
+    async def cog_unload(self):
+        pass
+
+    async def add_credit(self, emote_name: str, artist: str, added_by: Optional[int] = None):
         """Add a credit to the database"""
         async with aiosqlite.connect(self.db_path) as conn:
             await conn.execute(
@@ -160,6 +164,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
 
         view = CreditApprovalView(self, submission_id, emoji_name, artist, interaction.user.id)
 
+        assert isinstance(approval_channel, discord.abc.Messageable)
         approval_msg = await approval_channel.send(embed=approval_embed, view=view)
 
         # store the message id so we can edit/delete the approval post later
@@ -231,6 +236,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
         approval_embed.set_footer(text=f"Submission ID: {submission_id}")
 
         view = CreditApprovalView(self, submission_id, emoji_name, artist, interaction.user.id, is_update=True, old_artist=existing_credit)
+        assert isinstance(approval_channel, discord.abc.Messageable)
         approval_msg = await approval_channel.send(embed=approval_embed, view=view)
 
         async with aiosqlite.connect(self.db_path) as conn:
@@ -272,7 +278,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
                 description="\n".join(chunk),
                 color=get_embed_color(interaction.user.id)
             )
-            embed.set_footer(text=f"Total artists: {len(rows)} • Use /emote_by_artist to see an artist's work")
+            embed.set_footer(text=f"Total artists: {len(lines)} • Use /emote_by_artist to see an artist's work")
             embeds.append(embed)
 
         await interaction.followup.send(embed=embeds[0])
@@ -280,19 +286,88 @@ class EmoteCredits(ModerationBase, commands.Cog):
             await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="emote_by_artist", description="View all emotes and stickers credited to a specific artist")
-    @app_commands.describe(artist="The artist's name to look up")
+    @app_commands.describe(artist="The artist's name, @mention, or user ID")
     async def emote_by_artist(self, interaction: discord.Interaction, artist: str):
         await interaction.response.defer()
 
+        # Build a list of search terms to try. Credits may be stored as plain
+        # text names or as <@user_id> mentions, so we try to cover both.
+        search_terms = [artist]
+
+        mention_match = re.match(r'<@!?(\d+)>', artist)
+        if mention_match:
+            uid = mention_match.group(1)
+            search_terms += [f"<@{uid}>", f"<@!{uid}>"]
+        else:
+            # Raw user ID
+            if artist.isdigit():
+                search_terms.append(f"<@{artist}>")
+
+            # Username / display name lookup — query_members fetches from
+            # Discord's gateway so it works even if the guild isn't fully cached.
+            if interaction.guild:
+                matched = await interaction.guild.query_members(query=artist, limit=10)
+                for member in matched:
+                    if (
+                        member.name.lower() == artist.lower()
+                        or (member.global_name and member.global_name.lower() == artist.lower())
+                        or member.display_name.lower() == artist.lower()
+                    ):
+                        search_terms.append(f"<@{member.id}>")
+                        break
+
+        rows = []
         async with aiosqlite.connect(self.db_path) as conn:
+            placeholders = ",".join("?" * len(search_terms))
+            lower_terms = [t.lower() for t in search_terms]
             async with conn.execute(
-                "SELECT emote_name FROM emote_credits WHERE LOWER(artist) = LOWER(?) ORDER BY emote_name",
-                (artist,)
+                f"SELECT emote_name FROM emote_credits WHERE LOWER(artist) IN ({placeholders}) ORDER BY emote_name",
+                lower_terms,
             ) as cursor:
                 rows = await cursor.fetchall()
 
         if not rows:
-            # exact match failed — try partial and suggest
+            # Guild member lookup missed — artist may not be in the server.
+            # Fetch all mention-format artists from the DB and resolve their
+            # usernames via the Discord API so we can match by name.
+            mention_re = re.compile(r'<@!?(\d+)>')
+            async with aiosqlite.connect(self.db_path) as conn:
+                async with conn.execute(
+                    "SELECT DISTINCT artist FROM emote_credits WHERE artist LIKE '<@%'"
+                ) as cursor:
+                    stored_artists = [r[0] for r in await cursor.fetchall()]
+
+            for stored in stored_artists:
+                m = mention_re.match(stored)
+                if not m:
+                    continue
+                uid = int(m.group(1))
+                user = self.bot.get_user(uid)
+                if user is None:
+                    try:
+                        user = await self.bot.fetch_user(uid)
+                    except Exception:
+                        continue
+                if (
+                    user.name.lower() == artist.lower()
+                    or (user.global_name and user.global_name.lower() == artist.lower())
+                    or user.display_name.lower() == artist.lower()
+                ):
+                    search_terms.append(stored)
+                    break
+
+            if len(search_terms) > (1 if not mention_match else 3):
+                async with aiosqlite.connect(self.db_path) as conn:
+                    placeholders = ",".join("?" * len(search_terms))
+                    lower_terms = [t.lower() for t in search_terms]
+                    async with conn.execute(
+                        f"SELECT emote_name FROM emote_credits WHERE LOWER(artist) IN ({placeholders}) ORDER BY emote_name",
+                        lower_terms,
+                    ) as cursor:
+                        rows = await cursor.fetchall()
+
+        if not rows:
+            # Still nothing — try partial match and suggest
             async with aiosqlite.connect(self.db_path) as conn:
                 async with conn.execute(
                     "SELECT DISTINCT artist FROM emote_credits WHERE LOWER(artist) LIKE LOWER(?) ORDER BY artist",
@@ -311,7 +386,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
 
         emote_names = [r[0] for r in rows]
         # build a quick lookup map so we can render the actual emoji inline
-        guild_emoji_map = {e.name.lower(): e for e in interaction.guild.emojis}
+        guild_emoji_map = {e.name.lower(): e for e in interaction.guild.emojis} if interaction.guild else {}
 
         lines = []
         for name in emote_names:
@@ -343,6 +418,10 @@ class EmoteCredits(ModerationBase, commands.Cog):
         missing_stickers = []
 
         credited_emotes = await self.get_all_credits()
+
+        if not interaction.guild:
+            await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+            return
 
         # Check server emojis
         for emoji in interaction.guild.emojis:
@@ -473,6 +552,9 @@ class EmoteCredits(ModerationBase, commands.Cog):
     @ModerationBase.is_admin()
     async def missing_credits_text(self, ctx):
         """List all server emotes and stickers that don't have credits"""
+        if not ctx.guild:
+            return
+
         missing_emojis = []
         missing_stickers = []
 

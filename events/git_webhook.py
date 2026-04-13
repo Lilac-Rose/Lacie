@@ -82,7 +82,7 @@ class GitWebhook(commands.Cog):
             channels = []
             for channel_id in COMMIT_CHANNEL_IDS:
                 channel = self.bot.get_channel(channel_id)
-                if channel:
+                if channel and isinstance(channel, discord.abc.Messageable):
                     channels.append(channel)
                 else:
                     logger.warning(f"Channel {channel_id} not found!")

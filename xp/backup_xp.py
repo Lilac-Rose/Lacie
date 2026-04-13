@@ -41,7 +41,7 @@ class BackupXP(commands.Cog):
         if now_est.hour == BACKUP_HOUR:
             await self.check_last_backup()
     
-    def cog_unload(self):
+    async def cog_unload(self):
         self.auto_backup_task.cancel()
         xp_admin_group.remove_command("backup")
     

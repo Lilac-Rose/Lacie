@@ -50,6 +50,8 @@ class Purge(ModerationBase):
             return None
 
     async def purge_messages(self, ctx, check=None, after_message=None, limit: int = 100):
+        if not ctx.guild:
+            return
         if not ctx.channel.permissions_for(ctx.guild.me).manage_messages:
             await ctx.send("❌ I don't have permission to manage messages in this channel!")
             return
@@ -142,6 +144,9 @@ class Purge(ModerationBase):
     @ModerationBase.is_admin()
     async def purge_member_all(self, ctx, user_id: int):
         """Delete all messages from a user across all text channels in the server (requires confirmation)."""
+        if not ctx.guild:
+            return
+
         member = ctx.guild.get_member(user_id)
         user_display = str(member) if member else f"User ID {user_id}"
 

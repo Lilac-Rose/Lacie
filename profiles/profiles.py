@@ -8,6 +8,7 @@ import os
 import asyncio
 from pathlib import Path
 from textwrap import wrap
+from typing import Optional
 from .database import get_db, setup_db
 
 FONTS_PATH = Path(__file__).parent / "fonts"
@@ -107,7 +108,7 @@ class Profiles(commands.GroupCog, name="profile"):
         birthday="Your birthday (MM-DD)",
         font_name="Font to use (see /profile fonts)"
     )
-    async def setprofile(self, interaction: discord.Interaction, pronouns: str = None, about_me: str = None, fav_color: str = None, bg_color: str = None, fav_game: str = None, fav_artist: str = None, birthday: str = None, font_name: str = None):
+    async def setprofile(self, interaction: discord.Interaction, pronouns: Optional[str] = None, about_me: Optional[str] = None, fav_color: Optional[str] = None, bg_color: Optional[str] = None, fav_game: Optional[str] = None, fav_artist: Optional[str] = None, birthday: Optional[str] = None, font_name: Optional[str] = None):
         # Defer the response to show "thinking"
         await interaction.response.defer(thinking=True)
         
@@ -186,12 +187,15 @@ class Profiles(commands.GroupCog, name="profile"):
         await interaction.followup.send("Your profile has been saved!")
 
     @app_commands.command(name="view", description="View your or another user's profile.")
-    async def profile(self, interaction: discord.Interaction, member: discord.Member = None):
+    async def profile(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
         # Defer immediately to show "thinking"
         await interaction.response.defer(thinking=True)
         
         member = member or interaction.user
-        
+        if not isinstance(member, discord.Member):
+            await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+            return
+
         db = get_db()
         cursor = db.cursor()
         cursor.execute("SELECT * FROM profiles WHERE user_id=?", (member.id,))

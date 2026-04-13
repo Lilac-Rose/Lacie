@@ -106,7 +106,7 @@ class RestoreXP(commands.Cog):
             for f in files if current.lower() in f.lower()
         ][:25]  # Discord's limit
 
-    def cog_unload(self):
+    async def cog_unload(self):
         xp_admin_group.remove_command("restore")
 
 async def setup(bot: commands.Bot):

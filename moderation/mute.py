@@ -18,13 +18,13 @@ class MuteCommand(ModerationBase):
         self.bot = bot
         self.check_mutes.start()
 
-    def cog_unload(self):
+    async def cog_unload(self):
         self.check_mutes.cancel()
-        super().cog_unload()
+        await super().cog_unload()
 
     @commands.command(name="mute")
     @ModerationBase.is_admin()
-    async def mute(self, ctx, user: discord.Member, duration: str, *, reason: str = None):
+    async def mute(self, ctx, user: discord.Member, duration: str, *, reason: str | None = None):
         match = re.match(r"(\d+)([wdhm])", duration.lower())
         if not match:
             await ctx.send("Invalid duration format. Use **1w**, **5d**, **12h**, **30m**, etc.")
@@ -69,6 +69,9 @@ class MuteCommand(ModerationBase):
         await ctx.send(f"Are you sure you want to mute {user.mention} for **{duration}**? Reason: {reason or 'No reason provided'}", view=view)
         await view.wait()
         if not confirmed["value"]:
+            return
+
+        if not ctx.guild:
             return
 
         mute_role = ctx.guild.get_role(MUTE_ROLE_ID)

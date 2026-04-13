@@ -5,6 +5,7 @@ import aiosqlite
 from pathlib import Path
 from embed.embed_color import get_embed_color
 from utils.logger import get_logger
+from typing import Optional
 
 logger = get_logger(__name__)
 
@@ -62,6 +63,10 @@ class RoleTrack(commands.Cog):
         """Command to manually sync user's current roles"""
         await interaction.response.defer(ephemeral=True)
 
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+            return
+
         try:
             await self.save_user_roles(interaction.user)
 
@@ -100,6 +105,10 @@ class RoleTrack(commands.Cog):
     async def checkroles(self, interaction: discord.Interaction):
         """Debug command to check saved roles"""
         await interaction.response.defer(ephemeral=True)
+
+        if not interaction.guild:
+            await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+            return
 
         try:
             saved_role_ids = await self.get_saved_roles(interaction.user.id, interaction.guild.id)

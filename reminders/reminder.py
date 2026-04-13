@@ -169,7 +169,7 @@ class ReminderCog(commands.Cog):
         message="What to remind you about",
         timezone="Your timezone, e.g. 'US/Eastern', 'UTC+5', 'Europe/London' (default: UTC)"
     )
-    async def reminder_at(self, interaction: discord.Interaction, when: str, message: str, timezone: str = None):
+    async def reminder_at(self, interaction: discord.Interaction, when: str, message: str, timezone: str | None = None):
         try:
             try:
                 remind_at = parse_datetime(when, timezone)

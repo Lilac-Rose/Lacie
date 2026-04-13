@@ -121,7 +121,7 @@ class PingProtect(commands.GroupCog, name="noping"):
     @app_commands.command(name="allow", description="Allow someone to ping you")
     @app_commands.describe(user="The user to allow")
     async def allow(self, interaction: discord.Interaction, user: discord.Member):
-        if not self._has_permission(interaction.user):
+        if not isinstance(interaction.user, discord.Member) or not self._has_permission(interaction.user):
             await interaction.response.send_message("You need the no-pings role to use this.", ephemeral=True)
             return
 
@@ -137,7 +137,7 @@ class PingProtect(commands.GroupCog, name="noping"):
     @app_commands.command(name="remove", description="Remove someone from your ping allowlist")
     @app_commands.describe(user="The user to remove")
     async def remove(self, interaction: discord.Interaction, user: discord.Member):
-        if not self._has_permission(interaction.user):
+        if not isinstance(interaction.user, discord.Member) or not self._has_permission(interaction.user):
             await interaction.response.send_message("You need the no-pings role to use this.", ephemeral=True)
             return
 
@@ -152,7 +152,7 @@ class PingProtect(commands.GroupCog, name="noping"):
 
     @app_commands.command(name="list", description="View your ping allowlist")
     async def list_allowed(self, interaction: discord.Interaction):
-        if not self._has_permission(interaction.user):
+        if not isinstance(interaction.user, discord.Member) or not self._has_permission(interaction.user):
             await interaction.response.send_message("You need the no-pings role to use this.", ephemeral=True)
             return
 

@@ -5,6 +5,7 @@ import random
 import asyncio
 import aiosqlite
 from pathlib import Path
+from typing import Optional
 from embed.embed_color import get_embed_color
 import re
 from datetime import datetime, timedelta
@@ -220,7 +221,7 @@ class MinesweeperView(discord.ui.View):
         super().__init__(timeout=None)  # timeout handled manually
         self.player = player
         self.game = game
-        self.message: discord.Message = None
+        self.message: Optional[discord.Message] = None
         self.timeout_seconds = 1800  # 30 minutes
         self.timeout_task = None
         self.timed_out = False
@@ -394,6 +395,10 @@ class Minesweeper(commands.Cog):
         mines = mine_counts.get(difficulty, 20)
 
         await interaction.response.defer()
+
+        if not isinstance(interaction.user, discord.Member):
+            await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
+            return
 
         game = MinesweeperGame(rows=13, cols=13, mines=mines)
         view = MinesweeperView(interaction.user, game)

@@ -68,11 +68,14 @@ class LogConfig(ModerationBase):
         Use !log types to see all available log types.
         """
         log_type = log_type.lower()
-        
+
+        if not ctx.guild:
+            return
+
         if log_type not in LOG_TYPES:
             await ctx.send(f"❌ Invalid log type `{log_type}`.\nUse `!log types` to see all available types.")
             return
-        
+
         permissions = channel.permissions_for(ctx.guild.me)
         if not permissions.send_messages or not permissions.embed_links:
             await ctx.send(f"❌ I don't have permission to send messages and embeds in {channel.mention}!")
@@ -92,12 +95,15 @@ class LogConfig(ModerationBase):
     async def log_exclude(self, ctx, channel_id: int):
         """
         Exclude a channel from being logged.
-        
+
         Usage: !log exclude <channel_id>
         Example: !log exclude 123456789012345678
-        
+
         Events from this channel will not be logged.
         """
+        if not ctx.guild:
+            return
+
         channel = ctx.guild.get_channel(channel_id)
         if not channel:
             await ctx.send(f"❌ Channel with ID `{channel_id}` not found in this server.")
@@ -120,10 +126,13 @@ class LogConfig(ModerationBase):
     async def log_unexclude(self, ctx, channel_id: int):
         """
         Remove a channel from the exclusion list.
-        
+
         Usage: !log unexclude <channel_id>
         Example: !log unexclude 123456789012345678
         """
+        if not ctx.guild:
+            return
+
         self.c.execute("DELETE FROM log_excluded_channels WHERE guild_id = ? AND channel_id = ?",
                       (ctx.guild.id, channel_id))
         
@@ -139,6 +148,9 @@ class LogConfig(ModerationBase):
     @ModerationBase.is_admin()
     async def log_excluded(self, ctx):
         """List all excluded channels"""
+        if not ctx.guild:
+            return
+
         self.c.execute("SELECT channel_id FROM log_excluded_channels WHERE guild_id = ? ORDER BY channel_id",
                       (ctx.guild.id,))
         results = self.c.fetchall()
@@ -174,12 +186,15 @@ class LogConfig(ModerationBase):
     async def log_remove(self, ctx, log_type: str):
         """
         Remove a log type configuration.
-        
+
         Usage: !log remove log_type
         Example: !log remove message_delete
         """
+        if not ctx.guild:
+            return
+
         log_type = log_type.lower()
-        
+
         self.c.execute("DELETE FROM log_config WHERE guild_id = ? AND log_type = ?",
                       (ctx.guild.id, log_type))
         
@@ -193,6 +208,9 @@ class LogConfig(ModerationBase):
     @ModerationBase.is_admin()
     async def log_list(self, ctx):
         """List all configured logging for this server"""
+        if not ctx.guild:
+            return
+
         self.c.execute("SELECT log_type, channel_id FROM log_config WHERE guild_id = ? ORDER BY log_type",
                       (ctx.guild.id,))
         results = self.c.fetchall()
@@ -294,6 +312,9 @@ class LogConfig(ModerationBase):
     @ModerationBase.is_admin()
     async def log_clear(self, ctx):
         """Remove ALL logging configurations for this server"""
+        if not ctx.guild:
+            return
+
         self.c.execute("SELECT COUNT(*) FROM log_config WHERE guild_id = ?", (ctx.guild.id,))
         count = self.c.fetchone()[0]
         

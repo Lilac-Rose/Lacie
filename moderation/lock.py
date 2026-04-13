@@ -6,6 +6,7 @@ import sqlite3
 import json
 import asyncio
 from functools import partial
+from typing import Optional
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -20,7 +21,7 @@ class LockCog(commands.Cog):
         self.c = self.conn.cursor()
         self.initialize_db()
 
-    def cog_unload(self):
+    async def cog_unload(self):
         """Ensure database connection closes when the cog unloads."""
         self.conn.close()
 
@@ -117,11 +118,14 @@ class LockCog(commands.Cog):
 
     @commands.command(name="checkperms")
     @ModerationBase.is_admin()
-    async def checkperms(self, ctx, channel: discord.TextChannel = None):
+    async def checkperms(self, ctx, channel: Optional[discord.TextChannel] = None):
         """Check what permissions the bot has in a channel."""
+        if not ctx.guild:
+            return
+
         if channel is None:
             channel = ctx.channel
-        
+
         perms = channel.permissions_for(ctx.guild.me)
         bot_top_role = ctx.guild.me.top_role
         
@@ -154,12 +158,15 @@ class LockCog(commands.Cog):
 
     @commands.command(name="lock")
     @ModerationBase.is_admin()
-    async def lock(self, ctx, channel: discord.TextChannel = None):
+    async def lock(self, ctx, channel: Optional[discord.TextChannel] = None):
         """Lock a channel so only Ritual Members can talk."""
         try:
+            if not ctx.guild:
+                return
+
             if channel is None:
                 channel = ctx.channel
-            
+
             perms = channel.permissions_for(ctx.guild.me)
             bot_top_role = ctx.guild.me.top_role
             
@@ -248,9 +255,12 @@ class LockCog(commands.Cog):
 
     @commands.command(name="unlock")
     @ModerationBase.is_admin()
-    async def unlock(self, ctx, channel: discord.TextChannel = None):
+    async def unlock(self, ctx, channel: Optional[discord.TextChannel] = None):
         """Unlock a channel."""
         try:
+            if not ctx.guild:
+                return
+
             if channel is None:
                 channel = ctx.channel
             

@@ -5,7 +5,7 @@ from .loader import ModerationBase
 class UnbanCommand(ModerationBase):
     @commands.command(name="unban")
     @ModerationBase.is_admin()
-    async def unban(self, ctx, user: discord.User | str, *, reason: str = None):
+    async def unban(self, ctx, user: discord.User | str, *, reason: str | None = None):
         """Unban a user by mention, ID, or name."""
         if isinstance(user, str):
             user_id = user.strip("<@!>")
@@ -14,6 +14,9 @@ class UnbanCommand(ModerationBase):
             except Exception:
                 await ctx.send("Could not find that user. Please provide a valid mention or ID.")
                 return
+
+        if not ctx.guild:
+            return
 
         try:
             await ctx.guild.unban(user, reason=reason)

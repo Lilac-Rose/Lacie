@@ -91,7 +91,7 @@ class ResetAnnual(commands.Cog):
             view=view
         )
 
-    def cog_unload(self):
+    async def cog_unload(self):
         xp_admin_group.remove_command("reset")
 
 

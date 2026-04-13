@@ -11,7 +11,7 @@ class ResetTask(commands.Cog):
         self.bot = bot
         self.check_resets.start()
     
-    def cog_unload(self):
+    async def cog_unload(self):
         self.check_resets.cancel()
     
     @tasks.loop(minutes=1)

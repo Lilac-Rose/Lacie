@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from discord.ui import View, Button
+from typing import Optional
 from .database import get_db
 from .groups import xp_group
 import math
@@ -72,7 +73,7 @@ class Leaderboard(commands.Cog):
     async def leaderboard(
         self,
         interaction: discord.Interaction,
-        board_type: app_commands.Choice[str] = None,
+        board_type: Optional[app_commands.Choice[str]] = None,
         show_absent: bool = False
     ):
         await interaction.response.defer(thinking=True)
@@ -151,7 +152,7 @@ class Leaderboard(commands.Cog):
             except Exception:
                 pass
 
-    def cog_unload(self):
+    async def cog_unload(self):
         xp_group.remove_command("top")
 
 async def setup(bot):

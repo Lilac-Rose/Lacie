@@ -14,10 +14,10 @@ class InfractionCommand(ModerationBase):
         self.migrate_existing_infractions()
         self.check_auto_removals.start()
 
-    def cog_unload(self):
+    async def cog_unload(self):
         """Stop the background task and close DB when cog unloads."""
         self.check_auto_removals.cancel()
-        super().cog_unload()
+        await super().cog_unload()
 
     async def cog_load(self):
         """Re-register persistent views for all pending approval messages."""
@@ -177,7 +177,7 @@ class InfractionCommand(ModerationBase):
         """Send an infraction removal request to the approval channel."""
         try:
             approval_channel = self.bot.get_channel(self.approval_channel_id)
-            if not approval_channel:
+            if not approval_channel or not isinstance(approval_channel, discord.abc.Messageable):
                 logger.error(f"Approval channel {self.approval_channel_id} not found")
                 return
             
@@ -610,10 +610,11 @@ class InfractionRemovalView(discord.ui.View):
             try:
                 user = await self.cog.bot.fetch_user(self.user_id)
                 guild = self.cog.bot.get_guild(self.guild_id)
-                
+                guild_name = guild.name if guild else "the server"
+
                 notify_embed = discord.Embed(
                     title="✅ Infraction Removed",
-                    description=f"Great news! An infraction has been removed from your record in **{guild.name}** for good behavior.",
+                    description=f"Great news! An infraction has been removed from your record in **{guild_name}** for good behavior.",
                     color=discord.Color.green(),
                     timestamp=datetime.utcnow()
                 )
