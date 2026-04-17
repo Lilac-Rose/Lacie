@@ -102,6 +102,7 @@ def _render(
     content: str,
     timestamp: str,
     channel_name: str,
+    grayscale: bool = False,
 ) -> bytes:
     # ── fonts ──────────────────────────────────────────────────────────────────
     try:
@@ -216,6 +217,9 @@ def _render(
     wm_w = dummy.textbbox((0, 0), wm, font=font_footer)[2]
     d.text((WIDTH - PAD_X - wm_w, HEIGHT - 28), wm, font=font_footer, fill=FOOTER_COLOR)
 
+    if grayscale:
+        img = img.convert("L").convert("RGB")
+
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     buf.seek(0)
@@ -238,24 +242,40 @@ class Quote(commands.Cog):
     @app_commands.describe(
         message_id="The ID of the message to quote",
         channel="The channel the message is in (defaults to the current channel)",
+        channel_id="Channel or thread ID — use this for threads or channels not in the list",
+        grayscale="Render the image in grayscale",
     )
     async def quote(
         self,
         interaction: discord.Interaction,
         message_id: str,
         channel: discord.TextChannel | None = None,
+        channel_id: str | None = None,
+        grayscale: bool = False,
     ):
         await interaction.response.defer()
 
+        # Resolve target channel / thread
         target: discord.abc.Messageable
         channel_name: str
-        if channel is not None:
+        joined_thread: discord.Thread | None = None
+
+        if channel_id is not None:
+            try:
+                raw_id = int(channel_id)
+            except ValueError:
+                await interaction.followup.send("That doesn't look like a valid channel ID.", ephemeral=True)
+                return
+            resolved = self.bot.get_channel(raw_id) or await self.bot.fetch_channel(raw_id)
+            if not isinstance(resolved, discord.abc.Messageable):
+                await interaction.followup.send("That channel ID didn't resolve to a readable channel.", ephemeral=True)
+                return
+            target = resolved
+            channel_name = resolved.name if hasattr(resolved, "name") else str(raw_id)
+        elif channel is not None:
             target = channel
             channel_name = channel.name
-        elif isinstance(interaction.channel, discord.Thread):
-            target = interaction.channel
-            channel_name = interaction.channel.name
-        elif isinstance(interaction.channel, discord.TextChannel):
+        elif isinstance(interaction.channel, (discord.TextChannel, discord.Thread)):
             target = interaction.channel
             channel_name = interaction.channel.name
         else:
@@ -264,60 +284,70 @@ class Quote(commands.Cog):
             )
             return
 
-        try:
-            msg_id = int(message_id)
-        except ValueError:
-            await interaction.followup.send("That doesn't look like a valid message ID.", ephemeral=True)
-            return
+        # Join threads the bot isn't already a member of
+        if isinstance(target, discord.Thread) and not target.me:
+            await target.join()
+            joined_thread = target
 
         try:
-            message = await target.fetch_message(msg_id)
-        except discord.NotFound:
-            await interaction.followup.send(
-                "Message not found. Make sure the ID is correct and matches the channel.",
-                ephemeral=True,
-            )
-            return
-        except discord.Forbidden:
-            await interaction.followup.send("I don't have permission to read that channel.", ephemeral=True)
-            return
-
-        content = message.content
-        if not content:
-            if message.attachments:
-                n = len(message.attachments)
-                content = f"[{n} attachment{'s' if n > 1 else ''}]"
-            elif message.embeds:
-                content = "[embed]"
-            elif message.stickers:
-                content = f"[sticker: {message.stickers[0].name}]"
-            else:
-                await interaction.followup.send("That message has no quotable content.", ephemeral=True)
+            try:
+                msg_id = int(message_id)
+            except ValueError:
+                await interaction.followup.send("That doesn't look like a valid message ID.", ephemeral=True)
                 return
 
-        content = _clean_content(content, interaction.guild)
+            try:
+                message = await target.fetch_message(msg_id)
+            except discord.NotFound:
+                await interaction.followup.send(
+                    "Message not found. Make sure the ID is correct and the channel is right.",
+                    ephemeral=True,
+                )
+                return
+            except discord.Forbidden:
+                await interaction.followup.send("I don't have permission to read that channel.", ephemeral=True)
+                return
 
-        author = message.author
-        display_name = (
-            author.display_name
-            if isinstance(author, discord.Member)
-            else (author.global_name or author.name)
-        )
-        username = author.name
+            content = message.content
+            if not content:
+                if message.attachments:
+                    n = len(message.attachments)
+                    content = f"[{n} attachment{'s' if n > 1 else ''}]"
+                elif message.embeds:
+                    content = "[embed]"
+                elif message.stickers:
+                    content = f"[sticker: {message.stickers[0].name}]"
+                else:
+                    await interaction.followup.send("That message has no quotable content.", ephemeral=True)
+                    return
 
-        ts = message.created_at.replace(tzinfo=timezone.utc).strftime("%-d %b %Y")
+            content = _clean_content(content, interaction.guild)
 
-        assert self.session is not None
-        async with self.session.get(author.display_avatar.url) as resp:
-            avatar_data = await resp.read()
+            author = message.author
+            display_name = (
+                author.display_name
+                if isinstance(author, discord.Member)
+                else (author.global_name or author.name)
+            )
+            username = author.name
 
-        image_bytes = await asyncio.to_thread(
-            _render, avatar_data, display_name, username, content, ts, channel_name
-        )
+            ts = message.created_at.replace(tzinfo=timezone.utc).strftime("%-d %b %Y")
 
-        await interaction.followup.send(
-            file=discord.File(io.BytesIO(image_bytes), filename="quote.png")
-        )
+            assert self.session is not None
+            async with self.session.get(author.display_avatar.url) as resp:
+                avatar_data = await resp.read()
+
+            image_bytes = await asyncio.to_thread(
+                _render, avatar_data, display_name, username, content, ts, channel_name, grayscale
+            )
+
+            await interaction.followup.send(
+                file=discord.File(io.BytesIO(image_bytes), filename="quote.png")
+            )
+
+        finally:
+            if joined_thread:
+                await joined_thread.leave()
 
 
 async def setup(bot: commands.Bot):

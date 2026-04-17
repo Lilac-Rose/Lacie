@@ -4,8 +4,12 @@ from discord.ext import commands
 class Welcome(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-    
+        self._welcomed: set[int] = set()
+
     async def _send_welcome(self, member):
+        if member.id in self._welcomed:
+            return
+        self._welcomed.add(member.id)
         bot_trap_role_id = 1439354601672282335
         if any(role.id == bot_trap_role_id for role in member.roles):
             return
@@ -41,16 +45,16 @@ class Welcome(commands.Cog):
                 await welcome_channel.send(f"Welcome {member.mention} to the server! I couldn't DM you the welcome message, so <@692683410132566016> will do that")
 
     @commands.Cog.listener()
-    async def on_member_join(self, member):
-        # If the server uses membership screening/onboarding, wait until they complete it
-        if member.pending:
-            return
-        await self._send_welcome(member)
-
-    @commands.Cog.listener()
     async def on_member_update(self, before, after):
-        # Fires when a member completes onboarding (pending: True -> False)
-        if before.pending and not after.pending:
+        # Trigger 1: member receives their first real role (onboarding assigned a role)
+        before_roles = [r for r in before.roles if r.name != "@everyone"]
+        after_roles = [r for r in after.roles if r.name != "@everyone"]
+        first_role = len(before_roles) == 0 and len(after_roles) > 0
+
+        # Trigger 2: pending flag clears (onboarding complete, even if no role was assigned)
+        completed_pending = before.pending and not after.pending
+
+        if first_role or completed_pending:
             await self._send_welcome(after)
 
 async def setup(bot):
