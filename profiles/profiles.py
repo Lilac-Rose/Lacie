@@ -64,6 +64,18 @@ def generate_gradient_image(colors, width, height):
         print(traceback.format_exc())
 
 
+async def font_name_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+):
+    fonts = list_fonts()
+    return_array = [
+        app_commands.Choice(name=font_name, value=font_name)
+        for font_name in fonts if current.lower() in font_name.lower()
+    ]
+    return return_array
+
+
 class Profiles(commands.GroupCog, name="profile"):
     """Profile commands"""
 
@@ -151,6 +163,7 @@ class Profiles(commands.GroupCog, name="profile"):
         birthday="Your birthday (MM-DD)",
         font_name="Font to use (see /profile fonts)"
     )
+    @app_commands.autocomplete(font_name=font_name_autocomplete)
     async def setprofile(self, interaction: discord.Interaction, pronouns: str = None, about_me: str = None, fav_color: str = None, bg_color: str = None, fav_game: str = None, fav_artist: str = None, birthday: str = None, font_name: str = None):
         # Defer the response to show "thinking"
         await interaction.response.defer(thinking=True)
@@ -172,7 +185,7 @@ class Profiles(commands.GroupCog, name="profile"):
                     return
         
         if font_name and font_name not in list_fonts():
-            await interaction.followup.send("That font is not avaliable. use /profile fonts to see the options.")
+            await interaction.followup.send("That font is not available. use /profile fonts to see the options.")
             return
         
         db = get_db()
