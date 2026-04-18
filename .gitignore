@@ -4,7 +4,6 @@ venv/
 *.db
 *.json
 */backups/
-*/fonts/
 .txt
 logs/
 data/
