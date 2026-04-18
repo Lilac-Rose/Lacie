@@ -23,7 +23,7 @@ def list_fonts():
                 fonts.append(os.path.splitext(f)[0])
     return fonts
 
-def generate_gradient_image(colors: Array[String], width, height):
+def generate_gradient_image(colors, width, height):
     try:
         # source: https://note.nkmk.me/en/python-numpy-generate-gradation-image/
 
@@ -161,7 +161,7 @@ class Profiles(commands.GroupCog, name="profile"):
                 if not color.startswith('#') or len(color) not in [4, 7]:
                     await interaction.followup.send("Background colors must be hex colors starting with # (e.g. #FF5733 or #F57). To set gradients, do multiple hex colors separated with spaces (e.g. #FF5733 #BB153A).")
                     return
-                if len(bg_color) > 5:
+                if len(bg_color.split(' ')) > 5:
                     await interaction.followup.send("That's too many colors! Please use 5 colors or fewer.")
                     return
                 # Validate hex characters
