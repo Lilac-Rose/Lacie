@@ -14,6 +14,7 @@ logger = get_logger(__name__)
 NOTIFICATIONS_CHANNEL_ID = 1470441786810826884
 WHITELISTED_ROLE_ID = 952560403970416722
 WHITELISTED_CATEGORY_ID = 876780338599305246
+WHITELISTED_INVITE_CODES = {"paperlily"}
 
 # Thresholds
 CROSS_CHANNEL_WINDOW_SECONDS = 10
@@ -194,8 +195,9 @@ class SpamProtection(commands.Cog):
 
         now = datetime.now(timezone.utc)
 
-        # Pattern 1: Invite link sent anywhere
-        if INVITE_PATTERN.search(content):
+        # Pattern 1: Invite link sent anywhere (skip whitelisted server invites)
+        invite_match = INVITE_PATTERN.search(content)
+        if invite_match and invite_match.group(1).lower() not in WHITELISTED_INVITE_CODES:
             cross_cutoff = now - timedelta(seconds=CROSS_CHANNEL_WINDOW_SECONDS)
             recent = [msg for msg in messages if msg[0] >= cross_cutoff]
             unique_channels = set(msg[1] for msg in recent)

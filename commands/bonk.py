@@ -29,7 +29,8 @@ class Bonk(commands.Cog):
             file = discord.File(self.bonk_path, filename="bonk.png")
             await interaction.followup.send(
                 f"{user.mention} has been bonked by {interaction.user.mention}. Bonk!",
-                file=file
+                file=file,
+                allowed_mentions=discord.AllowedMentions(users=False)
             )
 
         except Exception as e:

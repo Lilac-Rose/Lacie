@@ -416,33 +416,19 @@ class InfractionCommand(ModerationBase):
 
             user_id, inf_type, reason, timestamp = infraction
 
-            # Delete the infraction (actually delete it, not just mark as removed)
-            self.c.execute("DELETE FROM infractions WHERE id=? AND guild_id=?", (inf_id, ctx.guild.id))
-            self.conn.commit()
+            embed = discord.Embed(
+                title="Delete Infraction?",
+                description="Choose how to handle the deletion:",
+                color=discord.Color.orange()
+            )
+            embed.add_field(name="Infraction ID", value=str(inf_id), inline=True)
+            embed.add_field(name="Type", value=inf_type, inline=True)
+            embed.add_field(name="Reason", value=reason or "None", inline=False)
+            embed.add_field(name="Date", value=timestamp.replace("T", " ")[:19], inline=True)
+            embed.add_field(name="User ID", value=str(user_id), inline=True)
 
-            # Send DM to the user
-            try:
-                user = await self.bot.fetch_user(user_id)
-                embed = discord.Embed(
-                    title="Infraction Removed",
-                    description=f"An infraction has been removed from your record in **{ctx.guild.name}**.",
-                    color=discord.Color.green(),
-                    timestamp=datetime.utcnow()
-                )
-                embed.add_field(name="Infraction ID", value=str(inf_id), inline=True)
-                embed.add_field(name="Type", value=inf_type, inline=True)
-                embed.add_field(name="Original Reason", value=reason or "None", inline=False)
-                embed.add_field(name="Original Date", value=timestamp.replace("T", " ")[:19], inline=True)
-                embed.add_field(name="Removed By", value=f"{ctx.author.name}#{ctx.author.discriminator}", inline=True)
-                embed.set_footer(text=f"Server: {ctx.guild.name}")
-
-                await user.send(embed=embed)
-                await ctx.send(f"Infraction {inf_id} deleted and user notified.")
-            except discord.Forbidden:
-                await ctx.send(f"Infraction {inf_id} deleted, but couldn't DM the user (DMs disabled or blocked).")
-            except Exception as e:
-                await ctx.send(f"Infraction {inf_id} deleted, but failed to notify user: {e}")
-
+            view = InfractionDeleteView(self, inf_id, user_id, inf_type, reason, timestamp, ctx.guild)
+            await ctx.send(embed=embed, view=view)
             return
 
         elif action == "resend":
@@ -558,6 +544,66 @@ class InfractionCommand(ModerationBase):
                 await self.update_message(interaction)
 
         await ctx.send(content=pages[0], view=PageView(pages))
+
+
+class InfractionDeleteView(discord.ui.View):
+    """Confirmation view for manually deleting an infraction, with notify/silent options."""
+
+    def __init__(self, cog, inf_id, user_id, inf_type, reason, timestamp, guild):
+        super().__init__(timeout=60)
+        self.cog = cog
+        self.inf_id = inf_id
+        self.user_id = user_id
+        self.inf_type = inf_type
+        self.reason = reason
+        self.timestamp = timestamp
+        self.guild = guild
+
+    async def _do_delete(self, interaction: discord.Interaction, notify: bool):
+        try:
+            self.cog.c.execute("DELETE FROM infractions WHERE id=? AND guild_id=?", (self.inf_id, self.guild.id))
+            self.cog.conn.commit()
+        except Exception as e:
+            await interaction.response.edit_message(content=f"Database error: {e}", embed=None, view=None)
+            return
+
+        if notify:
+            try:
+                user = await self.cog.bot.fetch_user(self.user_id)
+                notify_embed = discord.Embed(
+                    title="Infraction Removed",
+                    description=f"An infraction has been removed from your record in **{self.guild.name}**.",
+                    color=discord.Color.green(),
+                    timestamp=datetime.utcnow()
+                )
+                notify_embed.add_field(name="Infraction ID", value=str(self.inf_id), inline=True)
+                notify_embed.add_field(name="Type", value=self.inf_type, inline=True)
+                notify_embed.add_field(name="Original Reason", value=self.reason or "None", inline=False)
+                notify_embed.add_field(name="Original Date", value=self.timestamp.replace("T", " ")[:19], inline=True)
+                notify_embed.add_field(name="Removed By", value=f"{interaction.user.name}#{interaction.user.discriminator}", inline=True)
+                notify_embed.set_footer(text=f"Server: {self.guild.name}")
+                await user.send(embed=notify_embed)
+                result_text = f"Infraction {self.inf_id} deleted and user notified."
+            except discord.Forbidden:
+                result_text = f"Infraction {self.inf_id} deleted, but couldn't DM the user (DMs disabled or blocked)."
+            except Exception as e:
+                result_text = f"Infraction {self.inf_id} deleted, but failed to notify user: {e}"
+        else:
+            result_text = f"Infraction {self.inf_id} deleted silently."
+
+        await interaction.response.edit_message(content=result_text, embed=None, view=None)
+
+    @discord.ui.button(label="Delete & Notify", style=discord.ButtonStyle.green)
+    async def delete_notify(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._do_delete(interaction, notify=True)
+
+    @discord.ui.button(label="Delete Silently", style=discord.ButtonStyle.grey)
+    async def delete_silent(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self._do_delete(interaction, notify=False)
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.red)
+    async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.edit_message(content="Deletion cancelled.", embed=None, view=None)
 
 
 class InfractionRemovalView(discord.ui.View):

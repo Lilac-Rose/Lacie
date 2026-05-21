@@ -26,7 +26,7 @@ FAQ_ITEMS = [
     ),
     (
         "How do I post images / why can't I send embeds?",
-        "You need to reach **Level 8** first. Keep chatting to earn XP!",
+        "You need to reach **Level 8** first. Keep chatting to earn XP!\nYou can check how many messages you have left until Level 8 by running `/xp calculate`.",
     ),
     (
         "How do I do something in Paper Lily / Project Kat?",

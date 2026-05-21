@@ -9,20 +9,6 @@ PINGS_OK_ROLE_ID = 1439583327844827227
 
 PROTECTED_USER_ID = 252130669919076352  # only lilac gets ping tracking
 
-# initial allowlist for lilac, gets seeded into DB on load
-INITIAL_ALLOWED_PINGERS = {
-    505390548232699906,
-    771709136051372032,
-    692030310644187206,
-    1153235432813895730,
-    252130669919076352,
-    1409637508689563689,
-    1407793866559721532,
-    1265042492865122358,
-    547143614099226626,
-    987681568585814036
-}
-
 DB_PATH = Path(__file__).parent.parent / "data" / "ping_protect.db"
 
 
@@ -45,11 +31,6 @@ class PingProtect(commands.GroupCog, name="noping"):
                     PRIMARY KEY (protected_user_id, allowed_user_id)
                 )
             """)
-            for uid in INITIAL_ALLOWED_PINGERS:
-                await db.execute("""
-                    INSERT OR IGNORE INTO allowlists (protected_user_id, allowed_user_id)
-                    VALUES (?, ?)
-                """, (PROTECTED_USER_ID, uid))
             await db.commit()
 
     def _has_permission(self, member: discord.Member) -> bool:
@@ -130,7 +111,10 @@ class PingProtect(commands.GroupCog, name="noping"):
                 INSERT OR IGNORE INTO allowlists (protected_user_id, allowed_user_id)
                 VALUES (?, ?)
             """, (interaction.user.id, user.id))
-            await db.commit()
+            await db.commit()You need the no-pings role to use this.", ephemeral=True)
+            return
+
+        async with aiosqlite.connect(DB_PATH) as db:
 
         await interaction.response.send_message(f"✅ {user.display_name} can now ping you.", ephemeral=True)
 
