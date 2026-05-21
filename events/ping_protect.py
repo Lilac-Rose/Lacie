@@ -111,10 +111,7 @@ class PingProtect(commands.GroupCog, name="noping"):
                 INSERT OR IGNORE INTO allowlists (protected_user_id, allowed_user_id)
                 VALUES (?, ?)
             """, (interaction.user.id, user.id))
-            await db.commit()You need the no-pings role to use this.", ephemeral=True)
-            return
-
-        async with aiosqlite.connect(DB_PATH) as db:
+            await db.commit()
 
         await interaction.response.send_message(f"✅ {user.display_name} can now ping you.", ephemeral=True)
 
