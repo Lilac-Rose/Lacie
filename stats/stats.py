@@ -1,8 +1,10 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
+from discord.ui import View, Button
 from datetime import datetime, timezone
 import sqlite3
+import math
 from embed.embed_color import get_embed_color
 import os
 import json
@@ -18,6 +20,45 @@ logger = get_logger(__name__)
 
 BASE_DIR = Path(__file__).parent
 DB_PATH = Path(__file__).parent.parent / "data" / "stats.db"
+
+
+class WordsView(View):
+    def __init__(self, embed_pages):
+        super().__init__(timeout=60)
+        self.embed_pages = embed_pages
+        self.current_page = 0
+        self.update_button_states()
+
+    async def update_message(self, interaction: discord.Interaction):
+        self.update_button_states()
+        await interaction.response.edit_message(embed=self.embed_pages[self.current_page], view=self)
+
+    def update_button_states(self):
+        self.previous.disabled = self.current_page == 0
+        self.next.disabled = self.current_page == len(self.embed_pages) - 1
+
+    @discord.ui.button(label="⬅️ Previous", style=discord.ButtonStyle.secondary)
+    async def previous(self, interaction: discord.Interaction, button: Button):
+        if self.current_page > 0:
+            self.current_page -= 1
+        await self.update_message(interaction)
+
+    @discord.ui.button(label="➡️ Next", style=discord.ButtonStyle.secondary)
+    async def next(self, interaction: discord.Interaction, button: Button):
+        if self.current_page < len(self.embed_pages) - 1:
+            self.current_page += 1
+        await self.update_message(interaction)
+
+    async def on_timeout(self):
+        for child in self.children:
+            if isinstance(child, Button):
+                child.disabled = True
+        if hasattr(self, "message") and self.message:
+            try:
+                await self.message.edit(view=self)
+            except discord.NotFound:
+                pass
+
 
 class Stats(commands.Cog):
     def __init__(self, bot):
@@ -152,7 +193,7 @@ class Stats(commands.Cog):
         if message.content:
             words = self.extract_words(message.content)
             for word in words:
-                if len(word) > 2 and word.lower() not in self.common_words:
+                if len(word) > 2:
                     cursor.execute("""
                         INSERT INTO word_frequency (word, count)
                         VALUES (?, 1)
@@ -242,15 +283,22 @@ class Stats(commands.Cog):
             return round(total_messages / days_count, 2)
         return 0.0
 
-    def get_top_words(self, limit: int = 10) -> List[Tuple[str, int]]:
+    def get_top_words(self, limit: int = 0) -> List[Tuple[str, int]]:
         db = sqlite3.connect(DB_PATH)
         cursor = db.cursor()
-        cursor.execute(f"""
-            SELECT word, count
-            FROM word_frequency
-            ORDER BY count DESC
-            LIMIT {limit}
-        """)
+        if limit > 0:
+            cursor.execute(f"""
+                SELECT word, count
+                FROM word_frequency
+                ORDER BY count DESC
+                LIMIT {limit}
+            """)
+        else:
+            cursor.execute("""
+                SELECT word, count
+                FROM word_frequency
+                ORDER BY count DESC
+            """)
         results = cursor.fetchall()
         db.close()
         return results
@@ -445,26 +493,54 @@ class Stats(commands.Cog):
 
     @stats_group.command(name="words", description="Show detailed word frequency statistics")
     async def stats_words(self, interaction: discord.Interaction):
-        top_words = self.get_top_words(10)
+        all_words = self.get_top_words()
 
-        embed = discord.Embed(
-            title="🔤 Word Frequency Statistics",
-            color=get_embed_color(interaction.user.id)
-        )
+        if not all_words:
+            embed = discord.Embed(
+                title="🔤 Word Frequency Statistics",
+                description="No word frequency data available yet. Start chatting to build up statistics!",
+                color=get_embed_color(interaction.user.id)
+            )
+            await interaction.response.send_message(embed=embed)
+            return
 
-        if top_words:
-            # Split into two columns for better readability
-            half = len(top_words) // 2
-            left_column = "\n".join([f"{i+1}. **{word}** - {count}" for i, (word, count) in enumerate(top_words[:half])])
-            right_column = "\n".join([f"{i+half+1}. **{word}** - {count}" for i, (word, count) in enumerate(top_words[half:])])
+        per_page = 20
+        total_pages = math.ceil(len(all_words) / per_page)
+        embeds = []
+
+        for page_num in range(total_pages):
+            start_idx = page_num * per_page
+            page_words = all_words[start_idx:start_idx + per_page]
+
+            embed = discord.Embed(
+                title=f"🔤 Word Frequency Statistics (Page {page_num + 1}/{total_pages})",
+                color=get_embed_color(interaction.user.id)
+            )
+
+            half = math.ceil(len(page_words) / 2)
+            left_column = "\n".join(
+                f"{start_idx + i + 1}. **{word}** - {count}"
+                for i, (word, count) in enumerate(page_words[:half])
+            )
+            right_column = "\n".join(
+                f"{start_idx + half + i + 1}. **{word}** - {count}"
+                for i, (word, count) in enumerate(page_words[half:])
+            )
 
             embed.add_field(name="Most Common Words", value=left_column, inline=True)
-            embed.add_field(name="\u200b", value=right_column, inline=True)
-        else:
-            embed.description = "No word frequency data available yet. Start chatting to build up statistics!"
+            if right_column:
+                embed.add_field(name="\u200b", value=right_column, inline=True)
 
-        embed.set_footer(text="Common words like 'the', 'and', etc. are excluded • Tracking since December 1st 2025")
-        await interaction.response.send_message(embed=embed)
+            embed.set_footer(text=f"Tracking since December 1st 2025 • {len(all_words):,} unique words tracked")
+            embeds.append(embed)
+
+        if total_pages == 1:
+            await interaction.response.send_message(embed=embeds[0])
+            return
+
+        view = WordsView(embeds)
+        await interaction.response.send_message(embed=embeds[0], view=view)
+        view.message = await interaction.original_response()
 
     @stats_group.command(name="channels", description="Show most active channels")
     async def stats_channels(self, interaction: discord.Interaction):

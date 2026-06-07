@@ -299,17 +299,15 @@ class ReminderCog(commands.Cog):
             ) as cursor:
                 reminders_due = await cursor.fetchall()
 
-            if reminders_due:
-                ids = [r[0] for r in reminders_due]
-                await db.execute(
-                    f"DELETE FROM reminders WHERE id IN ({','.join('?' * len(ids))})",
-                    ids,
-                )
-                await db.commit()
-
+        sent_ids = []
         for reminder_id, user_id, message in reminders_due:
             decrypted = decrypt(message)
             user = self.bot.get_user(user_id)
+            if user is None:
+                try:
+                    user = await self.bot.fetch_user(user_id)
+                except (discord.NotFound, discord.HTTPException):
+                    user = None
             if user:
                 try:
                     embed = discord.Embed(
@@ -319,8 +317,23 @@ class ReminderCog(commands.Cog):
                         timestamp=datetime.now(timezone.utc)
                     )
                     await user.send(embed=embed)
-                except (discord.Forbidden, discord.HTTPException):
-                    pass
+                    sent_ids.append(reminder_id)
+                except discord.Forbidden:
+                    # Can't DM the user — still remove to avoid repeat attempts
+                    sent_ids.append(reminder_id)
+                except discord.HTTPException:
+                    pass  # Transient error — retry next cycle
+            else:
+                # User not found — remove to avoid piling up
+                sent_ids.append(reminder_id)
+
+        if sent_ids:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute(
+                    f"DELETE FROM reminders WHERE id IN ({','.join('?' * len(sent_ids))})",
+                    sent_ids,
+                )
+                await db.commit()
 
     @check_reminders.before_loop
     async def before_check_reminders(self):

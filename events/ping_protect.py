@@ -151,6 +151,22 @@ class PingProtect(commands.GroupCog, name="noping"):
         mentions = "\n".join(f"<@{row[0]}>" for row in rows)
         await interaction.response.send_message(f"**Your ping allowlist:**\n{mentions}", ephemeral=True)
 
+    @app_commands.command(name="permitted", description="See who has given you permission to ping them")
+    async def permitted(self, interaction: discord.Interaction):
+        async with aiosqlite.connect(DB_PATH) as db:
+            cursor = await db.execute(
+                "SELECT protected_user_id FROM allowlists WHERE allowed_user_id = ?",
+                (interaction.user.id,)
+            )
+            rows = await cursor.fetchall()
+
+        if not rows:
+            await interaction.response.send_message("Nobody has given you permission to ping them yet.", ephemeral=True)
+            return
+
+        mentions = "\n".join(f"<@{row[0]}>" for row in rows)
+        await interaction.response.send_message(f"**Users who've allowed you to ping them:**\n{mentions}", ephemeral=True)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(PingProtect(bot))
