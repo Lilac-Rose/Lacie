@@ -95,12 +95,7 @@ async def rcon_command(cmd: str) -> str:
 
 
 class Whitelist(commands.GroupCog, name="whitelist"):
-    """GroupCog providing the /whitelist slash command group.
-
-    Allows server members to request Minecraft whitelist access (/whitelist request)
-    and the owner to approve or remove players (/whitelist add, remove, list).
-    Requests are persisted to whitelist.db and approved via RCON.
-    """
+    """Minecraft whitelist request and management commands."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot

@@ -16,15 +16,7 @@ DB_PATH = Path(__file__).parent.parent / "data" / "ping_protect.db"
 
 
 class PingProtect(commands.GroupCog, name="noping"):
-    """GroupCog providing the /noping slash command group and ping detection.
-
-    Intercepts messages that mention a protected user (anyone with the no-pings
-    role, or PROTECTED_USER_ID) and replies reminding the sender not to ping
-    them, unless the sender is on that user's allowlist.
-
-    Slash commands (/noping allow, remove, list, permitted) let protected users
-    manage their own allowlists.
-    """
+    """Manage your no-ping protection allowlist."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot

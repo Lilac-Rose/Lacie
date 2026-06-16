@@ -27,19 +27,7 @@ DB_PATH = Path(__file__).parent.parent / "data" / "tts.db"
 
 
 class TTS(commands.GroupCog, name="tts"):
-    """GroupCog providing voice-channel TTS for muted members.
-
-    When active in a guild, messages sent to the active voice channel's text
-    chat by muted members are synthesised with edge-tts (falling back to gTTS)
-    and played through the bot's voice connection.
-
-    Features:
-    - Per-guild asyncio queue so messages play sequentially without overlap.
-    - Rate limit of one TTS per user per RATE_LIMIT_SECONDS.
-    - Automatic disconnect after IDLE_TIMEOUT_SECONDS of queue inactivity.
-    - Automatic disconnect if all human members leave the voice channel.
-    - Optional TTS nickname stored in tts.db to override the Discord username.
-    """
+    """Voice channel text-to-speech for muted members."""
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot

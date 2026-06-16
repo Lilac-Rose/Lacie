@@ -408,26 +408,7 @@ class PaginationView(discord.ui.View):
 
 
 class Suggestion(commands.GroupCog, name="suggest"):
-    """GroupCog providing the /suggest slash-command group.
-
-    Subcommands:
-    - submit  — submit a new suggestion (any member).
-    - view    — view full details of a suggestion by ID.
-    - list    — paginated list with optional status/member filters.
-    - stats   — per-member submission counts.
-    - complete — admin-only command to mark an approved suggestion as done.
-    - todo    — admin-only to-do list of approved suggestions the caller approved.
-
-    Workflow:
-    1. Member submits a suggestion; it is inserted into suggestions.db and an
-       embed with Approve/Deny buttons is posted in the admin channel.
-    2. Admin approves → embed turns green, buttons swap to "Mark Complete".
-    3. Admin marks complete → embed turns blue, buttons disabled.
-       OR admin denies (via DenyModal) → embed turns red, buttons disabled.
-
-    At cog load, all Pending and Approved suggestion views are re-registered
-    with add_view so buttons keep working across bot restarts.
-    """
+    """Submit and manage server suggestions."""
 
     def __init__(self, bot):
         self.bot = bot

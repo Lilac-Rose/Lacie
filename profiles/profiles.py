@@ -92,19 +92,7 @@ async def font_name_autocomplete(
 
 
 class Profiles(commands.GroupCog, name="profile"):
-    """GroupCog providing the /profile slash-command group.
-
-    Subcommands:
-    - fonts — render a visual preview image of all available fonts.
-    - set   — update one or more profile fields (all optional, any subset).
-    - view  — render and return a 1000×550 PNG profile card.
-
-    The profile card (view) is fully rendered in PIL via asyncio.to_thread
-    because image generation is CPU-bound. It features a two-panel layout:
-    left panel with circular avatar and top roles, right panel with profile
-    fields. The background supports solid colours or multi-stop gradients.
-    Font choice is persisted per-user in profiles.db.
-    """
+    """View and customise your server profile card."""
 
     def __init__(self, bot):
         self.bot = bot
