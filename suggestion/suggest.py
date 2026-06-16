@@ -17,6 +17,13 @@ BOT_DEV_ROLE_ID = 1470439484549234866
 
 
 class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
+    """Modal that collects an optional deny reason from a moderator.
+
+    Opened by the Deny button on a SuggestionButtons view. On submit it
+    updates the DB, edits the admin embed (red, disabled buttons), DMs the
+    submitter, and posts a notice in the original suggestion channel.
+    """
+
     reason = discord.ui.TextInput(label="Reason (optional)", style=discord.TextStyle.long, required=False, max_length=2000)
 
     def __init__(self, suggestion_id: int, user_id: int, suggestion_text: str, channel_id: int, admin_message_id: Optional[int], bot: commands.Bot, original_embed: discord.Embed):
@@ -30,6 +37,7 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
         self.original_embed = original_embed
 
     async def on_submit(self, interaction: discord.Interaction):
+        """Process the denial: update DB, edit admin embed, DM submitter, post channel notice."""
         try:
             await interaction.response.defer(ephemeral=True)
 
@@ -48,12 +56,15 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
                     if admin_channel and isinstance(admin_channel, discord.abc.Messageable):
                         orig_msg = await admin_channel.fetch_message(self.admin_message_id)
 
-                        updated_embed = self.original_embed.copy()
+                        base_embed = self.original_embed if self.original_embed is not None else (orig_msg.embeds[0] if orig_msg.embeds else discord.Embed())
+                        updated_embed = base_embed.copy()
                         updated_embed.color = discord.Color.red()
                         updated_embed.title = f"❌ Denied Suggestion (ID: {self.suggestion_id})"
 
-                        updated_embed.set_field_at(0, name="Suggested by", value=updated_embed.fields[0].value, inline=True)
-                        updated_embed.set_field_at(1, name="Channel", value=updated_embed.fields[1].value, inline=True)
+                        if len(updated_embed.fields) > 0:
+                            updated_embed.set_field_at(0, name="Suggested by", value=updated_embed.fields[0].value, inline=True)
+                        if len(updated_embed.fields) > 1:
+                            updated_embed.set_field_at(1, name="Channel", value=updated_embed.fields[1].value, inline=True)
                         updated_embed.add_field(name="Status", value="Denied", inline=False)
                         updated_embed.add_field(name="Denied by", value=f"{interaction.user.mention}", inline=True)
                         updated_embed.add_field(name="Denied at", value=f"<t:{int(datetime.utcnow().timestamp())}:F>", inline=True)
@@ -103,6 +114,17 @@ class DenyModal(discord.ui.Modal, title="Reason for denying suggestion"):
 
 
 class SuggestionButtons(discord.ui.View):
+    """Persistent approval/deny/complete button view attached to admin-channel suggestion embeds.
+
+    timeout=None makes the view survive bot restarts (re-registered in cog_load).
+
+    show_complete controls which buttons are shown:
+    - False (default): Approve and Deny buttons (shown on Pending suggestions).
+    - True: Mark Complete button only (shown after a suggestion is Approved).
+
+    disabled=True renders all buttons greyed out (used after a terminal action).
+    """
+
     def __init__(self, bot, suggestion_id=None, user_id=None, suggestion_text=None, channel_id=None, admin_message_id: Optional[int] = None, disabled: bool = False, show_complete: bool = False):
         super().__init__(timeout=None)
         self.bot = bot
@@ -130,6 +152,7 @@ class SuggestionButtons(discord.ui.View):
             self.add_item(complete_btn)
 
     async def approve(self, interaction: discord.Interaction):
+        """Approve the suggestion: update DB, swap buttons to 'Mark Complete', DM submitter."""
         try:
             has_permission = (
                 interaction.user.id == ADMIN_ID or
@@ -206,6 +229,7 @@ class SuggestionButtons(discord.ui.View):
                 pass
 
     async def deny(self, interaction: discord.Interaction):
+        """Open the DenyModal to collect an optional reason before denying."""
         try:
             has_permission = (
                 interaction.user.id == ADMIN_ID or
@@ -252,6 +276,7 @@ class SuggestionButtons(discord.ui.View):
                 pass
 
     async def complete(self, interaction: discord.Interaction):
+        """Mark an already-approved suggestion as Completed. Only valid if status == 'Approved'."""
         try:
             has_permission = (
                 interaction.user.id == ADMIN_ID or
@@ -339,6 +364,12 @@ class SuggestionButtons(discord.ui.View):
 
 
 class PaginationView(discord.ui.View):
+    """Simple prev/next paginator for multi-page suggestion list embeds.
+
+    Times out after 3 minutes of inactivity. Only the user who invoked the
+    command can interact with the buttons (others get an ephemeral error).
+    """
+
     def __init__(self, embeds, user: discord.User):
         super().__init__(timeout=180)
         self.embeds = embeds
@@ -352,6 +383,7 @@ class PaginationView(discord.ui.View):
             self.previous_button.disabled = True
 
     async def update_page(self, interaction: discord.Interaction):
+        """Re-render the current page and update button disabled state."""
         self.previous_button.disabled = self.current_page == 0
         self.next_button.disabled = self.current_page == len(self.embeds) - 1
         await interaction.response.edit_message(embed=self.embeds[self.current_page], view=self)
@@ -376,6 +408,26 @@ class PaginationView(discord.ui.View):
 
 
 class Suggestion(commands.GroupCog, name="suggest"):
+    """GroupCog providing the /suggest slash-command group.
+
+    Subcommands:
+    - submit  — submit a new suggestion (any member).
+    - view    — view full details of a suggestion by ID.
+    - list    — paginated list with optional status/member filters.
+    - stats   — per-member submission counts.
+    - complete — admin-only command to mark an approved suggestion as done.
+    - todo    — admin-only to-do list of approved suggestions the caller approved.
+
+    Workflow:
+    1. Member submits a suggestion; it is inserted into suggestions.db and an
+       embed with Approve/Deny buttons is posted in the admin channel.
+    2. Admin approves → embed turns green, buttons swap to "Mark Complete".
+    3. Admin marks complete → embed turns blue, buttons disabled.
+       OR admin denies (via DenyModal) → embed turns red, buttons disabled.
+
+    At cog load, all Pending and Approved suggestion views are re-registered
+    with add_view so buttons keep working across bot restarts.
+    """
 
     def __init__(self, bot):
         self.bot = bot
@@ -383,6 +435,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
         self.db = None
 
     async def cog_load(self):
+        """Open the database, create the table, and re-register persistent views."""
         self.db = await aiosqlite.connect(self.db_path)
         await self.db.execute("""
             CREATE TABLE IF NOT EXISTS suggestions (
@@ -415,11 +468,18 @@ class Suggestion(commands.GroupCog, name="suggest"):
                 logger.info(f"Re-registered view for suggestion #{sid} (message {admin_msg_id}, status: {status})")
 
     async def cog_unload(self):
+        """Close the persistent database connection on unload."""
         if self.db:
             await self.db.close()
 
     @app_commands.command(name="submit", description="Submit a suggestion")
     async def suggest(self, interaction: discord.Interaction, idea: str):
+        """Insert the suggestion into the DB, confirm in-channel, and post to admin channel.
+
+        After sending the admin embed, stores the resulting message ID back into
+        the DB row so the embed can be edited on approve/deny/complete, and
+        registers a persistent view so the buttons survive restarts.
+        """
         await interaction.response.defer(ephemeral=False)
 
         try:
@@ -473,6 +533,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
 
     @app_commands.command(name="view", description="View full details of a suggestion")
     async def viewsuggestion(self, interaction: discord.Interaction, suggestion_id: int):
+        """Display a single suggestion's full text, status, submitter, and deny reason if any."""
         await interaction.response.defer(ephemeral=False)
 
         try:
@@ -519,6 +580,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
 
     @app_commands.command(name="complete", description="Mark an approved suggestion as completed (Admin only)")
     async def completesuggestion(self, interaction: discord.Interaction, suggestion_id: int):
+        """Admin slash command to mark a suggestion complete (mirrors the button in the admin embed)."""
         await interaction.response.defer(ephemeral=False)
 
         try:
@@ -608,6 +670,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
         app_commands.Choice(name="Completed", value="Completed")
     ])
     async def listsuggestions(self, interaction: discord.Interaction, status: Optional[app_commands.Choice[str]] = None, member: Optional[discord.Member] = None):
+        """Show a paginated list of suggestions, optionally filtered by status and/or member."""
         await interaction.response.defer(ephemeral=False)
 
         try:
@@ -667,6 +730,7 @@ class Suggestion(commands.GroupCog, name="suggest"):
 
     @app_commands.command(name="stats", description="View suggestion stats for yourself or another user")
     async def suggestionstats(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+        """Show total, accepted (Approved+Completed), and rejected counts for a member."""
         await interaction.response.defer(ephemeral=False)
 
         try:
@@ -707,6 +771,11 @@ class Suggestion(commands.GroupCog, name="suggest"):
 
     @app_commands.command(name="todo", description="View your approved suggestions to-do list")
     async def todolist(self, interaction: discord.Interaction, member: Optional[discord.Member] = None):
+        """Admin-only: list approved suggestions the target user approved, awaiting completion.
+
+        Determines authorship by fetching each approved suggestion's admin embed
+        and checking the "Approved by" field for the target's mention.
+        """
         await interaction.response.defer(ephemeral=False)
 
         try:

@@ -40,11 +40,14 @@ FAQ_ITEMS = [
 
 
 class FAQ(commands.Cog):
+    """Cog providing the /faq slash command."""
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
     @app_commands.command(name="faq", description="View frequently asked questions")
     async def faq(self, interaction: discord.Interaction):
+        """Display all FAQ entries in a single embed using the caller's accent colour."""
         embed = discord.Embed(
             title="Frequently Asked Questions",
             color=get_embed_color(interaction.user.id),

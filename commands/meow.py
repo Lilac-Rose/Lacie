@@ -7,11 +7,14 @@ import random
 MEOW_LIST = ["Meowwwww~", "Purrrrrr", "Nyaaaaaa", "Meow Meow", "Nya!", "Meow :3"]
 
 class Meow(commands.Cog):
+    """Cog providing the /meow slash command."""
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
     @app_commands.command(name="meow")
     async def meow(self, interaction: discord.Interaction):
+        """Respond with a random meow-like sound from MEOW_LIST."""
         meow_index = random.randrange(0, len(MEOW_LIST))
         await interaction.response.send_message(MEOW_LIST[meow_index])
 

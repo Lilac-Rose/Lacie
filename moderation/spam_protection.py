@@ -28,8 +28,23 @@ INVITE_PATTERN = re.compile(
     re.IGNORECASE
 )
 
+
 class SpamProtection(commands.Cog):
-    """Automatic spam detection and prevention system"""
+    """Automatic spam detection and prevention system.
+
+    Detects three spam patterns and applies a 1-hour Discord timeout automatically:
+
+    1. Invite link spam — any non-whitelisted discord.gg link.
+    2. Cross-channel spam — messages in 3+ different channels within 10 seconds.
+    3. Same-channel flood — 10+ messages in the same channel within 5 seconds.
+
+    On detection, staff are notified in NOTIFICATIONS_CHANNEL_ID with an
+    action view offering Undo/Extend/Ban buttons. If no action is taken within
+    12 hours, a background task automatically extends the timeout to 24 hours.
+
+    Messages are processed through an asyncio queue so the on_message listener
+    never blocks. A cleanup task prunes stale in-memory tracking every 5 minutes.
+    """
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -38,7 +53,7 @@ class SpamProtection(commands.Cog):
         # user_id -> deque of (timestamp, channel_id, content)
         self.user_messages = defaultdict(lambda: deque(maxlen=50))
 
-        # Track users already flagged (to avoid duplicate reports)
+        # Track users already flagged to avoid duplicate reports for the same burst
         self.flagged_users = set()
 
         self.message_queue = asyncio.Queue()
@@ -50,6 +65,11 @@ class SpamProtection(commands.Cog):
         self.initialize_db()
 
     def initialize_db(self):
+        """Create the spam_actions table if it doesn't exist.
+
+        Stores pending moderation decisions so they survive a bot restart and
+        so the check_pending_actions loop can escalate them after 12 hours.
+        """
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
         c.execute("""
@@ -66,12 +86,19 @@ class SpamProtection(commands.Cog):
         conn.close()
 
     async def cog_unload(self):
+        """Cancel all background tasks when the cog unloads."""
         self.cleanup_tracking.cancel()
         self.check_pending_actions.cancel()
         self.process_message_queue.cancel()
 
     @tasks.loop(minutes=5)
     async def cleanup_tracking(self):
+        """Prune stale per-user message history every 5 minutes.
+
+        Removes entries older than the longest detection window, then removes
+        users with no remaining history from both the tracking dict and the
+        flagged set to keep memory bounded.
+        """
         now = datetime.now(timezone.utc)
         cutoff = now - timedelta(seconds=max(CROSS_CHANNEL_WINDOW_SECONDS, SAME_CHANNEL_WINDOW_SECONDS))
 
@@ -82,6 +109,7 @@ class SpamProtection(commands.Cog):
             if not messages:
                 del self.user_messages[user_id]
 
+        # Keep only flagged users who still have tracked messages
         self.flagged_users = {
             uid for uid in self.flagged_users
             if uid in self.user_messages
@@ -89,6 +117,12 @@ class SpamProtection(commands.Cog):
 
     @tasks.loop(minutes=1)
     async def check_pending_actions(self):
+        """Escalate unresolved spam timeouts to 24 hours after 12 hours.
+
+        Checks the spam_actions table for rows whose expires_at has passed
+        (meaning no staff member clicked a button on the alert), and applies
+        the extended default action to each.
+        """
         conn = sqlite3.connect(self.db_path)
         c = conn.cursor()
 
@@ -107,7 +141,17 @@ class SpamProtection(commands.Cog):
         conn.close()
 
     async def apply_default_action(self, user_id: int, guild_id: int, spam_type: str):
-        """Extend timeout to 24 hours when no staff response within 12 hours"""
+        """Extend timeout to 24 hours when no staff response within 12 hours.
+
+        Parameters
+        ----------
+        user_id:
+            ID of the member to extend the timeout for.
+        guild_id:
+            ID of the guild the member belongs to.
+        spam_type:
+            The spam pattern type string (for logging context).
+        """
         guild = self.bot.get_guild(guild_id)
         if not guild:
             return
@@ -140,9 +184,11 @@ class SpamProtection(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        """Queue messages for spam analysis, skipping exempt users and channels."""
         if message.author.bot or not message.guild:
             return
 
+        # Ritual Member role is exempt from spam detection
         whitelisted_role = message.guild.get_role(WHITELISTED_ROLE_ID)
         if whitelisted_role and whitelisted_role in message.author.roles:
             return
@@ -151,10 +197,11 @@ class SpamProtection(commands.Cog):
             if message.channel.category_id == WHITELISTED_CATEGORY_ID:
                 return
 
-        # Skip if already timed out
+        # Skip if already timed out — their messages can't cause further harm
         if message.author.timed_out_until and message.author.timed_out_until > datetime.now(timezone.utc):
             return
 
+        # Avoid re-reporting a user mid-burst if they're already being processed
         if message.author.id in self.flagged_users:
             return
 
@@ -162,6 +209,7 @@ class SpamProtection(commands.Cog):
 
     @tasks.loop(seconds=0.1)
     async def process_message_queue(self):
+        """Drain up to 10 messages from the queue per tick to cap processing latency."""
         try:
             for _ in range(10):
                 try:
@@ -173,6 +221,7 @@ class SpamProtection(commands.Cog):
             logger.error(f"Error in message queue processing: {e}", exc_info=True)
 
     async def _process_message(self, message: discord.Message):
+        """Record the message in the user's history and check for spam patterns."""
         now = datetime.now(timezone.utc)
         user_id = message.author.id
 
@@ -188,6 +237,12 @@ class SpamProtection(commands.Cog):
             await self.handle_spam(message.author, message.guild, spam_detected)
 
     async def check_spam_patterns(self, member: discord.Member, guild: discord.Guild, content: str):
+        """Check the user's recent message history for any of the three spam patterns.
+
+        Returns a spam data dict on match, or None if no pattern is triggered.
+        The invite check fires even for a single message because a non-whitelisted
+        invite sent anywhere is always a violation regardless of channel count.
+        """
         messages = self.user_messages[member.id]
 
         if not messages:
@@ -245,9 +300,23 @@ class SpamProtection(commands.Cog):
         return None
 
     async def handle_spam(self, member: discord.Member, guild: discord.Guild, spam_data: dict):
+        """Apply a 1-hour timeout and send an alert to staff.
+
+        Also writes a spam_actions row with a 12-hour expiry so the
+        check_pending_actions loop can auto-escalate if no staff respond.
+
+        Parameters
+        ----------
+        member:
+            The member who triggered spam detection.
+        guild:
+            The guild the spam occurred in.
+        spam_data:
+            Dict returned by check_spam_patterns describing the pattern matched.
+        """
         self.flagged_users.add(member.id)
 
-        # Apply 1-hour timeout
+        # Apply 1-hour timeout immediately
         timeout_until = datetime.now(timezone.utc) + timedelta(hours=1)
         try:
             await member.timeout(timeout_until, reason="Automatic spam detection")
@@ -356,6 +425,7 @@ class SpamProtection(commands.Cog):
         try:
             msg = await notif_channel.send(embed=embed, view=view)
 
+            # Store the alert so check_pending_actions can escalate after 12 hours
             conn = sqlite3.connect(self.db_path)
             c = conn.cursor()
             expires_at = (datetime.now(timezone.utc) + timedelta(hours=12)).isoformat()
@@ -380,6 +450,13 @@ class SpamProtection(commands.Cog):
 
 
 class SpamActionView(View):
+    """Staff action buttons for a spam alert.
+
+    Timeout is 12 hours — matching the DB expiry for escalation. When any
+    button is successfully actioned, the alert row is removed from spam_actions
+    so the auto-escalate loop doesn't also fire.
+    """
+
     def __init__(self, bot: commands.Bot, member: discord.Member, guild: discord.Guild, spam_data: dict, db_path: str):
         super().__init__(timeout=43200)  # 12 hours
         self.bot = bot
@@ -390,6 +467,7 @@ class SpamActionView(View):
         self.alert_message_id = None
 
     async def _remove_from_pending(self):
+        """Delete the spam_actions row so the escalation loop won't fire."""
         if self.alert_message_id:
             conn = sqlite3.connect(self.db_path)
             c = conn.cursor()
@@ -398,12 +476,14 @@ class SpamActionView(View):
             conn.close()
 
     def _check_mod(self, interaction: discord.Interaction) -> bool:
+        """Return True if the interacting user has moderate_members permission."""
         if not isinstance(interaction.user, discord.Member):
             return False
         return interaction.user.guild_permissions.moderate_members
 
     @discord.ui.button(label="Undo Timeout", style=discord.ButtonStyle.green, emoji="✅")
     async def undo_timeout_button(self, interaction: discord.Interaction, button: Button):
+        """Remove the timeout — used when the detection was a false positive."""
         if not self._check_mod(interaction):
             await interaction.response.send_message("❌ You don't have permission to do that.", ephemeral=True)
             return
@@ -441,6 +521,7 @@ class SpamActionView(View):
 
     @discord.ui.button(label="Extend to 24h", style=discord.ButtonStyle.gray, emoji="⏱️")
     async def extend_timeout_button(self, interaction: discord.Interaction, button: Button):
+        """Extend the timeout to 24 hours — used when spam is confirmed."""
         if not self._check_mod(interaction):
             await interaction.response.send_message("❌ You don't have permission to do that.", ephemeral=True)
             return
@@ -479,6 +560,7 @@ class SpamActionView(View):
 
     @discord.ui.button(label="Ban User", style=discord.ButtonStyle.red, emoji="🔨")
     async def ban_button(self, interaction: discord.Interaction, button: Button):
+        """Ban the user outright — requires ban_members permission."""
         if not isinstance(interaction.user, discord.Member) or not interaction.user.guild_permissions.ban_members:
             await interaction.response.send_message("❌ You don't have permission to ban members.", ephemeral=True)
             return
@@ -505,6 +587,16 @@ class SpamActionView(View):
         try:
             await self.guild.ban(self.member, reason=reason, delete_message_days=1)
 
+            # Write infraction to DB
+            conn = sqlite3.connect(self.db_path)
+            c = conn.cursor()
+            c.execute("""
+                INSERT INTO infractions (user_id, guild_id, type, reason, moderator_id, timestamp)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (self.member.id, self.guild.id, "ban", reason, interaction.user.id, datetime.utcnow().isoformat()))
+            conn.commit()
+            conn.close()
+
             log_cog = self.bot.get_cog("Logger")
             if log_cog:
                 await log_cog.log_moderation_action(
@@ -524,6 +616,8 @@ class SpamActionView(View):
 
 
 class ConfirmView(View):
+    """Generic ephemeral confirm/cancel view for spam action buttons."""
+
     def __init__(self, user: discord.User):
         super().__init__(timeout=30)
         self.user = user
@@ -531,6 +625,7 @@ class ConfirmView(View):
 
     @discord.ui.button(label="Confirm", style=discord.ButtonStyle.green)
     async def confirm_button(self, interaction: discord.Interaction, button: Button):
+        """Only the moderator who invoked the parent action can confirm."""
         if interaction.user.id != self.user.id:
             await interaction.response.send_message("❌ Only the moderator who initiated this can confirm.", ephemeral=True)
             return
@@ -540,6 +635,7 @@ class ConfirmView(View):
 
     @discord.ui.button(label="Cancel", style=discord.ButtonStyle.gray)
     async def cancel_button(self, interaction: discord.Interaction, button: Button):
+        """Only the moderator who invoked the parent action can cancel."""
         if interaction.user.id != self.user.id:
             await interaction.response.send_message("❌ Only the moderator who initiated this can cancel.", ephemeral=True)
             return

@@ -25,6 +25,18 @@ COLOR_ROLE_NAMES = [
 FONTS_PATH = Path(__file__).parent.parent / "fonts"
 
 class ColorRoles(commands.Cog):
+    """Cog providing the /color slash-command group for cosmetic color role management.
+
+    Members can freely assign or remove any role from COLOR_ROLE_NAMES.
+    Admin variants (setfor, removefor) allow moderators to manage color roles on
+    behalf of other members.
+
+    Role assignment always strips all existing color roles first so a member
+    can only ever hold one color role at a time. The `/color list` command
+    serves a pre-generated image from media/colorimage.png, falling back to
+    the older split images if the combined file hasn't been generated yet.
+    """
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -34,6 +46,11 @@ class ColorRoles(commands.Cog):
     @app_commands.describe(color="The color role you'd like to have.")
     @app_commands.choices(color=[app_commands.Choice(name=name, value=name) for name in COLOR_ROLE_NAMES])
     async def set_color(self, interaction: discord.Interaction, color: app_commands.Choice[str]):
+        """Assign the chosen color role to the caller, removing any existing color role first.
+
+        Fetches the full Member object if interaction.user comes back as a bare
+        User, which can happen in certain edge cases with the gateway cache.
+        """
         await interaction.response.defer(ephemeral=True)
         try:
             guild = interaction.guild
@@ -104,6 +121,7 @@ class ColorRoles(commands.Cog):
     @app_commands.choices(color=[app_commands.Choice(name=name, value=name) for name in COLOR_ROLE_NAMES])
     @ModerationBase.is_admin()
     async def set_color_for(self, interaction: discord.Interaction, user: discord.Member, color: app_commands.Choice[str]):
+        """Admin-only: assign a color role to another member, stripping their current color first."""
         await interaction.response.defer(ephemeral=False)
         try:
             guild = interaction.guild
@@ -159,6 +177,7 @@ class ColorRoles(commands.Cog):
 
     @color_group.command(name="remove", description="Remove your current color role.")
     async def remove_color(self, interaction: discord.Interaction):
+        """Remove all color roles from the caller. Succeeds silently if none are held."""
         await interaction.response.defer(ephemeral=True)
         try:
             guild = interaction.guild
@@ -212,6 +231,7 @@ class ColorRoles(commands.Cog):
     @app_commands.describe(user="The user to remove color roles from.")
     @ModerationBase.is_admin()
     async def remove_color_for(self, interaction: discord.Interaction, user: discord.Member):
+        """Admin-only: remove all color roles from the specified member."""
         await interaction.response.defer(ephemeral=False)
         try:
             guild = interaction.guild
@@ -255,6 +275,12 @@ class ColorRoles(commands.Cog):
 
     @color_group.command(name="list", description="Show all available role colors")
     async def list_colors(self, interaction: discord.Interaction):
+        """Send the color role reference image.
+
+        Prefers media/colorimage.png (a single combined image). If that file
+        doesn't exist yet, falls back to colorimage1.png / colorimage2.png
+        (the old split format generated before the combined image was added).
+        """
         await interaction.response.defer(ephemeral=False)
         try:
             media_dir = Path(__file__).resolve().parent.parent / "media"

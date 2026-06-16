@@ -8,30 +8,37 @@ from utils.constants import LILAC_ID
 
 load_dotenv()
 
-# Load multiple admin role IDs from env (comma-separated)
+# Load admin role IDs from env (comma-separated list of integer IDs)
 ADMIN_ROLE_IDS = {
     int(role_id.strip())
     for role_id in os.getenv("ADMIN_ROLE_IDS", "").split(",")
     if role_id.strip().isdigit()
 }
 
+
 class ModerationBase(commands.Cog):
-    """Base cog for moderation commands with shared DB and utilities"""
+    """Base cog for all moderation commands.
+
+    Provides a shared SQLite connection, the infractions table schema,
+    the is_admin() permission check decorator, and log_infraction().
+    All moderation cogs inherit from this class.
+    """
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db_path = Path(__file__).parent.parent / "data" / "moderation.db"
-        # one shared connection per cog instance — closed in cog_unload
+        # One shared connection per cog instance — closed in cog_unload
         self.conn = sqlite3.connect(self.db_path)
         self.conn.row_factory = sqlite3.Row
         self.c = self.conn.cursor()
         self.initialize_db()
 
     async def cog_unload(self):
-        """Ensure database connection closes when the cog unloads."""
+        """Close the database connection when the cog unloads."""
         self.conn.close()
 
     def initialize_db(self):
+        """Create the infractions table if it does not already exist."""
         self.c.execute("""
         CREATE TABLE IF NOT EXISTS infractions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,13 +54,18 @@ class ModerationBase(commands.Cog):
 
     @staticmethod
     def is_admin():
-        """Decorator that works for both prefix and slash commands."""
+        """Permission check decorator that works for both prefix and slash commands.
+
+        Checks whether the invoking user has an admin role (from ADMIN_ROLE_IDS)
+        or is the bot owner (LILAC_ID). Sends an error message and raises
+        CheckFailure if the check fails.
+        """
         async def predicate(target):
-            # target is either a Context (prefix) or Interaction (slash)
+            # target is either a Context (prefix command) or Interaction (slash command)
             user = getattr(target, "author", None) or getattr(target, "user", None)
             is_interaction = hasattr(target, "response")
 
-            # unified send helper so we don't have to branch everywhere
+            # Unified send helper so we don't have to branch on interaction type everywhere
             async def send_message(msg, ephemeral=False):
                 if is_interaction:
                     try:
@@ -73,7 +85,7 @@ class ModerationBase(commands.Cog):
                 await send_message("Unable to check permissions in this context.", ephemeral=is_interaction)
                 return False
 
-            is_lilac = user.id == LILAC_ID  # owner bypass
+            is_lilac = user.id == LILAC_ID  # owner always passes
 
             has_admin_role = any(
                 role.id in ADMIN_ROLE_IDS
@@ -90,7 +102,7 @@ class ModerationBase(commands.Cog):
         from discord import app_commands
         from discord.ext import commands
 
-        # apply both checks so it works regardless of command type
+        # Apply both checks so the decorator works regardless of command type
         def decorator(func):
             func = commands.check(predicate)(func)
             func = app_commands.check(predicate)(func)
@@ -106,12 +118,27 @@ class ModerationBase(commands.Cog):
         type_: str,
         reason: str | None
     ):
-        """Log an infraction to the database."""
+        """Insert an infraction record into the database.
+
+        Parameters
+        ----------
+        guild_id:
+            The guild the infraction occurred in.
+        user_id:
+            The user who received the infraction.
+        mod_id:
+            The moderator who issued the infraction.
+        type_:
+            The infraction type (e.g. 'ban', 'warn', 'kick').
+        reason:
+            Optional reason text.
+        """
         self.c.execute("""
             INSERT INTO infractions (user_id, guild_id, type, reason, moderator_id, timestamp)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (user_id, guild_id, type_, reason, mod_id, datetime.utcnow().isoformat()))
         self.conn.commit()
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(ModerationBase(bot))

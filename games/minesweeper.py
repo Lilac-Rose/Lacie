@@ -68,6 +68,7 @@ class MinesweeperGame:
         self.game_over = False
         self.won = False
         self.first_move = True
+        self.detonated_cell: Optional[tuple[int, int]] = None  # the mine the player clicked on
 
         # 11-13 use custom bot emojis
         self.col_emojis = [
@@ -112,6 +113,7 @@ class MinesweeperGame:
 
         if self.board[row][col] == -1:
             self.game_over = True
+            self.detonated_cell = (row, col)
             return True
 
         if self.board[row][col] == 0:
@@ -167,6 +169,9 @@ class MinesweeperGame:
 
     def get_cell_display(self, row: int, col: int, show_all: bool = False) -> str:
         if show_all and self.board[row][col] == -1:
+            # The cell the player clicked shows 💥; all other mines show 💣
+            if self.detonated_cell == (row, col):
+                return "💥"
             return "💣"
 
         if self.flags[row][col]:

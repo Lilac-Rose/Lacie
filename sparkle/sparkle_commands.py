@@ -12,6 +12,18 @@ from embed.embed_color import get_embed_color
 
 
 class SparkleCommands(commands.Cog):
+    """Cog providing the /sparkle slash-command group for viewing sparkle counts and stats.
+
+    Subcommands:
+    - check       — per-user sparkle counts by type.
+    - info        — explanation of sparkle probabilities.
+    - leaderboard — randomly ordered server leaderboard (up to 20 entries).
+    - stats       — server-wide totals, message-per-sparkle ratios, and timing data.
+
+    All database reads are offloaded to a thread executor because sparkle.db
+    uses the synchronous sqlite3 driver.
+    """
+
     def __init__(self, bot):
         self.bot = bot
         self.sparkle_emojis = {
@@ -29,6 +41,7 @@ class SparkleCommands(commands.Cog):
     @sparkle_group.command(name="check", description="Check your sparkle count or another user's")
     @app_commands.describe(user="The user to check sparkle count for (leave empty for yourself)")
     async def sparkle_check(self, interaction: discord.Interaction, user: Optional[discord.User] = None):
+        """Show epic, rare, regular, and total sparkle counts for the target member."""
         if not interaction.guild:
             await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
             return
@@ -81,6 +94,7 @@ class SparkleCommands(commands.Cog):
     # ========== /sparkle info ==========
     @sparkle_group.command(name="info", description="Learn about sparkles and how they work")
     async def sparkle_info(self, interaction: discord.Interaction):
+        """Send an embed explaining each sparkle type and its probability."""
         embed = discord.Embed(
             title="✨ Sparkles ✨",
             description=(
@@ -100,6 +114,13 @@ class SparkleCommands(commands.Cog):
     @sparkle_group.command(name="leaderboard", description="Show random sparkle leaderboard")
     @app_commands.describe(limit="Number of users to show (max 20, default 10)")
     async def sparkle_leaderboard(self, interaction: discord.Interaction, limit: int = 10):
+        """Show a randomly ordered sparkle leaderboard for current guild members.
+
+        Filters to members currently in the guild (in-memory set) before
+        querying to avoid showing data for users who left. Ordered randomly
+        (ORDER BY RANDOM()) because a fixed rank ordering would always be the
+        same given equal totals.
+        """
         if not interaction.guild:
             await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
             return
@@ -166,6 +187,12 @@ class SparkleCommands(commands.Cog):
     # ========== /sparkle stats ==========
     @sparkle_group.command(name="stats", description="View server sparkle statistics")
     async def sparkle_stats(self, interaction: discord.Interaction):
+        """Show server-wide sparkle totals, message-per-sparkle ratios, and per-type timing.
+
+        Pulls total counts from the sparkles table and timestamped events from
+        sparkle_events. Also opens stats.db from a separate connection to read
+        the total message count for the messages-per-sparkle calculation.
+        """
         if not interaction.guild:
             await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
             return

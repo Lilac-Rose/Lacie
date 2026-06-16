@@ -22,14 +22,31 @@ DAILY_POST_TIME = time(hour=10, minute=0, tzinfo=timezone.utc)
 
 
 class DailyFractal(commands.Cog):
+    """Cog that posts a daily fractal image to a designated channel at 10:00 UTC.
+
+    Fetches fractal metadata and the image file from a local web service running
+    at WEBSITE_BASE. After posting, it automatically unpins the previous day's
+    fractal and pins the new one so only the latest post is pinned.
+
+    The ``!fractal`` command (owner only) triggers a manual post and silently
+    deletes the command message.
+    """
+
     def __init__(self, bot):
         self.bot = bot
         self.daily_fractal.start()
 
     async def cog_unload(self):
+        """Cancel the background loop when the cog unloads."""
         self.daily_fractal.cancel()
 
     async def _post_fractal(self):
+        """Fetch and post today's fractal.
+
+        Hits the local API for metadata and the image, builds an embed,
+        replaces the pinned fractal from the previous day, then pins the
+        new message.
+        """
         channel = self.bot.get_channel(FRACTAL_CHANNEL_ID)
         if channel is None or not isinstance(channel, discord.TextChannel):
             logger.error("Daily fractal: channel not found")
@@ -60,6 +77,7 @@ class DailyFractal(commands.Cog):
         fractal_name = meta.get("name") or "Unknown"
         fractal_type = (meta.get("type") or "unknown").replace("_", " ").title()
         seed = meta.get("seed")
+        # Derive palette from metadata, falling back to a deterministic seed-based lookup
         palette = meta.get("palette") or (PALETTE_NAMES[seed % len(PALETTE_NAMES)] if seed is not None else "Unknown")
 
         embed = discord.Embed(
@@ -75,6 +93,7 @@ class DailyFractal(commands.Cog):
 
         file = discord.File(io.BytesIO(image_bytes), filename="fractal.png")
 
+        # Unpin the previous day's fractal so only the latest stays pinned
         try:
             pins = await channel.pins()
             for pin in pins:
@@ -100,10 +119,12 @@ class DailyFractal(commands.Cog):
 
     @tasks.loop(time=DAILY_POST_TIME)
     async def daily_fractal(self):
+        """Background task that fires once daily at DAILY_POST_TIME (10:00 UTC)."""
         await self._post_fractal()
 
     @commands.command(name="fractal")
     async def fractal_command(self, ctx):
+        """Manually trigger a fractal post (owner only). Deletes the command message."""
         if ctx.author.id != OWNER_ID:
             return
         await ctx.message.delete()
@@ -111,6 +132,7 @@ class DailyFractal(commands.Cog):
 
     @daily_fractal.before_loop
     async def before_daily_fractal(self):
+        """Wait until the bot is ready before the daily loop starts."""
         await self.bot.wait_until_ready()
 
 

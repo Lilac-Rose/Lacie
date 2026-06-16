@@ -54,6 +54,13 @@ bot.tree.add_command(xp_admin_group)
 
 # --- Cog loading ---
 async def load_cogs(folder: str):
+    """Load (or reload) every cog .py file in the given folder.
+
+    Skips utility modules listed in non_cog_files (they have no setup()
+    function) and any cogs in disabled_cogs (unloads them if they were
+    previously loaded, then skips). Uses reload_extension when a module is
+    already registered so hot-reloading works without a full restart.
+    """
     non_cog_files = {"add_xp.py", "database.py", "utils.py", "__init__.py", "groups.py", "loader.py", "constants.py"}
     disabled_cogs = {"archipelago_monitor.py"}
     for file in glob.glob(f"{folder}/*.py"):
@@ -81,6 +88,12 @@ async def load_cogs(folder: str):
 # --- Events and commands ---
 @bot.event
 async def on_ready():
+    """Run startup tasks after the bot connects and its cache is populated.
+
+    Verifies XP and sparkle database connectivity, loads all cog folders,
+    then syncs slash commands globally. Runs every time the bot (re)connects,
+    so load_cogs is written to be idempotent via reload_extension.
+    """
     logger.info(f"Logged in as {bot.user}!")
 
     for lifetime in (True, False):
@@ -111,6 +124,7 @@ async def on_ready():
 
 @bot.event
 async def on_command_error(ctx, error):
+    """Suppress CommandNotFound silently; log all other prefix-command errors."""
     if isinstance(error, commands.CommandNotFound):
         return
     logger.error(f"Command error: {error}", exc_info=True)
@@ -130,6 +144,11 @@ async def reload(ctx):
 
 @bot.event
 async def on_message(message):
+    """Award XP for every non-bot message and then process prefix commands.
+
+    XP errors are caught and logged rather than propagated so a broken XP
+    system never prevents prefix commands from running.
+    """
     if message.author.bot:
         return
     try:
@@ -140,6 +159,7 @@ async def on_message(message):
 
 # --- Entry point ---
 async def main():
+    """Start the bot using the TOKEN from the environment (.env file)."""
     try:
         async with bot:
             await bot.start(TOKEN)

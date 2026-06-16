@@ -30,6 +30,7 @@ FOOTER_COLOR = (90, 90, 90)
 
 
 def _make_circle(data: bytes, size: int) -> Image.Image:
+    """Crop avatar bytes to a circular image of the given pixel size."""
     img = Image.open(io.BytesIO(data)).convert("RGBA").resize(
         (size, size), Image.Resampling.LANCZOS
     )
@@ -41,6 +42,7 @@ def _make_circle(data: bytes, size: int) -> Image.Image:
 
 
 def _wrap(text: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFont, max_px: int) -> list[str]:
+    """Word-wrap text to fit within max_px pixels wide using the given font."""
     dummy = ImageDraw.Draw(Image.new("RGB", (1, 1)))
     words = text.split(" ")
     lines: list[str] = []
@@ -59,6 +61,11 @@ def _wrap(text: str, font: ImageFont.FreeTypeFont | ImageFont.ImageFont, max_px:
 
 
 def _clean_content(content: str, guild: discord.Guild | None) -> str:
+    """Replace Discord mention/emoji markup with human-readable text.
+
+    Converts <@user_id> → @display_name, <#channel_id> → #channel_name,
+    <@&role_id> → @role_name, and custom emoji tags → :name:.
+    """
     def sub_user(m: re.Match) -> str:
         if not guild:
             return f"@{m.group(1)}"
@@ -104,6 +111,31 @@ def _render(
     channel_name: str,
     grayscale: bool = False,
 ) -> bytes:
+    """Render a quote image and return the PNG bytes.
+
+    Layout:
+    - Left panel (~46% of canvas): avatar scaled to fill, faded to black with a
+      tilted angled gradient mask.
+    - Right panel (~54%): center-aligned body text, attribution row (dash +
+      small circular avatar + display name), @username, and a footer watermark.
+
+    Parameters
+    ----------
+    avatar_data:
+        Raw bytes of the author's avatar image.
+    display_name:
+        The author's server display name.
+    username:
+        The author's Discord username (shown as @handle below the name).
+    content:
+        The quote body text (truncated to MAX_CHARS).
+    timestamp:
+        Formatted date string for the watermark.
+    channel_name:
+        Channel name (not currently rendered but available for future use).
+    grayscale:
+        If True, convert the final image to grayscale before returning.
+    """
     # ── fonts ──────────────────────────────────────────────────────────────────
     try:
         renogare = str(FONT_DIR / "Renogare-Regular.otf")
@@ -132,7 +164,8 @@ def _render(
     cy = (nh - HEIGHT)  // 2
     av_raw = av_raw.crop((cx, cy, cx + LEFT_W, cy + HEIGHT))
 
-    # angled gradient mask: opaque left → transparent right, tilted by ANGLE_DEG
+    # Angled gradient mask: opaque left → transparent right, tilted by ANGLE_DEG.
+    # The tilt makes the fade line lean slightly, giving a less harsh edge.
     fade_base  = int(LEFT_W * FADE_FROM)
     fade_range = max(1, LEFT_W - fade_base)
     angle_rad  = math.radians(ANGLE_DEG)
@@ -157,7 +190,7 @@ def _render(
     text_w      = text_right - text_left
     center_x    = (LEFT_W + WIDTH) // 2
 
-    # measure helpers
+    # Measure helpers
     dummy = ImageDraw.Draw(Image.new("RGB", (1, 1)))
     body_lh = dummy.textbbox((0, 0), "Ag", font=font_body)
     body_line_h = (body_lh[3] - body_lh[1]) + 8
@@ -181,7 +214,7 @@ def _render(
     )
     start_y = (HEIGHT - total_h) // 2
 
-    # body text — center-aligned
+    # Body text — center-aligned
     y = start_y
     for line in body_lines:
         bbox = dummy.textbbox((0, 0), line, font=font_body)
@@ -189,7 +222,7 @@ def _render(
         d.text((center_x - lw // 2, y), line, font=font_body, fill=TEXT_COLOR)
         y += body_line_h
 
-    # attribution row: "- [avatar] display_name"
+    # Attribution row: "- [avatar] display_name"
     attr_y = y + ATTR_GAP
 
     small_av = _make_circle(avatar_data, AV_SM)
@@ -212,7 +245,7 @@ def _render(
     hw        = dummy.textbbox((0, 0), handle_tx, font=font_handle)[2]
     d.text((center_x - hw // 2, handle_y), handle_tx, font=font_handle, fill=MUTED_COLOR)
 
-    # watermark — bottom right
+    # Watermark — bottom right
     wm   = timestamp
     wm_w = dummy.textbbox((0, 0), wm, font=font_footer)[2]
     d.text((WIDTH - PAD_X - wm_w, HEIGHT - 28), wm, font=font_footer, fill=FOOTER_COLOR)
@@ -227,14 +260,23 @@ def _render(
 
 
 class Quote(commands.Cog):
+    """Cog providing the /quote slash command.
+
+    Fetches the target message, downloads the author's avatar via aiohttp,
+    renders a quote image in a thread executor (PIL is CPU-bound), and posts
+    the result as a PNG file.
+    """
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.session: aiohttp.ClientSession | None = None
 
     async def cog_load(self):
+        """Open a shared aiohttp session for avatar downloads."""
         self.session = aiohttp.ClientSession()
 
     async def cog_unload(self):
+        """Close the aiohttp session on unload."""
         if self.session:
             await self.session.close()
 
@@ -253,6 +295,26 @@ class Quote(commands.Cog):
         channel_id: str | None = None,
         grayscale: bool = False,
     ):
+        """Generate a stylised quote image from any message.
+
+        Supports three ways to specify the source channel:
+        - No channel argument: use the current channel.
+        - channel: resolved by Discord's type system (text channels only).
+        - channel_id: raw integer ID for threads or channels not in the chooser.
+
+        Temporarily joins threads the bot is not a member of and leaves after fetching.
+
+        Parameters
+        ----------
+        message_id:
+            ID of the message to quote.
+        channel:
+            Text channel the message is in (optional).
+        channel_id:
+            Numeric channel/thread ID (optional, for threads and unlisted channels).
+        grayscale:
+            If True, render the final image in grayscale.
+        """
         await interaction.response.defer()
 
         # Resolve target channel / thread
@@ -284,7 +346,7 @@ class Quote(commands.Cog):
             )
             return
 
-        # Join threads the bot isn't already a member of
+        # Join threads the bot isn't already a member of so we can read history
         if isinstance(target, discord.Thread) and not target.me:
             await target.join()
             joined_thread = target
@@ -337,6 +399,7 @@ class Quote(commands.Cog):
             async with self.session.get(author.display_avatar.url) as resp:
                 avatar_data = await resp.read()
 
+            # Run the PIL render in a thread executor — it's CPU-bound
             image_bytes = await asyncio.to_thread(
                 _render, avatar_data, display_name, username, content, ts, channel_name, grayscale
             )

@@ -4,24 +4,32 @@ from discord.ext import commands
 import os
 from pathlib import Path
 
+
 class Bonk(commands.Cog):
+    """Cog providing the /bonk slash command."""
+
     def __init__(self, bot):
         self.bot = bot
-        # resolve path at init so we're not doing it on every command call
+        # Resolve path at init so we're not doing it on every command call
         self.bonk_path = Path(__file__).parent.parent / "media" / "kat_bonk.png"
 
     @app_commands.command(name="bonk", description="Bonk another user!")
     @app_commands.describe(user="The user you want to bonk")
     async def bonk(self, interaction: discord.Interaction, user: discord.User):
+        """Send the bonk image mentioning both the caller and the target.
+
+        Prevents self-bonking. Defers before sending because the response
+        includes a file attachment.
+        """
         try:
-            # defer because we're sending a file attachment
+            # Defer because we're sending a file attachment
             await interaction.response.defer(thinking=True)
 
             if not os.path.exists(self.bonk_path):
                 await interaction.followup.send("Bonk image not found!", ephemeral=True)
                 return
 
-            # no self-bonking
+            # No self-bonking
             if user.id == interaction.user.id:
                 await interaction.followup.send("You cannot bonk yourself silly", ephemeral=False)
                 return
@@ -36,6 +44,7 @@ class Bonk(commands.Cog):
         except Exception as e:
             await interaction.followup.send("An error occurred while processing the bonk.", ephemeral=True)
             raise e
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(Bonk(bot))

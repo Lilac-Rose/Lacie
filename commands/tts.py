@@ -27,6 +27,20 @@ DB_PATH = Path(__file__).parent.parent / "data" / "tts.db"
 
 
 class TTS(commands.GroupCog, name="tts"):
+    """GroupCog providing voice-channel TTS for muted members.
+
+    When active in a guild, messages sent to the active voice channel's text
+    chat by muted members are synthesised with edge-tts (falling back to gTTS)
+    and played through the bot's voice connection.
+
+    Features:
+    - Per-guild asyncio queue so messages play sequentially without overlap.
+    - Rate limit of one TTS per user per RATE_LIMIT_SECONDS.
+    - Automatic disconnect after IDLE_TIMEOUT_SECONDS of queue inactivity.
+    - Automatic disconnect if all human members leave the voice channel.
+    - Optional TTS nickname stored in tts.db to override the Discord username.
+    """
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         # guild_id -> voice_channel_id currently being listened to
@@ -39,6 +53,7 @@ class TTS(commands.GroupCog, name="tts"):
         self.rate_limits: dict[tuple[int, int], float] = defaultdict(float)
 
     async def cog_load(self):
+        """Create the tts_nicks table if it doesn't exist."""
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS tts_nicks (
@@ -49,13 +64,27 @@ class TTS(commands.GroupCog, name="tts"):
             await db.commit()
 
     async def _get_tts_name(self, user_id: int, fallback: str) -> str:
+        """Return the user's saved TTS nickname, or their Discord username as fallback."""
         async with aiosqlite.connect(DB_PATH) as db:
             cursor = await db.execute("SELECT nickname FROM tts_nicks WHERE user_id = ?", (user_id,))
             row = await cursor.fetchone()
         return row[0] if row else fallback
 
     async def _generate_tts(self, text: str, filepath: str) -> bool:
-        """Generate TTS audio to filepath. Tries edge-tts, falls back to gTTS."""
+        """Generate TTS audio to filepath. Tries edge-tts first, falls back to gTTS.
+
+        Parameters
+        ----------
+        text:
+            The text to synthesise.
+        filepath:
+            Path to write the resulting MP3 file to.
+
+        Returns
+        -------
+        bool
+            True if audio was generated successfully, False otherwise.
+        """
         try:
             import edge_tts
             communicate = edge_tts.Communicate(text, TTS_VOICE)
@@ -74,7 +103,12 @@ class TTS(commands.GroupCog, name="tts"):
             return False
 
     async def _process_queue(self, guild_id: int):
-        """Sequentially processes TTS entries for a guild."""
+        """Sequentially process TTS entries for a guild.
+
+        Waits up to IDLE_TIMEOUT_SECONDS for the next queue item. If the timeout
+        fires, disconnects the bot and cleans up state. Exits if the voice
+        connection is lost between items.
+        """
         while True:
             queue = self.queues.get(guild_id)
             if not queue:
@@ -120,6 +154,7 @@ class TTS(commands.GroupCog, name="tts"):
                 success = await self._generate_tts(f"{name} said: {text}", tmpfile)
 
                 if success and vc.is_connected():
+                    # Wait for any currently playing audio to finish before queuing the next
                     while vc.is_playing():
                         await asyncio.sleep(0.1)
 
@@ -144,6 +179,7 @@ class TTS(commands.GroupCog, name="tts"):
                 queue.task_done()
 
     def _cleanup(self, guild_id: int):
+        """Remove all TTS state for a guild and cancel the queue processor task."""
         self.active_channels.pop(guild_id, None)
         self.queues.pop(guild_id, None)
         task = self.queue_tasks.pop(guild_id, None)
@@ -155,6 +191,11 @@ class TTS(commands.GroupCog, name="tts"):
 
     @app_commands.command(name="join", description="Join this voice channel and read muted members' messages aloud")
     async def tts_join(self, interaction: discord.Interaction):
+        """Join the current voice channel and start TTS.
+
+        Must be used from a voice channel's text chat. The caller must be in
+        the voice channel. Only one TTS session is allowed per guild at a time.
+        """
         if not isinstance(interaction.channel, discord.VoiceChannel):
             await interaction.response.send_message(
                 "This command can only be used inside a voice channel's text chat!",
@@ -219,6 +260,7 @@ class TTS(commands.GroupCog, name="tts"):
 
     @app_commands.command(name="leave", description="Leave the voice channel and stop TTS")
     async def tts_leave(self, interaction: discord.Interaction):
+        """Disconnect from the voice channel and tear down TTS state for this guild."""
         guild = interaction.guild
         if not guild:
             return
@@ -240,6 +282,10 @@ class TTS(commands.GroupCog, name="tts"):
     @app_commands.command(name="setnick", description="Set a short TTS nickname for yourself. Anyone found misusing this will be punished.")
     @app_commands.describe(nickname="Your TTS nickname (max 32 characters)")
     async def tts_setnick(self, interaction: discord.Interaction, nickname: str):
+        """Save a TTS nickname that will be read instead of the Discord username.
+
+        URLs are stripped from the nickname to prevent misuse.
+        """
         nickname = nickname.strip()
         if not nickname:
             await interaction.response.send_message("Nickname can't be empty!", ephemeral=True)
@@ -264,6 +310,7 @@ class TTS(commands.GroupCog, name="tts"):
 
     @app_commands.command(name="clearnick", description="Remove your TTS nickname and go back to your username")
     async def tts_clearnick(self, interaction: discord.Interaction):
+        """Delete the saved TTS nickname so the Discord username is used again."""
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute("DELETE FROM tts_nicks WHERE user_id = ?", (interaction.user.id,))
             await db.commit()
@@ -276,6 +323,7 @@ class TTS(commands.GroupCog, name="tts"):
         before: discord.VoiceState,
         after: discord.VoiceState,
     ):
+        """Disconnect and clean up if all human members leave the active TTS channel."""
         if not self.bot.user or member.id == self.bot.user.id:
             return
 
@@ -307,6 +355,7 @@ class TTS(commands.GroupCog, name="tts"):
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        """Queue a TTS entry for muted members' messages in the active voice channel chat."""
         if message.author.bot or not message.guild:
             return
 
@@ -326,9 +375,11 @@ class TTS(commands.GroupCog, name="tts"):
             return
 
         voice_state = message.author.voice
+        # Only read messages from users who are self-muted or server-muted
         if not voice_state or not (voice_state.self_mute or voice_state.mute):
             return
 
+        # Skip slash/prefix commands — they'll already be handled by the bot
         if message.content.startswith('/') or message.content.startswith('!'):
             return
 

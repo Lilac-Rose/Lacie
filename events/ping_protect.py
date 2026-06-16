@@ -4,19 +4,33 @@ from discord.ext import commands
 from pathlib import Path
 import aiosqlite
 
+# Role assigned to users who have opted out of pings
 NO_PINGS_ROLE_ID = 1439583411517001819
+# Role assigned to users who have opted in to receiving pings
 PINGS_OK_ROLE_ID = 1439583327844827227
 
+# Only this user gets ping tracking in the DB (everyone with NO_PINGS_ROLE gets the reply)
 PROTECTED_USER_ID = 252130669919076352  # only lilac gets ping tracking
 
 DB_PATH = Path(__file__).parent.parent / "data" / "ping_protect.db"
 
 
 class PingProtect(commands.GroupCog, name="noping"):
+    """GroupCog providing the /noping slash command group and ping detection.
+
+    Intercepts messages that mention a protected user (anyone with the no-pings
+    role, or PROTECTED_USER_ID) and replies reminding the sender not to ping
+    them, unless the sender is on that user's allowlist.
+
+    Slash commands (/noping allow, remove, list, permitted) let protected users
+    manage their own allowlists.
+    """
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
     async def cog_load(self):
+        """Create DB tables on first load if they don't exist yet."""
         async with aiosqlite.connect(DB_PATH) as db:
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS ping_counts (
@@ -34,12 +48,18 @@ class PingProtect(commands.GroupCog, name="noping"):
             await db.commit()
 
     def _has_permission(self, member: discord.Member) -> bool:
+        """Return True if the member may manage their own ping allowlist.
+
+        Covers both PROTECTED_USER_ID (always permitted) and anyone who holds
+        NO_PINGS_ROLE_ID.
+        """
         return (
             member.id == PROTECTED_USER_ID or
             any(r.id == NO_PINGS_ROLE_ID for r in member.roles)
         )
 
     async def _is_allowed(self, protected_user_id: int, pinger_id: int) -> bool:
+        """Return True if pinger_id is on protected_user_id's allowlist."""
         async with aiosqlite.connect(DB_PATH) as db:
             cursor = await db.execute(
                 "SELECT 1 FROM allowlists WHERE protected_user_id = ? AND allowed_user_id = ?",
@@ -48,6 +68,7 @@ class PingProtect(commands.GroupCog, name="noping"):
             return await cursor.fetchone() is not None
 
     def _get_subject_pronoun(self, member: discord.Member | None) -> str:
+        """Derive a subject pronoun for the member from their pronoun roles."""
         if not member:
             return "They"
         role_names = {r.name.lower() for r in member.roles}
@@ -60,16 +81,19 @@ class PingProtect(commands.GroupCog, name="noping"):
         return "They"
 
     def _get_verb(self, pronoun: str) -> str:
+        """Return the correct conjugation of 'have' for the given pronoun."""
         return "have" if pronoun == "They" else "has"
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
+        """Detect pings to protected users and reply with a reminder."""
         if message.author.bot or not message.guild:
             return
 
         for user in message.mentions:
             member = message.guild.get_member(user.id)
 
+            # Skip if the mentioned user has opted in to receiving pings
             if member and any(r.id == PINGS_OK_ROLE_ID for r in member.roles):
                 continue
 
@@ -80,10 +104,12 @@ class PingProtect(commands.GroupCog, name="noping"):
             if not is_protected:
                 continue
 
+            # Allowlisted senders may always ping the protected user
             if await self._is_allowed(user.id, message.author.id):
                 continue
 
             if user.id == PROTECTED_USER_ID:
+                # Track ping count for the specific protected user
                 async with aiosqlite.connect(DB_PATH) as db:
                     await db.execute("""
                         INSERT INTO ping_counts (user_id, count) VALUES (?, 1)
@@ -102,6 +128,7 @@ class PingProtect(commands.GroupCog, name="noping"):
     @app_commands.command(name="allow", description="Allow someone to ping you")
     @app_commands.describe(user="The user to allow")
     async def allow(self, interaction: discord.Interaction, user: discord.Member):
+        """Add a user to your ping allowlist."""
         if not isinstance(interaction.user, discord.Member) or not self._has_permission(interaction.user):
             await interaction.response.send_message("You need the no-pings role to use this.", ephemeral=True)
             return
@@ -118,6 +145,7 @@ class PingProtect(commands.GroupCog, name="noping"):
     @app_commands.command(name="remove", description="Remove someone from your ping allowlist")
     @app_commands.describe(user="The user to remove")
     async def remove(self, interaction: discord.Interaction, user: discord.Member):
+        """Remove a user from your ping allowlist."""
         if not isinstance(interaction.user, discord.Member) or not self._has_permission(interaction.user):
             await interaction.response.send_message("You need the no-pings role to use this.", ephemeral=True)
             return
@@ -133,6 +161,7 @@ class PingProtect(commands.GroupCog, name="noping"):
 
     @app_commands.command(name="list", description="View your ping allowlist")
     async def list_allowed(self, interaction: discord.Interaction):
+        """List everyone on your ping allowlist."""
         if not isinstance(interaction.user, discord.Member) or not self._has_permission(interaction.user):
             await interaction.response.send_message("You need the no-pings role to use this.", ephemeral=True)
             return
@@ -153,6 +182,7 @@ class PingProtect(commands.GroupCog, name="noping"):
 
     @app_commands.command(name="permitted", description="See who has given you permission to ping them")
     async def permitted(self, interaction: discord.Interaction):
+        """List all users who have added you to their allowlist."""
         async with aiosqlite.connect(DB_PATH) as db:
             cursor = await db.execute(
                 "SELECT protected_user_id FROM allowlists WHERE allowed_user_id = ?",

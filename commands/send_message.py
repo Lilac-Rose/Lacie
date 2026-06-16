@@ -12,6 +12,7 @@ DB_PATH = Path(__file__).parent.parent / "data" / "scheduled.db"
 
 
 def _db_init():
+    """Create the scheduled messages table if it doesn't already exist."""
     con = sqlite3.connect(DB_PATH)
     con.execute("""
         CREATE TABLE IF NOT EXISTS scheduled (
@@ -26,6 +27,11 @@ def _db_init():
 
 
 def _db_insert(job_id: int, channel_id: int, fire_at: float, message: str):
+    """Persist a scheduled job to the database before the asyncio task is created.
+
+    Persisting first ensures the job survives a restart even if the process
+    exits between insertion and the task being created.
+    """
     con = sqlite3.connect(DB_PATH)
     con.execute(
         "INSERT INTO scheduled (id, channel_id, fire_at, message) VALUES (?, ?, ?, ?)",
@@ -36,6 +42,7 @@ def _db_insert(job_id: int, channel_id: int, fire_at: float, message: str):
 
 
 def _db_delete(job_id: int):
+    """Remove a completed or cancelled job from the database."""
     con = sqlite3.connect(DB_PATH)
     con.execute("DELETE FROM scheduled WHERE id = ?", (job_id,))
     con.commit()
@@ -43,6 +50,7 @@ def _db_delete(job_id: int):
 
 
 def _db_load_all() -> list[tuple]:
+    """Return all rows from the scheduled table as (id, channel_id, fire_at, message) tuples."""
     con = sqlite3.connect(DB_PATH)
     rows = con.execute("SELECT id, channel_id, fire_at, message FROM scheduled").fetchall()
     con.close()
@@ -86,6 +94,20 @@ def _parse_delay(time_str: str) -> float | None:
 
 
 class SendMessage(commands.Cog):
+    """Owner-only cog for sending and scheduling messages to arbitrary channels.
+
+    Provides four prefix commands (all restricted to OWNER_ID):
+    - !sendmessage — send to any channel in any guild immediately.
+    - !schedulemessage — schedule a message for a future time, persisted to
+      scheduled.db so it survives bot restarts.
+    - !listscheduled — show all pending scheduled job IDs.
+    - !cancelscheduled — cancel and remove a pending scheduled job.
+
+    Scheduled jobs are stored as asyncio Tasks indexed by an auto-incrementing
+    integer ID. On cog load, any jobs that survived the last restart are
+    re-queued; jobs whose fire_at has already passed are sent immediately.
+    """
+
     def __init__(self, bot):
         self.bot = bot
         self._scheduled: dict[int, asyncio.Task] = {}  # id -> Task
@@ -93,6 +115,7 @@ class SendMessage(commands.Cog):
         _db_init()
 
     async def cog_load(self):
+        """Re-schedule any jobs that were pending before the bot restarted."""
         # re-schedule anything that was pending before the bot restarted
         rows = await asyncio.to_thread(_db_load_all)
         if rows:
@@ -104,6 +127,11 @@ class SendMessage(commands.Cog):
             self._schedule_task(job_id, channel_id, delay, message)
 
     def _schedule_task(self, job_id: int, channel_id: int, delay: float, message: str):
+        """Create and register an asyncio Task that sends the message after delay seconds.
+
+        Cleans up both the in-memory task dict and the DB row after sending,
+        regardless of whether the send succeeded, so dead jobs don't accumulate.
+        """
         async def _send():
             await asyncio.sleep(delay)
             channel = self.bot.get_channel(channel_id)

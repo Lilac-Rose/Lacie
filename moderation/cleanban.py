@@ -1,20 +1,45 @@
+import io
 import discord
+from datetime import datetime, timezone, timedelta
 from discord.ext import commands
 from discord.ui import View, Button
 from .loader import ModerationBase
 
+
 class CleanBanCommand(ModerationBase):
+    """Cog providing the !cleanban prefix command."""
+
     @commands.command(name="cleanban")
     @ModerationBase.is_admin()
-    async def cleanban(self, ctx, user: discord.User | discord.Member | str, days: int = 1, *, reason: str | None = None):
-        """Ban a user and delete their messages from past specified days (1-7)"""
+    async def cleanban(
+        self,
+        ctx,
+        user: discord.User | discord.Member | str,
+        days: int = 1,
+        *,
+        reason: str | None = None
+    ):
+        """Ban a user and delete their recent messages.
 
-        # Discord only supports 1-7 for delete_message_days
+        Before banning, this command iterates all text channels and collects
+        the user's messages from the past `days` days for the audit log.
+        Discord then purges those messages via the delete_message_days parameter.
+
+        Parameters
+        ----------
+        user:
+            The user to ban (mention, ID, or User/Member object).
+        days:
+            Number of days of message history to delete (1–7, default 1).
+        reason:
+            Optional reason for the ban.
+        """
+        # Discord's ban API only supports 1–7 days of message deletion
         if days < 1 or days > 7:
             await ctx.send("Days must be between 1 and 7.")
             return
 
-        # Convert raw ID or mention to user object if needed
+        # Resolve a raw ID string or mention into a User object
         if isinstance(user, str):
             user_id = user.strip("<@!>")
             try:
@@ -23,7 +48,6 @@ class CleanBanCommand(ModerationBase):
                 await ctx.send("Could not find that user. Please provide a valid mention or ID.")
                 return
 
-        # Ask for confirmation — extra warning since this also wipes their message history
         view = View(timeout=30)
         confirmed = {"value": False}
 
@@ -50,8 +74,9 @@ class CleanBanCommand(ModerationBase):
         view.add_item(yes_button)
         view.add_item(no_button)
 
+        user_ref = user.mention if hasattr(user, "mention") else str(user)
         await ctx.send(
-            f"Are you sure you want to cleanban {user.mention if hasattr(user, 'mention') else user}?\n"
+            f"Are you sure you want to cleanban {user_ref}?\n"
             f"**This will delete their messages from the past {days} day(s) and ban them.**\n"
             f"Reason: {reason or 'No reason provided'}",
             view=view
@@ -64,18 +89,42 @@ class CleanBanCommand(ModerationBase):
         if not ctx.guild:
             return
 
-        # DM before banning so they receive it before we delete them from the server
+        # Collect the user's messages BEFORE banning so they can be preserved in the audit log
+        collect_status = await ctx.send("📋 Collecting message history for audit log before banning...")
+        deleted_messages = []
+        cutoff_dt = datetime.now(timezone.utc) - timedelta(days=days)
+        for channel in ctx.guild.text_channels:
+            if not channel.permissions_for(ctx.guild.me).read_message_history:
+                continue
+            try:
+                async for msg in channel.history(limit=None, after=cutoff_dt, oldest_first=True):
+                    if msg.author.id == user.id:
+                        deleted_messages.append({
+                            "channel": channel.name,
+                            "channel_id": channel.id,
+                            "message_id": msg.id,
+                            "timestamp": msg.created_at.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                            "content": msg.content or "",
+                            "attachments": [a.url for a in msg.attachments],
+                        })
+            except (discord.Forbidden, discord.HTTPException):
+                pass
+
         try:
-            if isinstance(user, discord.User):
-                await user.send(
-                    f"You have been **banned** from **{ctx.guild.name}**.\n"
-                    f"Messages from the past {days} day(s) have been deleted.\n"
-                    f"Reason: {reason or 'No reason provided'}\n\n"
-                )
+            await collect_status.delete()
+        except discord.HTTPException:
+            pass
+
+        # DM before banning so the message is delivered while the user is still in the server
+        try:
+            await user.send(
+                f"You have been **banned** from **{ctx.guild.name}**.\n"
+                f"Messages from the past {days} day(s) have been deleted.\n"
+                f"Reason: {reason or 'No reason provided'}"
+            )
         except Exception:
             await ctx.send("Could not DM the user.")
 
-        # Perform the ban with message deletion
         try:
             await ctx.guild.ban(
                 discord.Object(id=user.id),
@@ -83,20 +132,21 @@ class CleanBanCommand(ModerationBase):
                 delete_message_days=days
             )
             await ctx.send(
-                f"{user.mention if hasattr(user, 'mention') else user} has been banned.\n"
+                f"{user_ref} has been banned.\n"
                 f"Messages from the past {days} day(s) have been deleted."
+                + (f" ({len(deleted_messages)} message(s) logged)" if deleted_messages else "")
             )
         except Exception as e:
             await ctx.send(f"Failed to ban user: `{e}`")
             return
 
-        # Log infraction
         await self.log_infraction(ctx.guild.id, user.id, ctx.author.id, "cleanban", reason)
 
-        # Log to logging system if available
         logger = self.bot.get_cog("Logger")
         if logger:
             await logger.log_moderation_action(ctx.guild.id, "cleanban", user, ctx.author, reason)
+            await logger.log_ban_messages(ctx.guild.id, user, deleted_messages, days)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(CleanBanCommand(bot))

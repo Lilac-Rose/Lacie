@@ -6,6 +6,21 @@ DB_DIR = Path(__file__).parent.parent / "data"
 DB_DIR.mkdir(parents=True, exist_ok=True)
 
 def get_db(db_type="lifetime"):
+    """Open (or create) an XP database for the given leaderboard type and return (conn, cursor).
+
+    Accepts a boolean for backwards-compatibility: True → "lifetime", False → "annual".
+
+    Each leaderboard type has its own SQLite file (e.g. lifetime.db, weekly.db).
+    The daily/weekly/monthly databases also include a reset_log table that
+    records the last time the leaderboard was wiped, so the UI can display
+    'last reset X ago'.
+
+    Parameters
+    ----------
+    db_type:
+        One of "lifetime", "annual", "monthly", "weekly", "daily" (or a bool).
+        Defaults to "lifetime" for any unrecognised value.
+    """
     if isinstance(db_type, bool):
         db_type = "lifetime" if db_type else "annual"
 
@@ -40,6 +55,7 @@ def get_db(db_type="lifetime"):
     return conn, cur
 
 def reset_leaderboard(db_type):
+    """Wipe all XP rows and record the reset timestamp in reset_log."""
     import time
 
     conn, cur = get_db(db_type)
@@ -48,7 +64,9 @@ def reset_leaderboard(db_type):
     conn.commit()
     conn.close()
 
+
 def get_last_reset(db_type):
+    """Return the Unix timestamp of the last leaderboard reset, or 0 if never reset."""
     conn, cur = get_db(db_type)
     cur.execute("SELECT last_reset FROM reset_log WHERE id = 1")
     row = cur.fetchone()

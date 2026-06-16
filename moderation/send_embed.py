@@ -8,12 +8,29 @@ from .loader import ModerationBase
 
 
 class SendEmbedCommand(ModerationBase):
+    """Cog providing the !send_embed command.
+
+    Accepts an embed string produced by the embed builder tool — a base64url-
+    encoded, optionally zlib-compressed JSON payload — decodes it, previews the
+    resulting embed(s) in the mod channel, and sends them to the target channel
+    after confirmation.
+    """
+
     @commands.command(name="send_embed")
     @ModerationBase.is_admin()
     async def send_embed(self, ctx, channel: discord.TextChannel, *, embed_string: str):
-        """
-        Send a Discord embed from the embed builder to a specified channel.
-        Usage: !send_embed <channel> <embed_string>
+        """Send a Discord embed from the embed builder to a specified channel.
+
+        The embed_string is base64url-decoded and optionally zlib-decompressed,
+        then parsed as JSON. It may be a single embed object or a list of objects
+        (for embed chains). A preview is shown before sending.
+
+        Parameters
+        ----------
+        channel:
+            The target channel to send the embed(s) to.
+        embed_string:
+            The encoded embed payload produced by the embed builder.
         """
         # Decode the embed string
         try:
@@ -23,30 +40,31 @@ class SendEmbedCommand(ModerationBase):
                     raw = zlib.decompress(raw)
                 except zlib.error:
                     pass  # Legacy uncompressed string
+
                 embed_data = json.loads(raw.decode())
-                
+
                 # Ensure embed_data is a list (for embed chains)
                 if not isinstance(embed_data, list):
                     embed_data = [embed_data]
-                
+
                 # Convert embed data to Discord embeds
                 embeds = await self._build_embeds(embed_data)
-                
+
                 if not embeds:
                     await ctx.send("❌ No valid embeds found in the provided data.")
                     return
-                    
+
         except json.JSONDecodeError as e:
             await ctx.send(f"❌ Invalid embed string. Could not decode JSON: `{e}`")
             return
         except Exception as e:
             await ctx.send(f"❌ Failed to build embeds: `{e}`")
             return
-        
+
         # Confirm before sending
         view = View(timeout=60)
         confirmed = {"value": False}
-        
+
         async def yes_callback(interaction: discord.Interaction):
             if interaction.user != ctx.author:
                 await interaction.response.send_message("You can't confirm this action.", ephemeral=True)
@@ -54,7 +72,7 @@ class SendEmbedCommand(ModerationBase):
             confirmed["value"] = True
             await interaction.response.edit_message(content="✅ Confirmed. Sending embed...", view=None)
             view.stop()
-        
+
         async def no_callback(interaction: discord.Interaction):
             if interaction.user != ctx.author:
                 await interaction.response.send_message("You can't cancel this action.", ephemeral=True)
@@ -62,56 +80,70 @@ class SendEmbedCommand(ModerationBase):
             confirmed["value"] = False
             await interaction.response.edit_message(content="❌ Cancelled.", view=None)
             view.stop()
-        
+
         yes_button = Button(label="Yes", style=discord.ButtonStyle.green)
         no_button = Button(label="No", style=discord.ButtonStyle.red)
         yes_button.callback = yes_callback
         no_button.callback = no_callback
         view.add_item(yes_button)
         view.add_item(no_button)
-        
+
         # Send preview
         embed_count = len(embeds)
         preview_text = f"Send {'this embed' if embed_count == 1 else f'{embed_count} embeds'} to {channel.mention}?"
-        
+
         try:
             await ctx.send(
                 preview_text,
                 embeds=embeds[:10] if len(embeds) <= 10 else embeds[:1],  # Preview max 10 embeds or just first one
                 view=view
             )
-            
+
             if len(embeds) > 10:
                 await ctx.send(f"⚠️ Preview shows only the first embed. Total embeds to send: {embed_count}")
         except Exception as e:
             await ctx.send(f"❌ Failed to send preview: `{e}`")
             return
-        
+
         await view.wait()
-        
+
         if not confirmed["value"]:
             return
-        
-        # Send the embeds to the target channel
+
+        # Send the embeds to the target channel in batches of 10 (Discord API limit per message)
         try:
-            # Discord allows max 10 embeds per message
             for i in range(0, len(embeds), 10):
                 chunk = embeds[i:i+10]
                 await channel.send(embeds=chunk)
-            
+
             await ctx.send(f"✅ Successfully sent {'embed' if embed_count == 1 else f'{embed_count} embeds'} to {channel.mention}")
-            
+
         except discord.Forbidden:
             await ctx.send(f"❌ I don't have permission to send messages in {channel.mention}")
         except Exception as e:
             await ctx.send(f"❌ Failed to send embeds: `{e}`")
-    
+
     async def _build_embeds(self, embed_data: list) -> list[discord.Embed]:
-        """Build Discord embed objects from embed data"""
+        """Build Discord embed objects from a list of embed data dicts.
+
+        Supports two embed types controlled by the ``type`` field:
+        - ``"image"`` — creates an embed containing only a single image.
+        - ``"full"`` (default) — creates a complete embed with all available fields.
+
+        Parameters
+        ----------
+        embed_data:
+            List of embed dict payloads as decoded from the embed builder JSON.
+
+        Returns
+        -------
+        list[discord.Embed]
+            The constructed Discord embed objects, ready to send.
+        """
         embeds = []
         for data in embed_data:
             embed_type = data.get("type", "full")
-            
+
             # Handle image-only embeds
             if embed_type == "image":
                 if data.get("image") and data["image"].get("url"):
@@ -119,10 +151,10 @@ class SendEmbedCommand(ModerationBase):
                     embed.set_image(url=data["image"]["url"])
                     embeds.append(embed)
                 continue
-            
+
             # Handle full embeds
             embed = discord.Embed()
-            
+
             # Basic properties
             if data.get("title"):
                 embed.title = data["title"]
@@ -132,7 +164,7 @@ class SendEmbedCommand(ModerationBase):
                 embed.url = data["url"]
             if data.get("color"):
                 embed.color = data["color"]
-            
+
             # Author
             if data.get("author"):
                 author = data["author"]
@@ -141,7 +173,7 @@ class SendEmbedCommand(ModerationBase):
                     url=author.get("url"),
                     icon_url=author.get("icon_url")
                 )
-            
+
             # Footer
             if data.get("footer"):
                 footer = data["footer"]
@@ -149,13 +181,12 @@ class SendEmbedCommand(ModerationBase):
                     text=footer.get("text", ""),
                     icon_url=footer.get("icon_url")
                 )
-            
+
             # Timestamp
             if data.get("timestamp"):
-                # Discord.py will handle the timestamp if we set it
                 from datetime import datetime
                 embed.timestamp = datetime.fromisoformat(data["timestamp"].replace("Z", "+00:00"))
-            
+
             # Fields
             if data.get("fields"):
                 for field in data["fields"]:
@@ -165,17 +196,17 @@ class SendEmbedCommand(ModerationBase):
                             value=field.get("value", "\u200b"),
                             inline=field.get("inline", False)
                         )
-            
+
             # Image
             if data.get("image") and data["image"].get("url"):
                 embed.set_image(url=data["image"]["url"])
-            
+
             # Thumbnail
             if data.get("thumbnail") and data["thumbnail"].get("url"):
                 embed.set_thumbnail(url=data["thumbnail"]["url"])
-            
+
             embeds.append(embed)
-        
+
         return embeds
 
 

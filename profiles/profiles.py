@@ -16,6 +16,7 @@ import traceback
 FONTS_PATH = Path(__file__).parent / "fonts"
 
 def list_fonts():
+    """Return a list of font names (without extension) from the profiles/fonts directory."""
     fonts = []
     if os.path.exists(FONTS_PATH):
         for f in os.listdir(FONTS_PATH):
@@ -23,7 +24,20 @@ def list_fonts():
                 fonts.append(os.path.splitext(f)[0])
     return fonts
 
+
 def generate_gradient_image(colors, width, height):
+    """Generate a horizontal multi-stop gradient PIL image.
+
+    Splits the total width evenly between each consecutive color pair, renders
+    each segment as a 2-D numpy gradient, and pastes them into a single image.
+
+    Parameters
+    ----------
+    colors:
+        List of hex color strings (e.g. ["#FF0000", "#00FF00", "#0000FF"]).
+    width, height:
+        Pixel dimensions of the output image.
+    """
     try:
         # source: https://note.nkmk.me/en/python-numpy-generate-gradation-image/
 
@@ -68,6 +82,7 @@ async def font_name_autocomplete(
     interaction: discord.Interaction,
     current: str,
 ):
+    """Autocomplete callback for the font_name parameter in /profile set."""
     fonts = list_fonts()
     return_array = [
         app_commands.Choice(name=font_name, value=font_name)
@@ -77,7 +92,19 @@ async def font_name_autocomplete(
 
 
 class Profiles(commands.GroupCog, name="profile"):
-    """Profile commands"""
+    """GroupCog providing the /profile slash-command group.
+
+    Subcommands:
+    - fonts — render a visual preview image of all available fonts.
+    - set   — update one or more profile fields (all optional, any subset).
+    - view  — render and return a 1000×550 PNG profile card.
+
+    The profile card (view) is fully rendered in PIL via asyncio.to_thread
+    because image generation is CPU-bound. It features a two-panel layout:
+    left panel with circular avatar and top roles, right panel with profile
+    fields. The background supports solid colours or multi-stop gradients.
+    Font choice is persisted per-user in profiles.db.
+    """
 
     def __init__(self, bot):
         self.bot = bot
@@ -85,6 +112,7 @@ class Profiles(commands.GroupCog, name="profile"):
 
     @app_commands.command(name="fonts", description="List all available fonts with a visual preview.")
     async def list_fonts_cmd(self, interaction: discord.Interaction):
+        """Render and send a preview image showing every available font with a sample sentence."""
         await interaction.response.defer(thinking=True)
         
         fonts = list_fonts()
@@ -165,6 +193,12 @@ class Profiles(commands.GroupCog, name="profile"):
     )
     @app_commands.autocomplete(font_name=font_name_autocomplete)
     async def setprofile(self, interaction: discord.Interaction, pronouns: str = None, about_me: str = None, fav_color: str = None, bg_color: str = None, fav_game: str = None, fav_artist: str = None, birthday: str = None, font_name: str = None):
+        """Update profile fields for the caller.
+
+        Only provided (non-None) fields are written; existing values for
+        omitted fields are preserved. bg_color accepts space-separated hex
+        codes (up to 5) for gradient backgrounds.
+        """
         # Defer the response to show "thinking"
         await interaction.response.defer(thinking=True)
         
@@ -248,6 +282,7 @@ class Profiles(commands.GroupCog, name="profile"):
 
     @app_commands.command(name="view", description="View your or another user's profile.")
     async def profile(self, interaction: discord.Interaction, member: discord.Member = None):
+        """Render and send the member's profile card as a PNG attachment."""
         # Defer immediately to show "thinking"
         await interaction.response.defer(thinking=True)
         

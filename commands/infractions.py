@@ -6,7 +6,12 @@ from pathlib import Path
 
 
 class InfractionsCommand(commands.Cog):
-    """Command for users to view their own infractions"""
+    """Cog providing the /infractions slash command for self-service infraction lookup.
+
+    Results are sent via DM so the user's infraction history is not exposed
+    publicly. The command defers ephemerally before fetching so the bot can
+    take more than 3 seconds without timing out.
+    """
 
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -14,7 +19,8 @@ class InfractionsCommand(commands.Cog):
 
     @app_commands.command(name="infractions", description="View your infractions in this server")
     async def infractions(self, interaction: discord.Interaction):
-        # send via DM so it doesn't expose their infraction history publicly
+        """Fetch the caller's active infractions and deliver them via DM."""
+        # Defer ephemerally — DB read may take a moment
         await interaction.response.defer(ephemeral=True)
 
         if not interaction.guild:
@@ -23,18 +29,20 @@ class InfractionsCommand(commands.Cog):
 
         try:
             conn = sqlite3.connect(self.db_path)
-            c = conn.cursor()
+            try:
+                c = conn.cursor()
 
-            # only show active (not removed) infractions for this user in this guild
-            c.execute("""
-                SELECT id, type, reason, timestamp
-                FROM infractions
-                WHERE user_id=? AND guild_id=? AND removed=0
-                ORDER BY timestamp DESC
-            """, (interaction.user.id, interaction.guild.id))
+                # Only show active (not removed) infractions for this user in this guild
+                c.execute("""
+                    SELECT id, type, reason, timestamp
+                    FROM infractions
+                    WHERE user_id=? AND guild_id=? AND removed=0
+                    ORDER BY timestamp DESC
+                """, (interaction.user.id, interaction.guild.id))
 
-            results = c.fetchall()
-            conn.close()
+                results = c.fetchall()
+            finally:
+                conn.close()
 
             if not results:
                 await interaction.followup.send("You have no active infractions in this server.", ephemeral=True)
@@ -44,7 +52,7 @@ class InfractionsCommand(commands.Cog):
             rows = []
             for row in results:
                 inf_id, inf_type, reason, timestamp = row
-                # strip the T and milliseconds out of the ISO timestamp for readability
+                # Strip the T and milliseconds out of the ISO timestamp for readability
                 timestamp_formatted = timestamp.replace("T", " ")[:19]
                 reason_text = reason or "None"
 
@@ -55,12 +63,12 @@ class InfractionsCommand(commands.Cog):
                     "reason": reason_text
                 })
 
-            # auto-size each column to the widest value in it
+            # Auto-size each column to the widest value in it
             widths = {key: max(len(key), *(len(r[key]) for r in rows)) for key in rows[0].keys()}
             header = " | ".join(f"{key.capitalize():{widths[key]}}" for key in rows[0].keys())
             separator = "-" * len(header)
 
-            # split into pages in case they have a lot of infractions — Discord has a 2000 char limit
+            # Split into pages in case they have many infractions — Discord has a 2000 char limit
             chunk_size = 1800
             pages = []
             current_chunk = [header, separator]
@@ -84,7 +92,7 @@ class InfractionsCommand(commands.Cog):
 
                 for page in pages:
                     await interaction.user.send(dm_header + page)
-                    dm_header = ""  # only show the header on the first page
+                    dm_header = ""  # Only show the header on the first page
 
                 await interaction.followup.send("Your infractions have been sent to your DMs!", ephemeral=True)
 

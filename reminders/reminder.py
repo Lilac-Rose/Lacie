@@ -17,6 +17,7 @@ KEY_PATH = Path(__file__).parent.parent / "data" / "reminder.key"
 
 
 def load_or_create_key() -> Fernet:
+    """Load the Fernet encryption key from disk, generating and saving a new one if absent."""
     if KEY_PATH.exists():
         key = KEY_PATH.read_bytes()
     else:
@@ -29,10 +30,17 @@ fernet = load_or_create_key()
 
 
 def encrypt(text: str) -> str:
+    """Encrypt a reminder message string for storage in the database."""
     return fernet.encrypt(text.encode()).decode()
 
 
 def decrypt(token: str) -> str:
+    """Decrypt a reminder message from the database.
+
+    Falls back to returning the raw value if decryption fails, which handles
+    rows that were stored before encryption was introduced or if the key file
+    was rotated. The warning log helps identify such legacy rows.
+    """
     try:
         return fernet.decrypt(token.strip().encode()).decode()
     except InvalidToken:
@@ -105,11 +113,26 @@ def parse_datetime(when: str, tzname: str | None) -> datetime:
 
 
 class ReminderCog(commands.Cog):
+    """Cog providing the /reminder slash-command group.
+
+    Reminder messages are encrypted at rest using Fernet symmetric encryption
+    (key stored in data/reminder.key). A background task fires every 60 seconds
+    to deliver due reminders via DM and then delete them from the database.
+
+    Subcommands:
+    - set    — relative duration (e.g. 10m, 2h, 3d).
+    - at     — absolute date/time with optional IANA timezone.
+    - list   — view all active reminders with time-remaining summary.
+    - remove — delete a specific reminder by ID.
+    - clear  — delete all reminders for the caller.
+    """
+
     def __init__(self, bot):
         self.bot = bot
         self.db_path = Path(__file__).parent.parent / "data" / "reminders.db"
 
     async def setup_database(self):
+        """Create the reminders table if it doesn't exist."""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
                 """CREATE TABLE IF NOT EXISTS reminders (
@@ -122,11 +145,13 @@ class ReminderCog(commands.Cog):
             await db.commit()
 
     async def cog_load(self):
+        """Set up the database and start the delivery loop."""
         await self.setup_database()
         if not self.check_reminders.is_running():
             self.check_reminders.start()
 
     async def _insert_reminder(self, user_id: int, message: str, remind_at: datetime) -> int:
+        """Encrypt and insert a new reminder row, returning the auto-assigned ID."""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
                 "INSERT INTO reminders (user_id, message, remind_at) VALUES (?, ?, ?)",
@@ -144,6 +169,7 @@ class ReminderCog(commands.Cog):
         message="What to remind you about"
     )
     async def reminder_set(self, interaction: discord.Interaction, timeframe: str, message: str):
+        """Set a reminder at a relative duration from now."""
         try:
             try:
                 delta = parse_timeframe(timeframe)
@@ -170,6 +196,7 @@ class ReminderCog(commands.Cog):
         timezone="Your timezone, e.g. 'US/Eastern', 'UTC+5', 'Europe/London' (default: UTC)"
     )
     async def reminder_at(self, interaction: discord.Interaction, when: str, message: str, timezone: str | None = None):
+        """Set a reminder at a specific date/time, parsed via dateutil with optional IANA timezone."""
         try:
             try:
                 remind_at = parse_datetime(when, timezone)
@@ -190,6 +217,7 @@ class ReminderCog(commands.Cog):
 
     @reminder_group.command(name="list", description="View your active reminders")
     async def reminder_list(self, interaction: discord.Interaction):
+        """List all active reminders with a human-readable time-remaining string."""
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute(
                 "SELECT id, message, remind_at FROM reminders WHERE user_id = ? ORDER BY remind_at",
@@ -242,6 +270,7 @@ class ReminderCog(commands.Cog):
     @reminder_group.command(name="remove", description="Remove a specific reminder by ID")
     @app_commands.describe(reminder_id="The ID of the reminder to remove (from /reminder list)")
     async def reminder_remove(self, interaction: discord.Interaction, reminder_id: int):
+        """Delete a single reminder, verifying it belongs to the caller before removing."""
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute(
                 "SELECT message FROM reminders WHERE id = ? AND user_id = ?",
@@ -270,6 +299,7 @@ class ReminderCog(commands.Cog):
 
     @reminder_group.command(name="clear", description="Remove all your active reminders")
     async def reminder_clear(self, interaction: discord.Interaction):
+        """Delete all of the caller's reminders in a single operation."""
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute(
                 "SELECT COUNT(*) FROM reminders WHERE user_id = ?",
@@ -291,6 +321,13 @@ class ReminderCog(commands.Cog):
 
     @tasks.loop(seconds=60)
     async def check_reminders(self):
+        """Deliver all due reminders and delete them.
+
+        Runs every 60 seconds. Reminders whose fire time has passed are
+        fetched in bulk, then delivered via DM. DM failures from Forbidden
+        (user blocked DMs) are treated as delivered and removed so they don't
+        pile up. Transient HTTPException errors are left for the next cycle.
+        """
         now = datetime.now(timezone.utc)
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute(
@@ -337,6 +374,7 @@ class ReminderCog(commands.Cog):
 
     @check_reminders.before_loop
     async def before_check_reminders(self):
+        """Wait for the bot to be fully connected before starting the delivery loop."""
         await self.bot.wait_until_ready()
 
 

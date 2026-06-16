@@ -36,12 +36,25 @@ def load_color_role_ids() -> dict[str, int]:
 
 
 def save_color_role_ids(data: dict[str, int]):
+    """Persist the original_id -> color_copy_id mapping to DATA_PATH as JSON."""
     DATA_PATH.parent.mkdir(exist_ok=True)
     with open(DATA_PATH, "w") as f:
         json.dump(data, f, indent=2)
 
 
 class PrestigeColor(commands.Cog):
+    """Cog providing the /prestige slash command group.
+
+    Manages color-copy roles for prestige (high-ranked) members. Each prestige
+    role gets a duplicate "color copy" role placed just above Acclaimed Ritualist
+    in the hierarchy so its color overrides the prestige role below it.
+
+    Subcommands:
+    - ``/prestige setup``       — (admin) Create color copy roles for each prestige role.
+    - ``/prestige color``       — Switch your active prestige color.
+    - ``/prestige removecolor`` — Remove your prestige color.
+    """
+
     def __init__(self, bot):
         self.bot = bot
 
@@ -53,6 +66,12 @@ class PrestigeColor(commands.Cog):
     )
     @ModerationBase.is_admin()
     async def setup(self, interaction: discord.Interaction):
+        """Create or recreate color copy roles for every prestige role (admin only).
+
+        Skips roles whose copies already exist in the server. Positions each new
+        copy just above ACCLAIMED_ROLE_ID so it wins the color resolution order.
+        The resulting original_id -> copy_id mapping is saved to DATA_PATH.
+        """
         await interaction.response.defer(ephemeral=True)
         guild = interaction.guild
         if not guild:
@@ -110,6 +129,12 @@ class PrestigeColor(commands.Cog):
         await interaction.followup.send("\n".join(lines) or "Nothing to do.", ephemeral=True)
 
     async def prestige_autocomplete(self, interaction: discord.Interaction, current: str):
+        """Autocomplete callback for the ``prestige`` parameter of /prestige color.
+
+        Filters the autocomplete list to only the prestige roles the invoking
+        member actually holds (no point offering roles they can't pick). Color
+        copy IDs that haven't been set up yet are also excluded.
+        """
         # Only show roles the user actually has — no point listing ones they can't pick
         color_ids = load_color_role_ids()
         member = interaction.user
@@ -131,6 +156,18 @@ class PrestigeColor(commands.Cog):
     @app_commands.describe(prestige="The prestige role whose color you want to display.")
     @app_commands.autocomplete(prestige=prestige_autocomplete)
     async def color(self, interaction: discord.Interaction, prestige: str):
+        """Equip a prestige color role copy, swapping out any previously active copy.
+
+        Prevents a user from equipping the color copy of their highest prestige role
+        since the original already controls the display color at that rank. When
+        switching colors, the old copy is removed and the original role is restored
+        before the new copy is added, so the user never loses a prestige title.
+
+        Parameters
+        ----------
+        prestige:
+            The display name of the prestige role (from autocomplete).
+        """
         await interaction.response.defer(ephemeral=True)
         guild = interaction.guild
         if not guild:
@@ -216,6 +253,7 @@ class PrestigeColor(commands.Cog):
 
     @prestige_group.command(name="removecolor", description="Remove your prestige color.")
     async def removecolor(self, interaction: discord.Interaction):
+        """Remove all prestige color copy roles and restore the original prestige roles."""
         await interaction.response.defer(ephemeral=True)
         guild = interaction.guild
         if not guild:

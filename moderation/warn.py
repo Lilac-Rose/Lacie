@@ -3,11 +3,25 @@ from discord.ext import commands
 from discord.ui import View, Button
 from .loader import ModerationBase
 
+
 class WarnCommand(ModerationBase):
+    """Cog providing the !warn prefix command."""
+
     @commands.command(name="warn")
     @ModerationBase.is_admin()
     async def warn(self, ctx, user: discord.Member, *, reason: str | None = None):
-        """Warn a user with confirmation and log infraction"""
+        """Warn a member with a confirmation prompt.
+
+        Sends a DM to the user with the warning reason and writes an
+        infraction record to the database.
+
+        Parameters
+        ----------
+        user:
+            The server member to warn.
+        reason:
+            Optional reason for the warning.
+        """
         view = View(timeout=30)
         confirmed = {"value": False}
 
@@ -34,7 +48,10 @@ class WarnCommand(ModerationBase):
         view.add_item(yes_button)
         view.add_item(no_button)
 
-        await ctx.send(f"Are you sure you want to warn {user.mention}? Reason: {reason or 'No reason provided'}", view=view)
+        await ctx.send(
+            f"Are you sure you want to warn {user.mention}? Reason: {reason or 'No reason provided'}",
+            view=view
+        )
         await view.wait()
         if not confirmed["value"]:
             return
@@ -43,19 +60,20 @@ class WarnCommand(ModerationBase):
             return
 
         try:
-            await user.send(f"You have been **warned** in **{ctx.guild.name}**.\nReason: {reason or 'No reason provided'}")
-        except Exception:
+            await user.send(
+                f"You have been **warned** in **{ctx.guild.name}**.\n"
+                f"Reason: {reason or 'No reason provided'}"
+            )
+        except (discord.Forbidden, discord.HTTPException):
             await ctx.send("Could not DM the user.")
 
         await self.log_infraction(ctx.guild.id, user.id, ctx.author.id, "warn", reason)
         await ctx.send(f"{user.mention} has been warned.")
-        
-        # Log to logging system
+
         logger = self.bot.get_cog("Logger")
         if logger:
-            await logger.log_moderation_action(
-                ctx.guild.id, "warn", user, ctx.author, reason
-            )
+            await logger.log_moderation_action(ctx.guild.id, "warn", user, ctx.author, reason)
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(WarnCommand(bot))

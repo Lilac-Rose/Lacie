@@ -5,6 +5,19 @@ import time
 
 
 class Sparkle(commands.Cog):
+    """Cog that randomly awards sparkle reactions based on message ID trailing digits.
+
+    Sparkle probability is determined by inspecting the Discord snowflake ID of
+    each incoming message:
+    - Regular (✨): ID ends in "000"   → ~1/1,000
+    - Rare    (🌟): ID ends in "0000"  → ~1/10,000
+    - Epic    (💫): ID ends in "00000" → ~1/100,000
+
+    The longer suffix takes precedence (checked most-specific first).
+    Both the per-user count and the timestamped event log are updated in the DB
+    via asyncio.to_thread to avoid blocking the event loop.
+    """
+
     def __init__(self, bot):
         self.bot = bot
         self.chances = {
@@ -14,7 +27,7 @@ class Sparkle(commands.Cog):
         }
 
     async def _add_sparkle(self, message, sparkle_type):
-        """Add a sparkle reaction and update the database."""
+        """React to the message and update both the sparkle counter and event log in the DB."""
         emoji, description = self.chances[sparkle_type][1:]
         
         # Add reaction and send notification

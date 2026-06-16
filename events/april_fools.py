@@ -44,25 +44,38 @@ JOHN_ROLES = [
 
 
 class AprilFools(commands.Cog):
+    """Cog providing the /johnify and /unjohnify slash commands for April Fools.
+
+    Johnification renames every channel and role in the server to variations of
+    "John" and saves the original names to april_fools_backup.json. A timed
+    auto-revert task fires at REVERT_TIME to restore everything automatically.
+    The backup file serves as a state sentinel — if it exists on startup the
+    auto-revert is rescheduled, ensuring names are restored even after a restart.
+    """
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self._revert_task: asyncio.Task | None = None
 
     async def cog_load(self):
+        """Re-schedule the auto-revert task if a backup exists from a previous run."""
         if BACKUP_PATH.exists():
             logger.info("April Fools: backup found on load, scheduling auto-revert")
             self._schedule_revert()
 
     async def cog_unload(self):
+        """Cancel the pending auto-revert task when the cog unloads."""
         if self._revert_task and not self._revert_task.done():
             self._revert_task.cancel()
 
     def _schedule_revert(self):
+        """Start the auto-revert task, skipping if one is already running."""
         if self._revert_task and not self._revert_task.done():
             return
         self._revert_task = asyncio.create_task(self._wait_and_revert())
 
     async def _wait_and_revert(self):
+        """Sleep until REVERT_TIME then call _do_revert to restore all names."""
         now = datetime.now(timezone.utc)
         delay = (REVERT_TIME - now).total_seconds()
         if delay > 0:
@@ -73,6 +86,18 @@ class AprilFools(commands.Cog):
         logger.info(f"April Fools: auto-revert result — {msg}")
 
     async def _do_johnify(self, guild: discord.Guild) -> tuple[bool, str]:
+        """Rename all channels and roles to John-themed names and save a backup.
+
+        Writes original names to BACKUP_PATH as JSON before making any changes.
+        Returns ``(False, message)`` immediately if a backup already exists (i.e.,
+        Johnification is already active). A 0.6-second delay is inserted between
+        each rename to avoid Discord API rate limits.
+
+        Returns
+        -------
+        tuple[bool, str]
+            ``(True, "John.")`` on success, ``(False, reason)`` on failure.
+        """
         if BACKUP_PATH.exists():
             return False, "Already Johnified! Use `/unjohnify` to revert first."
 
@@ -113,6 +138,17 @@ class AprilFools(commands.Cog):
         return True, "John."
 
     async def _do_revert(self) -> tuple[bool, str]:
+        """Restore all channel and role names from the backup JSON, then delete it.
+
+        Returns ``(False, reason)`` if no backup exists. Iterates every entry in
+        the backup and renames matching channels/roles; missing channels or roles
+        (deleted since Johnification) are silently skipped.
+
+        Returns
+        -------
+        tuple[bool, str]
+            ``(True, message)`` on success, ``(False, reason)`` if no backup found.
+        """
         if not BACKUP_PATH.exists():
             return False, "Nothing to revert — no backup found."
 
@@ -147,6 +183,7 @@ class AprilFools(commands.Cog):
     @app_commands.command(name="johnify", description="Johnify the entire server (April Fools)")
     @ModerationBase.is_admin()
     async def johnify(self, interaction: discord.Interaction):
+        """Rename all channels and roles to John-themed names (admin only)."""
         await interaction.response.defer(ephemeral=True)
         if not interaction.guild:
             await interaction.followup.send("This command can only be used in a server.", ephemeral=True)
@@ -157,6 +194,7 @@ class AprilFools(commands.Cog):
     @app_commands.command(name="unjohnify", description="Revert the Johnification and restore all names")
     @ModerationBase.is_admin()
     async def unjohnify(self, interaction: discord.Interaction):
+        """Restore all original channel and role names from the backup (admin only)."""
         await interaction.response.defer(ephemeral=True)
         ok, msg = await self._do_revert()
         await interaction.followup.send(msg, ephemeral=True)

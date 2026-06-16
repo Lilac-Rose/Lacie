@@ -4,12 +4,19 @@ from .loader import ModerationBase
 
 
 class ModHelp(ModerationBase):
+    """Cog providing the !modhelp command.
+
+    Sends five embed pages covering every moderation command available to staff.
+    """
+
     @commands.command(name="modhelp")
     @ModerationBase.is_admin()
     async def modhelp(self, ctx):
+        """Send a multi-embed reference covering all moderation commands."""
         embeds = []
 
         def embed(title, color=discord.Color.blurple()):
+            """Create a titled Discord embed with the given colour."""
             e = discord.Embed(title=title, color=color)
             return e
 

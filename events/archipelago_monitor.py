@@ -14,21 +14,35 @@ logger = get_logger(__name__)
 
 
 class ArchipelagoMonitor(commands.Cog):
-    """Monitors Archipelago multiworld log file and posts updates to Discord."""
-    
+    """Cog that monitors an Archipelago multiworld server log and posts live updates to Discord.
+
+    Polls the most recently modified ``Server_*.txt`` log file in the configured
+    log directory every 2 seconds. New lines are matched against regex patterns
+    for item sends, player joins/leaves, DeathLink tag changes, and server starts.
+    Matching events are formatted as Discord embeds and sent to ARCHIPELAGO_CHANNEL_ID.
+
+    Configuration is read from environment variables:
+    - ``ARCHIPELAGO_ENABLED``    — set to ``true`` to enable (default: disabled).
+    - ``ARCHIPELAGO_CHANNEL_ID`` — Discord channel to post events to.
+    - ``ARCHIPELAGO_LOG_DIR``    — directory containing ``Server_*.txt`` files.
+
+    A ``seen_lines`` set prevents duplicate notifications if the monitor lags
+    behind or re-reads a file from position 0 after a file switch.
+    """
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        
+
         # Get configuration from environment variables
         self.channel_id = int(os.getenv("ARCHIPELAGO_CHANNEL_ID", "0"))
         self.log_directory = os.getenv("ARCHIPELAGO_LOG_DIR", "/home/lilacrose/Archipelago/logs")
         self.enabled = os.getenv("ARCHIPELAGO_ENABLED", "false").lower() == "true"
-        
+
         self.notification_channel: Optional[discord.TextChannel] = None
         self.current_log_file: Optional[Path] = None
         self.last_position = 0  # Track where we last read in the file
-        self.seen_lines: Set[str] = set()  # Track lines we've already processed
-        
+        self.seen_lines: Set[str] = set()  # Track lines we've already processed to avoid duplicates
+
         # Regex patterns for parsing log messages
         self.patterns = {
             'item_send': re.compile(r'\(Team #\d+\) (.+?) sent (.+?) to (.+?) \((.+?)\)'),
@@ -40,6 +54,7 @@ class ArchipelagoMonitor(commands.Cog):
         
         logger.info(f"Initializing log monitor - Enabled: {self.enabled}, Channel: {self.channel_id}, Log dir: {self.log_directory}")
 
+        # Only start the polling loop if both the feature flag and channel ID are configured
         if self.enabled and self.channel_id:
             logger.info("Monitor will start when bot is ready")
             self.monitor_log.start()
@@ -50,7 +65,7 @@ class ArchipelagoMonitor(commands.Cog):
                 logger.info("Monitor DISABLED: ARCHIPELAGO_CHANNEL_ID is not set")
     
     async def cog_unload(self):
-        """Called when the cog is unloaded."""
+        """Stop the polling loop when the cog unloads."""
         self.monitor_log.cancel()
     
     def get_most_recent_log_file(self) -> Optional[Path]:
@@ -79,7 +94,13 @@ class ArchipelagoMonitor(commands.Cog):
     
     @tasks.loop(seconds=2)
     async def monitor_log(self):
-        """Monitor the Archipelago log file for new events."""
+        """Poll the log file every 2 seconds and process any newly written lines.
+
+        Switches to a newer file automatically if a more recently modified
+        ``Server_*.txt`` appears (e.g. after a server restart). Uses a byte
+        offset (``last_position``) to read only lines appended since the last
+        tick, rather than scanning from the beginning each time.
+        """
         try:
             # Check if we need to find a new log file (first run or file changed)
             most_recent = self.get_most_recent_log_file()
@@ -126,9 +147,10 @@ class ArchipelagoMonitor(commands.Cog):
                 
                 self.seen_lines.add(line)
                 
-                # Keep seen_lines from growing too large
+                # Bound memory usage: keep only the 500 most recently seen lines.
+                # Retaining some history prevents re-processing lines still in the
+                # rolling window if the set was cleared entirely.
                 if len(self.seen_lines) > 1000:
-                    # Remove oldest half
                     self.seen_lines = set(list(self.seen_lines)[-500:])
                 
                 # Try to parse and handle the line
@@ -139,9 +161,14 @@ class ArchipelagoMonitor(commands.Cog):
     
     @monitor_log.before_loop
     async def before_monitor(self):
-        """Wait until the bot is ready before starting the monitor."""
+        """Wait until the bot is ready, resolve the notification channel, and seek to EOF.
+
+        Seeking to the end of the log file on startup prevents the bot from
+        replaying old events each time it restarts. Posts a startup message to
+        the notification channel confirming which log file is being monitored.
+        """
         await self.bot.wait_until_ready()
-        
+
         # Get the notification channel
         self.notification_channel = self.bot.get_channel(self.channel_id)
         if self.notification_channel:
@@ -172,7 +199,17 @@ class ArchipelagoMonitor(commands.Cog):
             logger.error(f"Could not find channel with ID {self.channel_id}")
     
     async def process_log_line(self, line: str):
-        """Process a single log line and send notifications if needed."""
+        """Match a single log line against all known patterns and dispatch to the handler.
+
+        Tries patterns in priority order: item_send → join → leave → tag_change →
+        server_start. Stops at the first match. Unrecognised lines are silently
+        ignored (not every log line corresponds to a Discord-worthy event).
+
+        Parameters
+        ----------
+        line:
+            A single stripped line from the Archipelago server log.
+        """
         if not self.notification_channel:
             return
         
@@ -223,7 +260,22 @@ class ArchipelagoMonitor(commands.Cog):
             logger.error(f"Error: {e}")
     
     async def handle_item_send(self, sender: str, item: str, receiver: str, location: str):
-        """Handle an item send notification."""
+        """Post a Discord embed for an item being sent between players.
+
+        Replaces underscores with spaces in the item and location names to make
+        auto-generated game identifiers more human-readable.
+
+        Parameters
+        ----------
+        sender:
+            The player who sent the item.
+        item:
+            The item name (raw from the log).
+        receiver:
+            The player who received the item.
+        location:
+            The in-game location the item was found at.
+        """
         # Clean up item name (remove underscores, make readable)
         item_display = item.replace('_', ' ')
         location_display = location.replace('_', ' ')
@@ -245,7 +297,15 @@ class ArchipelagoMonitor(commands.Cog):
             logger.error(f"Failed to send Discord message: {e}")
     
     async def handle_join(self, player: str, game: str):
-        """Handle a player join notification."""
+        """Post a join notification embed when a player connects to the session.
+
+        Parameters
+        ----------
+        player:
+            The connecting player's name.
+        game:
+            The game title they are playing (underscores replaced with spaces).
+        """
         # Clean up game name
         game_display = game.replace('_', ' ')
         
@@ -261,7 +321,13 @@ class ArchipelagoMonitor(commands.Cog):
             logger.error(f"Failed to send Discord message: {e}")
     
     async def handle_leave(self, player: str):
-        """Handle a player disconnect notification."""
+        """Post a leave notification embed when a player disconnects.
+
+        Parameters
+        ----------
+        player:
+            The disconnecting player's name.
+        """
         embed = discord.Embed(
             description=f"👋 **{player}** left the game",
             color=discord.Color.greyple()
@@ -274,7 +340,18 @@ class ArchipelagoMonitor(commands.Cog):
             logger.error(f"Failed to send Discord message: {e}")
     
     async def handle_tag_change(self, player: str, tags: str):
-        """Handle a tag change notification (like enabling DeathLink)."""
+        """Post a notification embed for interesting tag changes (currently only DeathLink).
+
+        Only fires when the new tag set contains ``DeathLink``; all other tag
+        changes are silently ignored.
+
+        Parameters
+        ----------
+        player:
+            The player who changed their tags.
+        tags:
+            The full new tag string from the log (comma-separated).
+        """
         # Only notify for interesting tags
         if 'DeathLink' in tags:
             embed = discord.Embed(
@@ -289,7 +366,18 @@ class ArchipelagoMonitor(commands.Cog):
                 logger.error(f"Failed to send Discord message: {e}")
     
     async def handle_server_start(self, address: str, password: str):
-        """Handle server start notification."""
+        """Post a server-start embed including the connection address and password.
+
+        The password field is omitted when it equals ``"None"`` (the literal
+        string Archipelago uses when no password was set).
+
+        Parameters
+        ----------
+        address:
+            The server's host:port string.
+        password:
+            The server password, or ``"None"`` if no password was set.
+        """
         embed = discord.Embed(
             title="🎮 Archipelago Server Started",
             color=discord.Color.green()

@@ -4,11 +4,14 @@ from discord import app_commands
 import random
 
 class Coinflip(commands.Cog):
+    """Cog providing the /coinflip slash command."""
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
     @app_commands.command(name="coinflip")
     async def coinflip(self, interaction: discord.Interaction):
+        """Flip a virtual coin and respond with Heads or Tails."""
         # 0 = tails, 1 = heads
         coin = random.randrange(0,2)
         if coin == 1:

@@ -11,13 +11,22 @@ load_dotenv()
 
 logger = get_logger(__name__)
 
+# Channels that receive commit notifications
 COMMIT_CHANNEL_IDS = [876777562599194644, 1437941632849940563, 1470441786810826884]
 WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
-# Updated port to be 8000 to prevent conflicts (should work)
-# I think the port itself wants me dead
 WEBHOOK_PORT = int(os.getenv("WEBHOOK_PORT", 8000))
 
+
 class GitWebhook(commands.Cog):
+    """Cog that runs an aiohttp webhook server to receive GitHub/GitLab push events.
+
+    On cog load, starts a TCPSite on WEBHOOK_PORT (default 8000). Each push
+    event is formatted into a Discord embed and broadcast to all COMMIT_CHANNEL_IDS.
+
+    Signature verification uses HMAC-SHA256 with GITHUB_WEBHOOK_SECRET. If the
+    secret is empty, verification is skipped (useful for local testing).
+    """
+
     def __init__(self, bot):
         self.bot = bot
         self.app = web.Application()
@@ -25,7 +34,7 @@ class GitWebhook(commands.Cog):
         self.app.router.add_get('/health', self.health_check)
         self.runner = None
         self.site = None
-        
+
     async def cog_load(self):
         """Start the webhook server when cog loads."""
         self.runner = web.AppRunner(self.app)
@@ -34,7 +43,7 @@ class GitWebhook(commands.Cog):
         await self.site.start()
         logger.info(f"Git webhook server started on port {WEBHOOK_PORT}")
         logger.info(f"Sending notifications to {len(COMMIT_CHANNEL_IDS)} channel(s)")
-    
+
     async def cog_unload(self):
         """Stop the webhook server when cog unloads."""
         if self.site:
@@ -42,12 +51,16 @@ class GitWebhook(commands.Cog):
         if self.runner:
             await self.runner.cleanup()
         logger.info("Git webhook server stopped")
-    
+
     def verify_signature(self, payload_body, signature_header):
-        """Verify GitHub webhook signature for security."""
+        """Verify GitHub webhook signature for security.
+
+        Uses HMAC-SHA256 with the configured secret. Returns True immediately
+        if no secret is configured (test/dev mode).
+        """
         if not WEBHOOK_SECRET:
             return True
-        
+
         hash_object = hmac.new(
             WEBHOOK_SECRET.encode('utf-8'),
             msg=payload_body,
@@ -55,13 +68,19 @@ class GitWebhook(commands.Cog):
         )
         expected_signature = "sha256=" + hash_object.hexdigest()
         return hmac.compare_digest(expected_signature, signature_header)
-    
+
     async def health_check(self, request):
-        """Health check endpoint."""
+        """Health check endpoint — returns 200 OK so uptime monitors can probe the server."""
         return web.json_response({"status": "healthy"})
-    
+
     async def handle_webhook(self, request):
-        """Handle incoming Git webhook from GitHub/GitLab."""
+        """Handle incoming Git webhook from GitHub or GitLab.
+
+        Detects the payload format by inspecting top-level keys:
+        - GitHub ping: presence of ``zen`` and ``hook_id``.
+        - GitHub push: presence of ``commits`` and ``repository``.
+        - GitLab push: presence of ``commits`` and ``project``.
+        """
         try:
             # Verify signature if secret is configured
             if WEBHOOK_SECRET:
@@ -72,7 +91,7 @@ class GitWebhook(commands.Cog):
                 data = await request.json()
             else:
                 data = await request.json()
-            
+
             # Handle GitHub ping event (test from GitHub)
             if 'zen' in data and 'hook_id' in data:
                 logger.info("Received GitHub ping event - webhook is configured correctly!")
@@ -90,44 +109,47 @@ class GitWebhook(commands.Cog):
             if not channels:
                 logger.error("No valid channels found!")
                 return web.json_response({"error": "No channels found"}, status=500)
-            
+
             # Handle GitHub push events
             if 'commits' in data and 'repository' in data:
                 await self.handle_github_push(data, channels)
                 return web.json_response({"status": "success"}, status=200)
-            
+
             # Handle GitLab push events
             elif 'project' in data and 'commits' in data:
                 await self.handle_gitlab_push(data, channels)
                 return web.json_response({"status": "success"}, status=200)
-            
+
             logger.warning(f"Unknown webhook format. Keys in data: {list(data.keys())}")
             return web.json_response({"error": "Unknown webhook format"}, status=400)
 
         except Exception as e:
             logger.error(f"Webhook error: {e}", exc_info=True)
             return web.json_response({"error": str(e)}, status=500)
-    
+
     async def handle_github_push(self, data, channels):
-        """Handle GitHub push webhook."""
+        """Format a GitHub push payload as a Discord embed and broadcast it.
+
+        Single commits use field-based formatting for full message visibility.
+        Multi-commit pushes use a description list capped at 10 entries.
+        """
         repo_name = data['repository']['full_name']
         repo_url = data['repository']['html_url']
         branch = data['ref'].split('/')[-1]
         pusher = data['pusher']['name']
         commits = data['commits']
         compare_url = data.get('compare', '')
-        
+
         if not commits:
             return
-        
-        # For single commit, use fields for better formatting
+
         if len(commits) == 1:
             commit = commits[0]
             short_sha = commit['id'][:7]
             message = commit['message']
             author = commit['author']['name']
             url = commit['url']
-            
+
             embed = discord.Embed(
                 title=f"📝 [{repo_name}:{branch}] New commit",
                 url=compare_url if compare_url else repo_url,
@@ -151,46 +173,48 @@ class GitWebhook(commands.Cog):
                 author = commit['author']['name']
                 url = commit['url']
                 commit_lines.append(f"[`{short_sha}`]({url}) {message} - {author}")
-            
+
             embed = discord.Embed(
                 title=f"📝 [{repo_name}:{branch}] {len(commits)} new commits",
                 url=compare_url if compare_url else repo_url,
                 description="\n".join(commit_lines),
                 color=discord.Color.blue()
             )
-            
+
             if len(commits) > 10:
                 embed.description += f"\n\n*...and {len(commits) - 10} more commit(s)*"
-            
+
             embed.set_author(name=pusher, icon_url="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png")
             embed.set_footer(text="GitHub")
-        
-        # Send to all Discord channels
+
         for channel in channels:
             try:
                 await channel.send(embed=embed)
             except Exception as e:
                 logger.error(f"Failed to send to channel {channel.id}: {e}")
-    
+
     async def handle_gitlab_push(self, data, channels):
-        """Handle GitLab push webhook."""
+        """Format a GitLab push payload as a Discord embed and broadcast it.
+
+        Mirrors the GitHub handler format but uses GitLab orange as the embed
+        colour and omits the GitHub icon from the author field.
+        """
         repo_name = data['project']['path_with_namespace']
         repo_url = data['project']['web_url']
         branch = data['ref'].split('/')[-1]
         pusher = data['user_name']
         commits = data['commits']
-        
+
         if not commits:
             return
-        
-        # For single commit, use fields for better formatting
+
         if len(commits) == 1:
             commit = commits[0]
             short_sha = commit['id'][:7]
             message = commit['message']
             author = commit['author']['name']
             url = commit['url']
-            
+
             embed = discord.Embed(
                 title=f"📝 [{repo_name}:{branch}] New commit",
                 url=repo_url,
@@ -214,26 +238,26 @@ class GitWebhook(commands.Cog):
                 author = commit['author']['name']
                 url = commit['url']
                 commit_lines.append(f"[`{short_sha}`]({url}) {message} - {author}")
-            
+
             embed = discord.Embed(
                 title=f"📝 [{repo_name}:{branch}] {len(commits)} new commits",
                 url=repo_url,
                 description="\n".join(commit_lines),
                 color=0xFC6D26  # GitLab orange
             )
-            
+
             if len(commits) > 10:
                 embed.description += f"\n\n*...and {len(commits) - 10} more commit(s)*"
-            
+
             embed.set_author(name=pusher)
             embed.set_footer(text="GitLab")
-        
-        # Send to all Discord channels
+
         for channel in channels:
             try:
                 await channel.send(embed=embed)
             except Exception as e:
                 logger.error(f"Failed to send to channel {channel.id}: {e}")
+
 
 async def setup(bot):
     await bot.add_cog(GitWebhook(bot))

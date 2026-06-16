@@ -5,6 +5,17 @@ from .utils import get_multiplier, random_xp, can_get_xp, check_level_up
 from .exclude_channels import is_channel_excluded
 
 async def add_xp(user):
+    """Award XP to a guild member for sending a message.
+
+    Called from the global on_message handler in bot.py for every non-bot
+    message. Skips DM users, excluded channels, and members still on the
+    per-message cooldown (checked against the lifetime DB).
+
+    A single random base XP value is generated once and then applied across
+    all five leaderboard databases (lifetime, annual, monthly, weekly, daily).
+    The role multiplier is only applied to the lifetime database so bonus
+    rates don't distort the periodic leaderboards.
+    """
     # Only process XP for guild members, not DM users
     if not isinstance(user, discord.Member):
         return

@@ -9,17 +9,40 @@ from typing import Optional
 from embed.embed_color import get_embed_color
 
 class EmoteCredits(ModerationBase, commands.Cog):
+    """Cog for tracking and querying emote/sticker artist credits.
+
+    Users submit credits via /emote_credits_add; submissions are routed to an
+    approval channel where admins accept or deny them via button views. Credits
+    are stored in emote_credits.db and queried via /emote_credit and related
+    slash commands.
+
+    Slash commands:
+    - ``/emote_credit``          — Look up the artist for a specific emote/sticker.
+    - ``/emote_credits_add``     — Submit a new credit for admin approval.
+    - ``/emote_credits_update``  — Submit a correction to an existing credit.
+    - ``/emote_artists``         — List all credited artists ranked by count.
+    - ``/emote_by_artist``       — View all emotes credited to a specific artist.
+    - ``/missing_credits``       — (admin) List uncredited emotes/stickers.
+    - ``/emote_credits_resolve`` — (admin) Convert raw @username credits to mentions.
+    """
+
     def __init__(self, bot):
         super().__init__(bot)
         self.bot = bot
         self.db_path = Path(__file__).parent.parent / "data" / "emote_credits.db"
+        # Channel where new credit submissions are posted for admin review
         self.approval_channel_id = 1470441786810826884
 
     async def cog_load(self):
+        """Initialise the database tables on cog load."""
         await self._init_db()
 
     async def _init_db(self):
-        """Initialize the database"""
+        """Create emote_credits and pending_credits tables if they don't exist.
+
+        Also migrates older DB schemas by adding ``is_update`` and ``old_artist``
+        columns to pending_credits if they are missing (safe to call repeatedly).
+        """
         async with aiosqlite.connect(self.db_path) as conn:
             # stores finalized credits
             await conn.execute("""
@@ -55,7 +78,15 @@ class EmoteCredits(ModerationBase, commands.Cog):
             await conn.commit()
 
     async def get_credit(self, emote_name: str):
-        """Get credit for an emote from database"""
+        """Return the credited artist for the given emote name, or None if not found.
+
+        The lookup is case-insensitive.
+
+        Parameters
+        ----------
+        emote_name:
+            The emote or sticker name to look up.
+        """
         async with aiosqlite.connect(self.db_path) as conn:
             async with conn.execute(
                 "SELECT artist FROM emote_credits WHERE LOWER(emote_name) = LOWER(?)",
@@ -65,10 +96,21 @@ class EmoteCredits(ModerationBase, commands.Cog):
                 return result[0] if result else None
 
     async def cog_unload(self):
+        """No-op cleanup; aiosqlite connections are opened/closed per-query."""
         pass
 
     async def add_credit(self, emote_name: str, artist: str, added_by: Optional[int] = None):
-        """Add a credit to the database"""
+        """Insert or replace a credit record in the emote_credits table.
+
+        Parameters
+        ----------
+        emote_name:
+            The emote or sticker name to credit.
+        artist:
+            The artist to credit.
+        added_by:
+            Discord user ID of the moderator approving the credit, or None.
+        """
         async with aiosqlite.connect(self.db_path) as conn:
             await conn.execute(
                 "INSERT OR REPLACE INTO emote_credits (emote_name, artist, added_by) VALUES (?, ?, ?)",
@@ -77,14 +119,26 @@ class EmoteCredits(ModerationBase, commands.Cog):
             await conn.commit()
 
     async def get_all_credits(self):
-        """Get all credits from database"""
+        """Return a set of all credited emote names (lowercased) for fast membership checks."""
         async with aiosqlite.connect(self.db_path) as conn:
             async with conn.execute("SELECT emote_name FROM emote_credits") as cursor:
                 results = {row[0].lower() async for row in cursor}
                 return results
 
     def parse_emoji_name(self, emote_input: str) -> str:
-        """Extract emoji name from Discord emoji format or return as-is"""
+        """Extract the emoji name from a Discord emoji tag, or return the input unchanged.
+
+        Parameters
+        ----------
+        emote_input:
+            Either a Discord emoji tag like ``<:name:id>`` / ``<a:name:id>``,
+            or a plain text name.
+
+        Returns
+        -------
+        str
+            The extracted name portion, or the original string if no tag was found.
+        """
         # Discord custom emojis look like <:name:id> or <a:name:id> for animated
         emoji_pattern = r'<a?:([^:]+):\d+>'
         match = re.match(emoji_pattern, emote_input)
@@ -96,6 +150,16 @@ class EmoteCredits(ModerationBase, commands.Cog):
     @app_commands.command(name="emote_credit", description="Find out who created a specific emoji or sticker")
     @app_commands.describe(emote="The emoji or sticker name (you can type the emoji directly!)")
     async def emote_credit(self, interaction: discord.Interaction, emote: str):
+        """Look up the credited artist for a server emoji or sticker.
+
+        Accepts either a raw emoji tag (``<:name:id>``) or a plain text name.
+        Responds publicly on success, ephemerally on failure to keep the channel clean.
+
+        Parameters
+        ----------
+        emote:
+            The emoji tag or name to query.
+        """
         await interaction.response.defer()
 
         emoji_name = self.parse_emoji_name(emote)
@@ -124,6 +188,20 @@ class EmoteCredits(ModerationBase, commands.Cog):
         artist="The artist's username (e.g., @username)"
     )
     async def emote_credits_add(self, interaction: discord.Interaction, emote: str, artist: str):
+        """Submit a new artist credit for staff approval.
+
+        Rejects the submission immediately if a credit already exists for the
+        emote. Otherwise inserts a pending record and posts an approval embed
+        with Accept/Deny buttons to the approval channel. The submitter is DM'd
+        with the outcome when staff decide.
+
+        Parameters
+        ----------
+        emote:
+            The emoji tag or name to credit.
+        artist:
+            The artist's name or Discord mention.
+        """
         await interaction.response.defer(ephemeral=True)
 
         emoji_name = self.parse_emoji_name(emote)
@@ -189,6 +267,19 @@ class EmoteCredits(ModerationBase, commands.Cog):
         artist="The corrected artist name"
     )
     async def emote_credits_update(self, interaction: discord.Interaction, emote: str, artist: str):
+        """Submit a correction to an existing emote credit for staff approval.
+
+        Requires that a credit already exists; use ``/emote_credits_add`` for new
+        entries. Submits to the approval channel with the old and new artist names
+        visible side by side so staff can compare before deciding.
+
+        Parameters
+        ----------
+        emote:
+            The emoji tag or name whose credit needs correcting.
+        artist:
+            The corrected artist name.
+        """
         await interaction.response.defer(ephemeral=True)
 
         emoji_name = self.parse_emoji_name(emote)
@@ -253,8 +344,84 @@ class EmoteCredits(ModerationBase, commands.Cog):
         )
         await interaction.followup.send(embed=embed, ephemeral=True)
 
+    @app_commands.command(name="emote_credits_pending", description="View pending emote credit submissions awaiting approval")
+    @app_commands.describe(all="[Admin] Show all pending submissions from everyone, not just your own")
+    async def emote_credits_pending(self, interaction: discord.Interaction, all: bool = False):
+        """Show pending (not yet approved) credit submissions.
+
+        Without arguments, shows only the invoking user's own pending submissions.
+        Passing ``all=True`` is admin-only and shows the full pending queue for
+        all users, sorted by submission date.
+
+        Parameters
+        ----------
+        all:
+            If True (admin only), list every pending submission regardless of submitter.
+        """
+        await interaction.response.defer(ephemeral=True)
+
+        if all and not await self._check_admin(interaction):
+            await interaction.followup.send("❌ Only admins can view all pending submissions.", ephemeral=True)
+            return
+
+        async with aiosqlite.connect(self.db_path) as conn:
+            if all:
+                async with conn.execute(
+                    "SELECT id, emote_name, artist, submitted_by, submitted_at, is_update, old_artist "
+                    "FROM pending_credits ORDER BY submitted_at ASC"
+                ) as cursor:
+                    rows = await cursor.fetchall()
+            else:
+                async with conn.execute(
+                    "SELECT id, emote_name, artist, submitted_by, submitted_at, is_update, old_artist "
+                    "FROM pending_credits WHERE submitted_by = ? ORDER BY submitted_at ASC",
+                    (interaction.user.id,)
+                ) as cursor:
+                    rows = await cursor.fetchall()
+
+        if not rows:
+            msg = "There are no pending submissions." if all else "You have no pending submissions."
+            await interaction.followup.send(msg, ephemeral=True)
+            return
+
+        lines = []
+        for row_id, emote_name, artist, submitted_by, submitted_at, is_update, old_artist in rows:
+            submitter_str = f"<@{submitted_by}>" if all else ""
+            kind = "update" if is_update else "new"
+            if is_update and old_artist:
+                detail = f"`{emote_name}`: {old_artist} → **{artist}** ({kind})"
+            else:
+                detail = f"`{emote_name}` by **{artist}** ({kind})"
+            date_str = submitted_at[:10] if submitted_at else "?"
+            line = f"• {detail} — submitted {date_str}"
+            if all:
+                line += f" by {submitter_str}"
+            lines.append(line)
+
+        title = f"🕐 All Pending Submissions ({len(rows)})" if all else f"🕐 Your Pending Submissions ({len(rows)})"
+        chunks = [lines[i:i+20] for i in range(0, len(lines), 20)]
+        for i, chunk in enumerate(chunks):
+            embed = discord.Embed(
+                title=f"{title} — Page {i+1}/{len(chunks)}" if len(chunks) > 1 else title,
+                description="\n".join(chunk),
+                color=get_embed_color(interaction.user.id)
+            )
+            embed.set_footer(text="Submissions are reviewed by admins in the approval channel.")
+            await interaction.followup.send(embed=embed, ephemeral=True)
+
+    async def _check_admin(self, interaction: discord.Interaction) -> bool:
+        """Return True if the interaction user passes the is_admin check."""
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            return False
+        return interaction.user.guild_permissions.administrator
+
     @app_commands.command(name="emote_artists", description="List all artists who have credited emotes or stickers")
     async def emote_artists(self, interaction: discord.Interaction):
+        """List all credited artists, sorted by emote count descending.
+
+        Results are paginated into embeds of 20 entries each and sent as
+        sequential followup messages (Discord enforces a 10-embed-per-send cap).
+        """
         await interaction.response.defer()
 
         async with aiosqlite.connect(self.db_path) as conn:
@@ -288,6 +455,18 @@ class EmoteCredits(ModerationBase, commands.Cog):
     @app_commands.command(name="emote_by_artist", description="View all emotes and stickers credited to a specific artist")
     @app_commands.describe(artist="The artist's name, @mention, or user ID")
     async def emote_by_artist(self, interaction: discord.Interaction, artist: str):
+        """Show all emotes credited to the given artist, with inline emoji previews.
+
+        Performs a multi-strategy lookup to handle credits stored as plain text
+        names, @user_id mentions, or usernames. Falls back to fetching member
+        names from the Discord gateway and the API when the in-memory cache misses.
+        Offers partial-match suggestions if no exact artist is found.
+
+        Parameters
+        ----------
+        artist:
+            Artist name, @mention, or Discord user ID to search for.
+        """
         await interaction.response.defer()
 
         # Build a list of search terms to try. Credits may be stored as plain
@@ -488,6 +667,12 @@ class EmoteCredits(ModerationBase, commands.Cog):
     @app_commands.command(name="emote_credits_resolve", description="[Admin] Auto-convert @username credits to user mentions where possible")
     @ModerationBase.is_admin()
     async def emote_credits_resolve(self, interaction: discord.Interaction):
+        """Batch-convert raw ``@username`` artist strings to ``<@user_id>`` mentions (admin only).
+
+        Chunks the guild member list and matches case-insensitively against
+        username, global_name, and display_name. Reports resolved and unresolved
+        entries; unresolved entries are left unchanged.
+        """
         await interaction.response.defer(ephemeral=True)
         guild = interaction.guild
         if not guild:
@@ -551,7 +736,7 @@ class EmoteCredits(ModerationBase, commands.Cog):
     @commands.command(name="missing_credits")
     @ModerationBase.is_admin()
     async def missing_credits_text(self, ctx):
-        """List all server emotes and stickers that don't have credits"""
+        """Prefix-command mirror of /missing_credits — list uncredited emotes and stickers."""
         if not ctx.guild:
             return
 
@@ -620,6 +805,13 @@ class EmoteCredits(ModerationBase, commands.Cog):
 
 
 class CreditApprovalView(discord.ui.View):
+    """Persistent button view for approving or denying emote credit submissions.
+
+    Uses timeout=None so buttons remain functional after bot restarts.
+    Both Approve and Deny remove the pending record from the DB and notify
+    the original submitter via DM.
+    """
+
     def __init__(self, cog, submission_id, emote_name, artist, submitted_by, is_update=False, old_artist=None):
         super().__init__(timeout=None)
         self.cog = cog
@@ -632,6 +824,7 @@ class CreditApprovalView(discord.ui.View):
 
     @discord.ui.button(label="Approve", style=discord.ButtonStyle.green, custom_id="approve_credit")
     async def approve_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Approve the submission — write to emote_credits table and DM the submitter."""
         # Add to database
         await self.cog.add_credit(self.emote_name, self.artist, interaction.user.id)
 
@@ -676,6 +869,7 @@ class CreditApprovalView(discord.ui.View):
 
     @discord.ui.button(label="Deny", style=discord.ButtonStyle.red, custom_id="deny_credit")
     async def deny_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Deny the submission — remove from pending table and DM the submitter."""
         # Remove from pending
         async with aiosqlite.connect(self.cog.db_path) as conn:
             await conn.execute("DELETE FROM pending_credits WHERE id = ?", (self.submission_id,))

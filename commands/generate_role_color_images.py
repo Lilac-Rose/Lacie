@@ -13,6 +13,14 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 class ColorImageGen(commands.Cog):
+    """Cog providing the !generateimages command (admin only).
+
+    Renders a color preview image listing every role in COLOR_ROLE_NAMES with
+    its Discord-assigned color, saves it to media/colorimage.png, and sends a
+    preview to the command channel. Configuration is hot-reloaded from
+    role_color.py each time the command runs.
+    """
+
     def __init__(self, bot):
         self.bot = bot
         # Import and get fresh references on initialization
@@ -35,6 +43,13 @@ class ColorImageGen(commands.Cog):
     @commands.command(name="generateimages")
     @ModerationBase.is_admin()
     async def generate_list(self, ctx):
+        """Regenerate the color role preview image and send it to the current channel.
+
+        Reloads role_color.py config on each run so changes made after startup
+        are picked up without restarting the bot. If any role in COLOR_ROLE_NAMES
+        does not exist in the guild, the command aborts with an error message.
+        The generated PNG is saved to media/colorimage.png and also sent inline.
+        """
         # Reload config to get latest values in case role_color.py changed since startup
         self._reload_config()
 

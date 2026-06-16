@@ -5,12 +5,24 @@ import random
 import re
 
 class DiceRoll(commands.Cog):
+    """Cog providing the /diceroll slash command."""
+
     def __init__(self, bot):
         self.bot = bot
 
     @app_commands.command(name="diceroll", description="Roll dice, supported die are d4, d6, d8, d10, d12, d20, d100")
     @app_commands.describe(dice="Enter your roll (e.g., d20, 2d6+3, 3d8-2)")
     async def diceroll(self, interaction: discord.Interaction, dice: str):
+        """Parse a dice string in NdS±M format, roll the dice, and report individual rolls and total.
+
+        Parameters
+        ----------
+        dice:
+            A dice expression such as ``d20``, ``2d6+3``, or ``3d8-2``.
+            N (number of dice) is optional and defaults to 1.
+            Only standard tabletop die sizes are accepted (d4 through d100).
+            A maximum of 100 dice may be rolled at once.
+        """
         # expects NdS+M format — num dice (optional), die sides, optional +/- modifier
         pattern = r"^(\d*)d(\d+)([+-]\d+)?$"
         match = re.match(pattern, dice.replace(" ", "").lower())

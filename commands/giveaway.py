@@ -24,11 +24,18 @@ GIVEAWAY_EMOJI = "🎉"
 
 
 def _is_admin(user: discord.Member) -> bool:
+    """Return True if the member is the bot owner or holds an admin role."""
     from utils.constants import LILAC_ID
     return user.id == LILAC_ID or any(r.id in ADMIN_ROLE_IDS for r in user.roles)
 
 
 class GiveawayRollAgainView(discord.ui.View):
+    """Persistent button view attached to ended giveaway messages.
+
+    Uses timeout=None so it stays active after bot restarts. The custom_id
+    includes the giveaway ID so the view can be re-registered on startup.
+    """
+
     def __init__(self, bot: commands.Bot, giveaway_id: int):
         super().__init__(timeout=None)
         self.bot = bot
@@ -42,6 +49,7 @@ class GiveawayRollAgainView(discord.ui.View):
         self.add_item(btn)
 
     async def _roll_callback(self, interaction: discord.Interaction):
+        """Re-roll the giveaway and announce a new winner (admin only)."""
         if not isinstance(interaction.user, discord.Member) or not _is_admin(interaction.user):
             return await interaction.response.send_message(
                 "Only admins can re-roll a giveaway.", ephemeral=True
@@ -101,11 +109,20 @@ class GiveawayRollAgainView(discord.ui.View):
 
 
 class GiveawayCog(commands.Cog):
+    """Cog providing the /giveaway start slash command and background expiry task.
+
+    Giveaways are persisted to giveaways.db. A background task polls every 30
+    seconds for past-deadline entries and calls _end_giveaway to pick a winner
+    and post the result. Roll Again views are re-registered on startup so the
+    button remains functional after restarts.
+    """
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.db_path = Path(__file__).parent.parent / "data" / "giveaways.db"
 
     async def cog_load(self):
+        """Set up DB, re-register persistent views, and start the check loop."""
         await self._setup_db()
         # Re-register persistent roll-again views for already-ended giveaways so
         # buttons continue to work after a restart.
@@ -119,9 +136,11 @@ class GiveawayCog(commands.Cog):
             self.check_giveaways.start()
 
     async def cog_unload(self):
+        """Cancel the background task when the cog unloads."""
         self.check_giveaways.cancel()
 
     async def _setup_db(self):
+        """Create the giveaways table if it doesn't exist."""
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
                 """
@@ -160,6 +179,21 @@ class GiveawayCog(commands.Cog):
         deadline: str,
         timezone: Optional[str] = None,
     ):
+        """Start a giveaway with a prize and deadline.
+
+        Parses the deadline as a relative duration or an absolute datetime string.
+        Persists the giveaway before posting so the ID is available for the embed
+        footer and the message ID can be stored back after the post.
+
+        Parameters
+        ----------
+        prize:
+            What is being given away.
+        deadline:
+            Duration like ``2h``, ``3d``, or a natural date/time string.
+        timezone:
+            Optional timezone name for interpreting absolute deadline strings.
+        """
         # Parse deadline — try duration first, then datetime string
         try:
             delta = parse_timeframe(deadline)
@@ -172,7 +206,7 @@ class GiveawayCog(commands.Cog):
 
         unix_ts = int(ends_at.timestamp())
 
-        # Persist before posting so we have an ID
+        # Persist before posting so we have an ID for the embed footer
         async with aiosqlite.connect(self.db_path) as db:
             cur = await db.execute(
                 """
@@ -199,7 +233,7 @@ class GiveawayCog(commands.Cog):
         await interaction.response.send_message(embed=embed)
         msg = await interaction.original_response()
 
-        # Add the entry reaction
+        # Add the entry reaction so users know what to click
         await msg.add_reaction(GIVEAWAY_EMOJI)
 
         # Store the message ID so the task can fetch reactions later
@@ -214,6 +248,7 @@ class GiveawayCog(commands.Cog):
 
     @tasks.loop(seconds=30)
     async def check_giveaways(self):
+        """Poll every 30 seconds for giveaways whose deadline has passed."""
         now = datetime.now(dt_timezone.utc)
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute(
@@ -233,6 +268,22 @@ class GiveawayCog(commands.Cog):
         message_id: int | None,
         prize: str,
     ):
+        """End a giveaway, pick a winner from reaction users, and announce the result.
+
+        Marks the giveaway as ended immediately to prevent double-firing if the
+        loop tick overlaps. Handles the no-participants edge case gracefully.
+
+        Parameters
+        ----------
+        giveaway_id:
+            DB ID of the giveaway to end.
+        channel_id:
+            Discord channel where the giveaway was posted.
+        message_id:
+            ID of the original giveaway message (for fetching reactions).
+        prize:
+            Prize text to include in the result embed.
+        """
         # Mark ended immediately to prevent double-firing
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute(
@@ -293,6 +344,7 @@ class GiveawayCog(commands.Cog):
 
     @check_giveaways.before_loop
     async def before_check_giveaways(self):
+        """Wait until the bot is ready before the polling loop starts."""
         await self.bot.wait_until_ready()
 
 

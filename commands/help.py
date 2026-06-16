@@ -92,6 +92,7 @@ HELP_PAGES = {
 
 
 def build_overview_embed(color: discord.Color) -> discord.Embed:
+    """Build the top-level overview embed listing all categories and command counts."""
     embed = discord.Embed(
         title="Lacie Help",
         description="Select a category below to see available commands.",
@@ -104,6 +105,7 @@ def build_overview_embed(color: discord.Color) -> discord.Embed:
 
 
 def build_category_embed(category: str, color: discord.Color) -> discord.Embed:
+    """Build a detail embed listing every command in a category."""
     embed = discord.Embed(title=f"{category}", color=color)
     for command, description in HELP_PAGES[category]:
         embed.add_field(name=command, value=description, inline=False)
@@ -111,6 +113,8 @@ def build_category_embed(category: str, color: discord.Color) -> discord.Embed:
 
 
 class HelpSelect(discord.ui.Select):
+    """Dropdown that switches between the overview and per-category embeds."""
+
     def __init__(self, embed_color: discord.Color):
         self.embed_color = embed_color
         options = [discord.SelectOption(label="Overview", value="__overview__")] + [
@@ -120,6 +124,7 @@ class HelpSelect(discord.ui.Select):
         super().__init__(placeholder="Select a category...", options=options)
 
     async def callback(self, interaction: discord.Interaction):
+        """Swap the embed for the selected category (or back to overview)."""
         if self.values[0] == "__overview__":
             embed = build_overview_embed(self.embed_color)
         else:
@@ -128,23 +133,29 @@ class HelpSelect(discord.ui.Select):
 
 
 class HelpView(discord.ui.View):
+    """View wrapping the HelpSelect dropdown. Times out after 2 minutes of inactivity."""
+
     def __init__(self, color: discord.Color):
         super().__init__(timeout=120)
         self.add_item(HelpSelect(embed_color=color))
 
 
 class Help(commands.Cog):
+    """Cog providing both the /help slash command and the !help prefix command."""
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
     @app_commands.command(name="help", description="View all available commands")
     async def help_slash(self, interaction: discord.Interaction):
+        """Show the interactive help menu via slash command."""
         color = get_embed_color(interaction.user.id)
         embed = build_overview_embed(color)
         await interaction.response.send_message(embed=embed, view=HelpView(color))
 
     @commands.command(name="help")
     async def help_prefix(self, ctx: commands.Context):
+        """Show the interactive help menu via prefix command."""
         color = get_embed_color(ctx.author.id)
         embed = build_overview_embed(color)
         await ctx.send(embed=embed, view=HelpView(color))

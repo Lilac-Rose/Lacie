@@ -7,12 +7,21 @@ from embed.embed_color import get_embed_color
 from pathlib import Path
 
 class Ping(commands.Cog):
+    """Cog providing the /ping slash command for latency diagnostics."""
+
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        # Reuse the suggestions DB for the latency probe — any DB will do
         self.db_path = Path(__file__).parent.parent / "data" / "suggestions.db"
 
     @app_commands.command(name="ping", description="Check the bot's latency")
     async def ping(self, interaction: discord.Interaction):
+        """Report WebSocket, API, and database latency in a single embed.
+
+        API latency is measured as the round-trip time to send the initial
+        response. WebSocket latency comes from discord.py's heartbeat tracking.
+        Database latency is measured by running ``SELECT 1`` against the DB.
+        """
         # send a message first, then measure how long it took — that's our API round-trip
         start_time = time.perf_counter()
         await interaction.response.send_message("Pinging...")

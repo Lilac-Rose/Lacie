@@ -5,12 +5,23 @@ import random
 
 
 class RNG(commands.Cog):
+    """Cog providing the /rng slash command for random number generation."""
+
     def __init__(self, bot):
         self.bot = bot
 
     @app_commands.command(name="rng", description="Generate a random number between two values")
     @app_commands.describe(minimum="The minimum value (inclusive)", maximum="The maximum value (inclusive)")
     async def rng(self, interaction: discord.Interaction, minimum: int, maximum: int):
+        """Generate a random integer in [minimum, maximum] (both endpoints inclusive).
+
+        Parameters
+        ----------
+        minimum:
+            Lower bound (inclusive).
+        maximum:
+            Upper bound (inclusive). Must be strictly greater than minimum.
+        """
         if minimum >= maximum:
             await interaction.response.send_message("Minimum must be less than maximum!", ephemeral=True)
             return

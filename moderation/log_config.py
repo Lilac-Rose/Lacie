@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 from .loader import ModerationBase
 
-# All available log types
+# All log type keys recognised by the logging system
 LOG_TYPES = [
     "message_delete",
     "message_edit",
@@ -17,6 +17,7 @@ LOG_TYPES = [
     "unmute",
     "kick",
     "ban",
+    "cleanban",
     "unban",
     "role_add",
     "role_remove",
@@ -24,6 +25,8 @@ LOG_TYPES = [
     "username_change",
     "timeout",
     "timeout_remove",
+    "channel_lock",
+    "infraction_modify",
     "voice_join",
     "voice_leave",
     "voice_move",
@@ -33,14 +36,19 @@ LOG_TYPES = [
     "role_create",
     "role_delete",
     "role_update",
-    "server_update"
+    "server_update",
 ]
 
+
 class LogConfig(ModerationBase):
-    """Commands to configure logging settings"""
-    
+    """Admin commands for configuring which Discord channel each log type
+    is routed to, and for managing channel exclusions.
+    """
+
     def __init__(self, bot):
         super().__init__(bot)
+        # Ensure the exclusion table exists; this is also created in logger.py
+        # but we create it here defensively since LogConfig may be loaded first
         self.c.execute("""
             CREATE TABLE IF NOT EXISTS log_excluded_channels (
                 guild_id INTEGER NOT NULL,
@@ -49,22 +57,24 @@ class LogConfig(ModerationBase):
             )
         """)
         self.conn.commit()
-    
+
     @commands.group(name="log", invoke_without_command=True)
     @ModerationBase.is_admin()
     async def log(self, ctx):
-        """Logging configuration commands"""
+        """Logging configuration command group.
+
+        Use a subcommand: set, list, types, exclude, unexclude, excluded, remove, clear.
+        """
         await ctx.send("Use `!log set`, `!log list`, `!log exclude`, or `!log remove` to configure logging.")
-    
+
     @log.command(name="set")
     @ModerationBase.is_admin()
     async def log_set(self, ctx, channel: discord.TextChannel, log_type: str):
-        """
-        Set a log type to a specific channel.
-        
-        Usage: !log set #channel log_type
+        """Route a log type to a Discord channel.
+
+        Usage: !log set #channel <log_type>
         Example: !log set #mod-logs message_delete
-        
+
         Use !log types to see all available log types.
         """
         log_type = log_type.lower()
@@ -80,26 +90,26 @@ class LogConfig(ModerationBase):
         if not permissions.send_messages or not permissions.embed_links:
             await ctx.send(f"❌ I don't have permission to send messages and embeds in {channel.mention}!")
             return
-        
+
+        # Upsert — update channel if already configured, otherwise insert
         self.c.execute("""
             INSERT INTO log_config (guild_id, log_type, channel_id)
             VALUES (?, ?, ?)
             ON CONFLICT(guild_id, log_type) DO UPDATE SET channel_id = ?
         """, (ctx.guild.id, log_type, channel.id, channel.id))
         self.conn.commit()
-        
+
         await ctx.send(f"✅ Set `{log_type}` logging to {channel.mention}")
-    
+
     @log.command(name="exclude")
     @ModerationBase.is_admin()
     async def log_exclude(self, ctx, channel_id: int):
-        """
-        Exclude a channel from being logged.
+        """Exclude a channel from being logged.
+
+        Events in excluded channels will not appear in any log, regardless of
+        the log type configuration.
 
         Usage: !log exclude <channel_id>
-        Example: !log exclude 123456789012345678
-
-        Events from this channel will not be logged.
         """
         if not ctx.guild:
             return
@@ -108,34 +118,38 @@ class LogConfig(ModerationBase):
         if not channel:
             await ctx.send(f"❌ Channel with ID `{channel_id}` not found in this server.")
             return
-        
-        self.c.execute("SELECT channel_id FROM log_excluded_channels WHERE guild_id = ? AND channel_id = ?",
-                      (ctx.guild.id, channel_id))
+
+        self.c.execute(
+            "SELECT channel_id FROM log_excluded_channels WHERE guild_id = ? AND channel_id = ?",
+            (ctx.guild.id, channel_id)
+        )
         if self.c.fetchone():
             await ctx.send(f"❌ {channel.mention} (`{channel_id}`) is already excluded from logging.")
             return
-        
-        self.c.execute("INSERT INTO log_excluded_channels (guild_id, channel_id) VALUES (?, ?)",
-                      (ctx.guild.id, channel_id))
+
+        self.c.execute(
+            "INSERT INTO log_excluded_channels (guild_id, channel_id) VALUES (?, ?)",
+            (ctx.guild.id, channel_id)
+        )
         self.conn.commit()
-        
+
         await ctx.send(f"✅ Excluded {channel.mention} (`{channel_id}`) from logging.")
-    
+
     @log.command(name="unexclude")
     @ModerationBase.is_admin()
     async def log_unexclude(self, ctx, channel_id: int):
-        """
-        Remove a channel from the exclusion list.
+        """Remove a channel from the log exclusion list.
 
         Usage: !log unexclude <channel_id>
-        Example: !log unexclude 123456789012345678
         """
         if not ctx.guild:
             return
 
-        self.c.execute("DELETE FROM log_excluded_channels WHERE guild_id = ? AND channel_id = ?",
-                      (ctx.guild.id, channel_id))
-        
+        self.c.execute(
+            "DELETE FROM log_excluded_channels WHERE guild_id = ? AND channel_id = ?",
+            (ctx.guild.id, channel_id)
+        )
+
         if self.c.rowcount == 0:
             await ctx.send(f"❌ Channel ID `{channel_id}` is not in the exclusion list.")
         else:
@@ -143,94 +157,96 @@ class LogConfig(ModerationBase):
             channel = ctx.guild.get_channel(channel_id)
             channel_name = channel.mention if channel else f"Channel ID `{channel_id}`"
             await ctx.send(f"✅ Removed {channel_name} from the exclusion list.")
-    
+
     @log.command(name="excluded")
     @ModerationBase.is_admin()
     async def log_excluded(self, ctx):
-        """List all excluded channels"""
+        """List all channels currently excluded from logging."""
         if not ctx.guild:
             return
 
-        self.c.execute("SELECT channel_id FROM log_excluded_channels WHERE guild_id = ? ORDER BY channel_id",
-                      (ctx.guild.id,))
+        self.c.execute(
+            "SELECT channel_id FROM log_excluded_channels WHERE guild_id = ? ORDER BY channel_id",
+            (ctx.guild.id,)
+        )
         results = self.c.fetchall()
-        
+
         if not results:
             await ctx.send("❌ No channels are excluded from logging.")
             return
-        
+
         embed = discord.Embed(
             title=f"Excluded Channels - {ctx.guild.name}",
             description="Events from these channels will not be logged.",
             color=discord.Color.orange()
         )
-        
+
         channels_list = []
-        for (channel_id,) in results:
-            channel = ctx.guild.get_channel(channel_id)
-            if channel:
-                channels_list.append(f"{channel.mention} (`{channel_id}`)")
+        for (ch_id,) in results:
+            ch = ctx.guild.get_channel(ch_id)
+            if ch:
+                channels_list.append(f"{ch.mention} (`{ch_id}`)")
             else:
-                channels_list.append(f"Deleted Channel (`{channel_id}`)")
-        
+                channels_list.append(f"Deleted Channel (`{ch_id}`)")
+
         embed.add_field(
             name=f"Excluded Channels ({len(channels_list)})",
             value="\n".join(channels_list) if channels_list else "None",
             inline=False
         )
-        
+
         await ctx.send(embed=embed)
-    
+
     @log.command(name="remove")
     @ModerationBase.is_admin()
     async def log_remove(self, ctx, log_type: str):
-        """
-        Remove a log type configuration.
+        """Remove the channel assignment for a log type.
 
-        Usage: !log remove log_type
-        Example: !log remove message_delete
+        Usage: !log remove <log_type>
         """
         if not ctx.guild:
             return
 
         log_type = log_type.lower()
 
-        self.c.execute("DELETE FROM log_config WHERE guild_id = ? AND log_type = ?",
-                      (ctx.guild.id, log_type))
-        
+        self.c.execute(
+            "DELETE FROM log_config WHERE guild_id = ? AND log_type = ?",
+            (ctx.guild.id, log_type)
+        )
+
         if self.c.rowcount == 0:
             await ctx.send(f"❌ No logging configured for `{log_type}`.")
         else:
             self.conn.commit()
             await ctx.send(f"✅ Removed `{log_type}` logging.")
-    
+
     @log.command(name="list")
     @ModerationBase.is_admin()
     async def log_list(self, ctx):
-        """List all configured logging for this server"""
+        """Show all configured log types and their channels for this server."""
         if not ctx.guild:
             return
 
-        self.c.execute("SELECT log_type, channel_id FROM log_config WHERE guild_id = ? ORDER BY log_type",
-                      (ctx.guild.id,))
+        self.c.execute(
+            "SELECT log_type, channel_id FROM log_config WHERE guild_id = ? ORDER BY log_type",
+            (ctx.guild.id,)
+        )
         results = self.c.fetchall()
-        
+
         if not results:
             await ctx.send("❌ No logging configured for this server.\nUse `!log set #channel log_type` to set up logging.")
             return
-        
+
         embed = discord.Embed(
             title=f"Logging Configuration - {ctx.guild.name}",
             color=discord.Color.blue()
         )
-        
-        # Group by channel
+
+        # Group log types by their target channel for a cleaner display
         channel_logs = {}
         for log_type, channel_id in results:
-            if channel_id not in channel_logs:
-                channel_logs[channel_id] = []
-            channel_logs[channel_id].append(log_type)
-        
+            channel_logs.setdefault(channel_id, []).append(log_type)
+
         for channel_id, log_types in channel_logs.items():
             channel = ctx.guild.get_channel(channel_id)
             channel_name = channel.mention if channel else f"Deleted Channel ({channel_id})"
@@ -239,24 +255,24 @@ class LogConfig(ModerationBase):
                 value=f"```{', '.join(sorted(log_types))}```",
                 inline=False
             )
-        
+
         embed.set_footer(text=f"Total: {len(results)} log types configured")
         await ctx.send(embed=embed)
-    
+
     @log.command(name="types")
     async def log_types(self, ctx):
-        """Show all available log types"""
+        """Show all available log type keys, grouped by category."""
         embed = discord.Embed(
             title="Available Log Types",
             description="Use these with `!log set #channel <type>`",
             color=discord.Color.blue()
         )
-        
+
         categories = {
             "Message Events": [
                 "message_delete",
                 "message_edit",
-                "message_bulk_delete"
+                "message_bulk_delete",
             ],
             "Member Events": [
                 "member_join",
@@ -264,7 +280,7 @@ class LogConfig(ModerationBase):
                 "member_ban",
                 "member_unban",
                 "nickname_change",
-                "username_change"
+                "username_change",
             ],
             "Moderation Actions": [
                 "warn",
@@ -272,60 +288,63 @@ class LogConfig(ModerationBase):
                 "unmute",
                 "kick",
                 "ban",
+                "cleanban",
                 "unban",
                 "timeout",
-                "timeout_remove"
+                "timeout_remove",
+                "channel_lock",
+                "infraction_modify",
             ],
             "Role Events": [
                 "role_add",
                 "role_remove",
                 "role_create",
                 "role_delete",
-                "role_update"
+                "role_update",
             ],
             "Voice Events": [
                 "voice_join",
                 "voice_leave",
-                "voice_move"
+                "voice_move",
             ],
             "Channel Events": [
                 "channel_create",
                 "channel_delete",
-                "channel_update"
+                "channel_update",
             ],
             "Server Events": [
-                "server_update"
-            ]
+                "server_update",
+            ],
         }
-        
+
         for category, types in categories.items():
             embed.add_field(
                 name=category,
                 value=f"```{', '.join(types)}```",
                 inline=False
             )
-        
+
         embed.set_footer(text=f"Total: {len(LOG_TYPES)} log types available")
         await ctx.send(embed=embed)
-    
+
     @log.command(name="clear")
     @ModerationBase.is_admin()
     async def log_clear(self, ctx):
-        """Remove ALL logging configurations for this server"""
+        """Remove all logging configurations for this server (requires confirmation)."""
         if not ctx.guild:
             return
 
         self.c.execute("SELECT COUNT(*) FROM log_config WHERE guild_id = ?", (ctx.guild.id,))
         count = self.c.fetchone()[0]
-        
+
         if count == 0:
             await ctx.send("❌ No logging configured to clear.")
             return
-        
+
         from discord.ui import View, Button
         view = View(timeout=30)
         confirmed = {"value": False}
-        
+
         async def yes_callback(interaction: discord.Interaction):
             if interaction.user != ctx.author:
                 await interaction.response.send_message("You can't confirm this action.", ephemeral=True)
@@ -333,7 +352,7 @@ class LogConfig(ModerationBase):
             confirmed["value"] = True
             await interaction.response.edit_message(content="✅ Confirmed.", view=None)
             view.stop()
-        
+
         async def no_callback(interaction: discord.Interaction):
             if interaction.user != ctx.author:
                 await interaction.response.send_message("You can't cancel this action.", ephemeral=True)
@@ -341,24 +360,28 @@ class LogConfig(ModerationBase):
             confirmed["value"] = False
             await interaction.response.edit_message(content="❌ Cancelled.", view=None)
             view.stop()
-        
+
         yes_button = Button(label="Yes", style=discord.ButtonStyle.danger)
         no_button = Button(label="No", style=discord.ButtonStyle.secondary)
         yes_button.callback = yes_callback
         no_button.callback = no_callback
         view.add_item(yes_button)
         view.add_item(no_button)
-        
-        await ctx.send(f"⚠️ Are you sure you want to remove **all {count}** logging configurations?", view=view)
+
+        await ctx.send(
+            f"⚠️ Are you sure you want to remove **all {count}** logging configurations?",
+            view=view
+        )
         await view.wait()
-        
+
         if not confirmed["value"]:
             return
-        
+
         self.c.execute("DELETE FROM log_config WHERE guild_id = ?", (ctx.guild.id,))
         self.conn.commit()
-        
+
         await ctx.send(f"✅ Cleared all logging configurations ({count} removed).")
+
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(LogConfig(bot))
