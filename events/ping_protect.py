@@ -83,6 +83,9 @@ class PingProtect(commands.GroupCog, name="noping"):
             return
 
         for user in message.mentions:
+            if user.id == message.author.id:
+                continue
+
             member = message.guild.get_member(user.id)
 
             # Skip if the mentioned user has opted in to receiving pings

@@ -3,6 +3,7 @@ mcrcon>=0.7.0
 redis>=5.0
 aiohttp==3.12.15
 aiosqlite==0.21.0
+aioimaplib==2.0.1
 discord.py==2.7.1
 numpy==2.3.5
 Pillow==12.0.0

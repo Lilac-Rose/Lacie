@@ -94,6 +94,60 @@ async def rcon_command(cmd: str) -> str:
         await writer.wait_closed()
 
 
+PAGE_SIZE = 10
+
+
+class WhitelistListView(discord.ui.View):
+    def __init__(self, rows: list, *, timeout: float = 120):
+        super().__init__(timeout=timeout)
+        self.rows = rows
+        self.page = 0
+        self.total_pages = max(1, (len(rows) + PAGE_SIZE - 1) // PAGE_SIZE)
+        self._sync_buttons()
+
+    def _sync_buttons(self):
+        self.prev_button.disabled = self.page == 0
+        self.next_button.disabled = self.page >= self.total_pages - 1
+
+    def build_embed(self) -> discord.Embed:
+        embed = discord.Embed(title="Minecraft Whitelist", color=0x57F287)
+        page_rows = self.rows[self.page * PAGE_SIZE : (self.page + 1) * PAGE_SIZE]
+
+        pending = [r for r in page_rows if r[2] == "pending"]
+        approved = [r for r in page_rows if r[2] == "approved"]
+
+        if pending:
+            lines = []
+            for mc_name, discord_id, _, requested_at in pending:
+                user_ref = f"<@{discord_id}>" if discord_id else "No Discord linked"
+                lines.append(f"• `{mc_name}` — {user_ref} *(requested {requested_at[:10]})*")
+            embed.add_field(name=f"⏳ Pending", value="\n".join(lines), inline=False)
+
+        if approved:
+            lines = []
+            for mc_name, discord_id, _, _ in approved:
+                user_ref = f"<@{discord_id}>" if discord_id else "No Discord linked"
+                lines.append(f"• `{mc_name}` — {user_ref}")
+            embed.add_field(name=f"✅ Approved", value="\n".join(lines), inline=False)
+
+        total_pending = sum(1 for r in self.rows if r[2] == "pending")
+        total_approved = sum(1 for r in self.rows if r[2] == "approved")
+        embed.set_footer(text=f"Page {self.page + 1}/{self.total_pages} • {total_pending} pending, {total_approved} approved")
+        return embed
+
+    @discord.ui.button(label="◀", style=discord.ButtonStyle.secondary)
+    async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page -= 1
+        self._sync_buttons()
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+    @discord.ui.button(label="▶", style=discord.ButtonStyle.secondary)
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page += 1
+        self._sync_buttons()
+        await interaction.response.edit_message(embed=self.build_embed(), view=self)
+
+
 class Whitelist(commands.GroupCog, name="whitelist"):
     """Minecraft whitelist request and management commands."""
 
@@ -157,37 +211,22 @@ class Whitelist(commands.GroupCog, name="whitelist"):
 
         await interaction.response.defer(ephemeral=True)
 
-        async with aiosqlite.connect(DB_PATH) as db:
-            async with db.execute(
-                "SELECT minecraft_username, discord_user_id, status, requested_at FROM whitelist ORDER BY status DESC, requested_at ASC"
-            ) as cur:
-                rows = await cur.fetchall()
+        try:
+            async with aiosqlite.connect(DB_PATH) as db:
+                async with db.execute(
+                    "SELECT minecraft_username, discord_user_id, status, requested_at FROM whitelist ORDER BY status DESC, requested_at ASC"
+                ) as cur:
+                    rows = await cur.fetchall()
 
-        if not rows:
-            await interaction.followup.send("No whitelist entries found.", ephemeral=True)
-            return
+            if not rows:
+                await interaction.followup.send("No whitelist entries found.", ephemeral=True)
+                return
 
-        pending = [r for r in rows if r[2] == "pending"]
-        approved = [r for r in rows if r[2] == "approved"]
-
-        embed = discord.Embed(title="Minecraft Whitelist", color=0x57f287)
-
-        if pending:
-            lines = []
-            for mc_name, discord_id, _, requested_at in pending:
-                date = requested_at[:10]
-                user_ref = f"<@{discord_id}>" if discord_id else "No Discord linked"
-                lines.append(f"• `{mc_name}` — {user_ref} *(requested {date})*")
-            embed.add_field(name=f"⏳ Pending ({len(pending)})", value="\n".join(lines), inline=False)
-
-        if approved:
-            lines = []
-            for mc_name, discord_id, _, _ in approved:
-                user_ref = f"<@{discord_id}>" if discord_id else "No Discord linked"
-                lines.append(f"• `{mc_name}` — {user_ref}")
-            embed.add_field(name=f"✅ Approved ({len(approved)})", value="\n".join(lines), inline=False)
-
-        await interaction.followup.send(embed=embed, ephemeral=True)
+            view = WhitelistListView(rows)
+            await interaction.followup.send(embed=view.build_embed(), view=view, ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Error: `{e}`", ephemeral=True)
+            raise
 
     # ── /whitelist add ─────────────────────────────────────────────────────────
 

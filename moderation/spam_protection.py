@@ -5,6 +5,7 @@ from discord.ui import View, Button
 import asyncio
 from datetime import datetime, timedelta, timezone
 from collections import defaultdict, deque
+from typing import NamedTuple
 import sqlite3
 from pathlib import Path
 from utils.logger import get_logger
@@ -27,6 +28,13 @@ INVITE_PATTERN = re.compile(
     r"discord(?:app\.com/invite|\.com/invite|\.gg)/([a-zA-Z0-9\-]+)",
     re.IGNORECASE
 )
+
+class TrackedMessage(NamedTuple):
+    timestamp: datetime
+    channel_id: int
+    content: str
+    image_urls: tuple[str, ...] = ()
+    file_names: tuple[str, ...] = ()
 
 
 class SpamProtection(commands.Cog):
@@ -166,7 +174,7 @@ class SpamProtection(commands.Cog):
 
             log_cog = self.bot.get_cog("Logger")
             if log_cog:
-                await log_cog.log_moderation_action(
+                await log_cog.log_moderation_action(  # type: ignore[attr-defined]
                     guild_id, "timeout", member, self.bot.user,
                     "Spam protection - extended to 24h (no staff response)", "24h"
                 )
@@ -187,6 +195,8 @@ class SpamProtection(commands.Cog):
         """Queue messages for spam analysis, skipping exempt users and channels."""
         if message.author.bot or not message.guild:
             return
+
+        assert isinstance(message.author, discord.Member)
 
         # Ritual Member role is exempt from spam detection
         whitelisted_role = message.guild.get_role(WHITELISTED_ROLE_ID)
@@ -222,13 +232,20 @@ class SpamProtection(commands.Cog):
 
     async def _process_message(self, message: discord.Message):
         """Record the message in the user's history and check for spam patterns."""
+        assert isinstance(message.author, discord.Member) and message.guild is not None
         now = datetime.now(timezone.utc)
         user_id = message.author.id
 
-        self.user_messages[user_id].append((
-            now,
-            message.channel.id,
-            message.content[:200]
+        images = tuple (
+            a.url for a in message.attachments
+            if (a.content_type or "").startswith("image/")
+        )
+        files = tuple(
+            a.filename for a in message.attachments
+            if not (a.content_type or "").startswith("image/")
+        )
+        self.user_messages[user_id].append(TrackedMessage(
+            now, message.channel.id, message.content[:200], images, files
         ))
 
         spam_detected = await self.check_spam_patterns(message.author, message.guild, message.content)
@@ -284,8 +301,8 @@ class SpamProtection(commands.Cog):
         same_cutoff = now - timedelta(seconds=SAME_CHANNEL_WINDOW_SECONDS)
         recent_same = [msg for msg in messages if msg[0] >= same_cutoff]
         channel_counts = defaultdict(int)
-        for _, channel_id, _ in recent_same:
-            channel_counts[channel_id] += 1
+        for msg in recent_same:
+            channel_counts[msg.channel_id] += 1
 
         for channel_id, count in channel_counts.items():
             if count >= SAME_CHANNEL_MIN_MESSAGES:
@@ -390,7 +407,7 @@ class SpamProtection(commands.Cog):
 
         elif spam_data["type"] == "same_channel":
             ch = spam_data["channel"]
-            ch_ref = ch.mention if ch and isinstance(ch, discord.abc.Messageable) else f"<#{spam_data.get('channel_id', '?')}>"
+            ch_ref = ch.mention if ch and isinstance(ch, discord.abc.GuildChannel) else f"<#{spam_data.get('channel_id', '?')}>"
             embed.add_field(
                 name="Spam Pattern",
                 value=f"**{spam_data['count']} messages** in {ch_ref} within {SAME_CHANNEL_WINDOW_SECONDS}s",
@@ -399,12 +416,15 @@ class SpamProtection(commands.Cog):
 
         # Sample messages
         sample_lines = []
-        for timestamp, channel_id, content in spam_data["messages"][:5]:
-            time_str = timestamp.strftime("%H:%M:%S")
-            channel = guild.get_channel(channel_id)
-            ch_name = channel.mention if channel else f"<#{channel_id}>"
-            preview = content[:50] + "..." if len(content) > 50 else content
-            sample_lines.append(f"`[{time_str}]` {ch_name}: {preview}")
+        for msg in spam_data["messages"][:5]:
+            time_str = msg.timestamp.strftime("%H:%M:%S")
+            channel = guild.get_channel(msg.channel_id)
+            ch_name = channel.mention if channel else f"<#{msg.channel_id}>"
+            preview = msg.content[:50] + "..." if len(msg.content) > 50 else msg.content
+            attach_count = len(msg.image_urls) + len(msg.file_names)
+            if attach_count:
+                preview = f"{preview} [{attach_count} attachment(s)]".strip()
+            sample_lines.append(f"`[{time_str}]` {ch_name}: {preview or '*(no text)'}")
         if sample_lines:
             embed.add_field(
                 name=f"Sample Messages",
@@ -417,6 +437,28 @@ class SpamProtection(commands.Cog):
             value="⏱️ User timed out for **1 hour**\n⚠️ If no action in 12 hours, timeout extends to **24 hours**",
             inline=False
         )
+
+        image_urls = [u for msg in spam_data["messages"]for u in msg.image_urls]
+        file_names = [f for msg in spam_data["messages"] for f in msg.file_names]
+
+        if image_urls:
+            embed.set_image(url=image_urls[0])
+            if len(image_urls) > 1:
+                links = " • ".join(
+                    f"[{i}]({u})" for i, u in enumerate(image_urls[1:], start=2)
+                )
+                embed.add_field(
+                    name=f"Other Images ({len(image_urls) - 1})",
+                    value=links[:1024],
+                    inline=False
+                )
+
+        if file_names:
+            embed.add_field(
+                name="Non-Image Attachments",
+                value=", ".join(f"`{n}`" for n in file_names[:10])[:1024],
+                inline=False
+            )
         embed.set_thumbnail(url=member.display_avatar.url)
         embed.set_footer(text="Use buttons below to take action")
 
@@ -457,14 +499,14 @@ class SpamActionView(View):
     so the auto-escalate loop doesn't also fire.
     """
 
-    def __init__(self, bot: commands.Bot, member: discord.Member, guild: discord.Guild, spam_data: dict, db_path: str):
+    def __init__(self, bot: commands.Bot, member: discord.Member, guild: discord.Guild, spam_data: dict, db_path: Path):
         super().__init__(timeout=43200)  # 12 hours
         self.bot = bot
         self.member = member
         self.guild = guild
         self.spam_data = spam_data
         self.db_path = db_path
-        self.alert_message_id = None
+        self.alert_message_id: int | None = None
 
     async def _remove_from_pending(self):
         """Delete the spam_actions row so the escalation loop won't fire."""
@@ -503,7 +545,7 @@ class SpamActionView(View):
 
             log_cog = self.bot.get_cog("Logger")
             if log_cog:
-                await log_cog.log_moderation_action(
+                await log_cog.log_moderation_action(  # type: ignore[attr-defined]
                     self.guild.id, "untimeout", self.member, interaction.user,
                     "Spam report determined to be false positive"
                 )
@@ -542,7 +584,7 @@ class SpamActionView(View):
 
             log_cog = self.bot.get_cog("Logger")
             if log_cog:
-                await log_cog.log_moderation_action(
+                await log_cog.log_moderation_action(  # type: ignore[attr-defined]
                     self.guild.id, "timeout", self.member, interaction.user,
                     "Spam confirmed — timeout extended to 24h", "24h"
                 )
@@ -599,7 +641,7 @@ class SpamActionView(View):
 
             log_cog = self.bot.get_cog("Logger")
             if log_cog:
-                await log_cog.log_moderation_action(
+                await log_cog.log_moderation_action(  # type: ignore[attr-defined]
                     self.guild.id, "ban", self.member, interaction.user, reason
                 )
 
@@ -618,7 +660,7 @@ class SpamActionView(View):
 class ConfirmView(View):
     """Generic ephemeral confirm/cancel view for spam action buttons."""
 
-    def __init__(self, user: discord.User):
+    def __init__(self, user: discord.abc.User):
         super().__init__(timeout=30)
         self.user = user
         self.confirmed = False

@@ -254,12 +254,12 @@ class Stats(commands.Cog):
     def get_top_channels(self, limit: int = 10) -> List[Tuple[str, int]]:
         db = sqlite3.connect(DB_PATH)
         cursor = db.cursor()
-        cursor.execute(f"""
+        cursor.execute("""
             SELECT channel_id, message_count
             FROM message_stats
             ORDER BY message_count DESC
-            LIMIT {limit}
-        """)
+            LIMIT ?
+        """, (limit,))
         results = cursor.fetchall()
         db.close()
 
@@ -287,12 +287,12 @@ class Stats(commands.Cog):
         db = sqlite3.connect(DB_PATH)
         cursor = db.cursor()
         if limit > 0:
-            cursor.execute(f"""
+            cursor.execute("""
                 SELECT word, count
                 FROM word_frequency
                 ORDER BY count DESC
-                LIMIT {limit}
-            """)
+                LIMIT ?
+            """, (limit,))
         else:
             cursor.execute("""
                 SELECT word, count

@@ -15,3 +15,6 @@ bad_apple.mp3
 
 # ARG — keep out of public repo to prevent spoilers
 arg/
+
+# Personal mailbox integration — not part of the general bot
+mail/
