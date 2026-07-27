@@ -8,7 +8,7 @@ class KickCommand(ModerationBase):
     """Cog providing the !kick prefix command."""
 
     @commands.command(name="kick")
-    @ModerationBase.is_admin()
+    @ModerationBase.is_senior_admin()
     async def kick(self, ctx, user: discord.Member, *, reason: str | None = None):
         """Kick a member from the server with a confirmation prompt.
 

@@ -8,7 +8,7 @@ class BanCommand(ModerationBase):
     """Cog providing the !ban prefix command."""
 
     @commands.command(name="ban")
-    @ModerationBase.is_admin()
+    @ModerationBase.is_senior_admin()
     async def ban(self, ctx, user: discord.User | discord.Member | str, *, reason: str | None = None):
         """Ban a user from the server with a confirmation prompt.
 
