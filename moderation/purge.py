@@ -218,7 +218,7 @@ class Purge(ModerationBase):
             await status_msg.edit(content=f"❌ Unexpected error during purge: {e}")
 
     @commands.command(name="purge")
-    @ModerationBase.is_admin()
+    @ModerationBase.is_senior_admin()
     async def purge(self, ctx, message_id: int):
         """Delete all messages in this channel from the given message ID to now.
 
@@ -235,7 +235,7 @@ class Purge(ModerationBase):
         await self.purge_messages(ctx, after_message=after_message)
 
     @commands.command(name="purgemember", aliases=["purgeuser", "purgeu", "purgem"])
-    @ModerationBase.is_admin()
+    @ModerationBase.is_senior_admin()
     async def purge_member(self, ctx, member: discord.Member, message_id: int):
         """Delete messages from a specific member from the given message ID to now.
 
@@ -254,7 +254,7 @@ class Purge(ModerationBase):
         await self.purge_messages(ctx, check=lambda m: m.author.id == member.id, after_message=after_message)
 
     @commands.command(name="purgebot", aliases=["purgebots", "purgeb"])
-    @ModerationBase.is_admin()
+    @ModerationBase.is_senior_admin()
     async def purge_bots(self, ctx, message_id: int):
         """Delete bot messages from the given message ID to now.
 
@@ -271,7 +271,7 @@ class Purge(ModerationBase):
         await self.purge_messages(ctx, check=lambda m: m.author.bot, after_message=after_message)
 
     @commands.command(name="purgecontains", aliases=["purgec", "purgetext"])
-    @ModerationBase.is_admin()
+    @ModerationBase.is_senior_admin()
     async def purge_contains(self, ctx, message_id: int, *, text: str):
         """Delete messages containing specific text from the given message ID to now.
 
@@ -290,7 +290,7 @@ class Purge(ModerationBase):
         await self.purge_messages(ctx, check=lambda m: text.lower() in m.content.lower(), after_message=after_message)
 
     @commands.command(name="purgeembeds", aliases=["purgee", "purgeembed"])
-    @ModerationBase.is_admin()
+    @ModerationBase.is_senior_admin()
     async def purge_embeds(self, ctx, message_id: int):
         """Delete messages that contain embeds from the given message ID to now.
 

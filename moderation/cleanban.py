@@ -10,7 +10,7 @@ class CleanBanCommand(ModerationBase):
     """Cog providing the !cleanban prefix command."""
 
     @commands.command(name="cleanban")
-    @ModerationBase.is_admin()
+    @ModerationBase.is_senior_admin()
     async def cleanban(
         self,
         ctx,

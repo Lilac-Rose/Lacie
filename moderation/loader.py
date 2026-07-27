@@ -15,6 +15,14 @@ ADMIN_ROLE_IDS = {
     if role_id.strip().isdigit()
 }
 
+# Admin roles that are still barred from the highest-impact commands (ban/kick/purge),
+# e.g. trial-mod roles like Ritual Candidate. Comma-separated list of integer IDs.
+RESTRICTED_ROLE_IDS = {
+    int(role_id.strip())
+    for role_id in os.getenv("RESTRICTED_ROLE_IDS", "").split(",")
+    if role_id.strip().isdigit()
+}
+
 
 class ModerationBase(commands.Cog):
     """Base cog for all moderation commands.
@@ -53,12 +61,14 @@ class ModerationBase(commands.Cog):
         self.conn.commit()
 
     @staticmethod
-    def is_admin():
-        """Permission check decorator that works for both prefix and slash commands.
+    def _admin_check(require_senior: bool):
+        """Build the shared admin/senior-admin predicate + decorator.
 
-        Checks whether the invoking user has an admin role (from ADMIN_ROLE_IDS)
-        or is the bot owner (LILAC_ID). Sends an error message and raises
-        CheckFailure if the check fails.
+        require_senior=True additionally vetoes access if the user holds any
+        role in RESTRICTED_ROLE_IDS (e.g. Ritual Candidate), even if they also
+        hold a general admin role (staff here share one blanket admin role
+        plus a separate rank role, so rank alone can't be used to grant
+        access — it has to be able to take it away).
         """
         async def predicate(target):
             # target is either a Context (prefix command) or Interaction (slash command)
@@ -92,6 +102,9 @@ class ModerationBase(commands.Cog):
                 for role in user.roles
             )
 
+            if require_senior and any(role.id in RESTRICTED_ROLE_IDS for role in user.roles):
+                has_admin_role = False
+
             if not (has_admin_role or is_lilac):
                 await send_message("You do not have permission to use this command.", ephemeral=is_interaction)
                 from discord.app_commands import CheckFailure
@@ -109,6 +122,28 @@ class ModerationBase(commands.Cog):
             return func
 
         return decorator
+
+    @staticmethod
+    def is_admin():
+        """Permission check decorator that works for both prefix and slash commands.
+
+        Checks whether the invoking user has an admin role (from ADMIN_ROLE_IDS)
+        or is the bot owner (LILAC_ID). Sends an error message and raises
+        CheckFailure if the check fails.
+        """
+        return ModerationBase._admin_check(require_senior=False)
+
+    @staticmethod
+    def is_senior_admin():
+        """Stricter admin check for ban/kick/purge-tier commands.
+
+        Same as is_admin(), but holding a role listed in RESTRICTED_ROLE_IDS
+        (e.g. Ritual Candidate) vetoes access even if the user also holds a
+        general admin role — used to keep trial-mod ranks out of the
+        highest-impact commands while still letting them use ordinary
+        moderation commands via the shared staff role.
+        """
+        return ModerationBase._admin_check(require_senior=True)
 
     async def log_infraction(
         self,
