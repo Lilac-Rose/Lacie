@@ -37,6 +37,7 @@ COG_FOLDERS = [
     "reminders",
     "arg",
     "mail",
+    "anniversary",
 ]
 
 # --- Bot setup ---
@@ -62,7 +63,7 @@ async def load_cogs(folder: str):
     previously loaded, then skips). Uses reload_extension when a module is
     already registered so hot-reloading works without a full restart.
     """
-    non_cog_files = {"add_xp.py", "database.py", "utils.py", "__init__.py", "groups.py", "loader.py", "constants.py"}
+    non_cog_files = {"add_xp.py", "database.py", "utils.py", "__init__.py", "groups.py", "loader.py", "constants.py", "odds.py"}
     disabled_cogs = {"archipelago_monitor.py"}
     for file in glob.glob(f"{folder}/*.py"):
         filename = os.path.basename(file)

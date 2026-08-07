@@ -1,19 +1,20 @@
 from discord.ext import commands
 from .database import get_db
+from .odds import get_sparkle_type
 import asyncio
+import random
 import time
 
 
 class Sparkle(commands.Cog):
-    """Cog that randomly awards sparkle reactions based on message ID trailing digits.
+    """Cog that randomly awards sparkle reactions to messages.
 
-    Sparkle probability is determined by inspecting the Discord snowflake ID of
-    each incoming message:
-    - Regular (✨): ID ends in "000"   → ~1/1,000
-    - Rare    (🌟): ID ends in "0000"  → ~1/10,000
-    - Epic    (💫): ID ends in "00000" → ~1/100,000
+    Sparkle probability is determined by a random roll on each message:
+    - Regular (✨): ~1/1,000
+    - Rare    (🌟): ~1/10,000
+    - Epic    (💫): ~1/100,000
+    - Gay     (<:garkle:>): 1/10 chance whenever any sparkle is awarded
 
-    The longer suffix takes precedence (checked most-specific first).
     Both the per-user count and the timestamped event log are updated in the DB
     via asyncio.to_thread to avoid blocking the event loop.
     """
@@ -21,21 +22,33 @@ class Sparkle(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.chances = {
-            "epic": (100000, "💫", "an **epic sparkle**"),
-            "rare": (10000, "🌟", "a **rare sparkle**"),
-            "regular": (1000, "✨", "a **regular sparkle**")
+            "epic": ("💫", "an **epic sparkle**"),
+            "rare": ("🌟", "a **rare sparkle**"),
+            "regular": ("✨", "a **regular sparkle**"),
+            "gay": ("<:garkle:1533323840145330389>", "a **gay sparkle**")
         }
 
-    async def _add_sparkle(self, message, sparkle_type):
+    async def _add_sparkle(self, message, sparkle_type, is_gay=False, save_to_db=True):
         """React to the message and update both the sparkle counter and event log in the DB."""
-        emoji, description = self.chances[sparkle_type][1:]
-        
-        # Add reaction and send notification
+        emoji, description = self.chances[sparkle_type]
+        gay_emoji, gay_description = self.chances["gay"]
+
+        # Add reaction(s) and send notification
         await message.add_reaction(emoji)
-        await message.reply(
-            f"**{message.author.name}** got {description}! {emoji}",
-            mention_author=False
-        )
+        if is_gay:
+            await message.add_reaction(gay_emoji)
+            await message.reply(
+                f"**{message.author.name}** got {description} and {gay_description}! {emoji} {gay_emoji}",
+                mention_author=False
+            )
+        else:
+            await message.reply(
+                f"**{message.author.name}** got {description}! {emoji}",
+                mention_author=False
+            )
+
+        if not save_to_db:
+            return
 
         # Update database
         def db_task():
@@ -75,16 +88,10 @@ class Sparkle(commands.Cog):
         # Ignore bot messages and DMs
         if message.author.bot or not message.guild:
             return
-        
-        # Check message ID for sparkle probability
-        msg_id_str = str(message.id)
-        
-        if msg_id_str.endswith("00000"):
-            await self._add_sparkle(message, "epic")
-        elif msg_id_str.endswith("0000"):
-            await self._add_sparkle(message, "rare")
-        elif msg_id_str.endswith("000"):
-            await self._add_sparkle(message, "regular")
+        sparkle_type = get_sparkle_type(message.id, message.author.id)
+        if sparkle_type:
+            is_gay = random.randint(1, 10) == 1
+            await self._add_sparkle(message, sparkle_type, is_gay)
 
 
 async def setup(bot):

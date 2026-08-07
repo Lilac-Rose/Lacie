@@ -410,10 +410,19 @@ class InfractionCommand(ModerationBase):
 
             # Pagination with buttons
             class PageView(discord.ui.View):
-                def __init__(self, pages):
+                def __init__(self, pages, owner_id):
                     super().__init__(timeout=180)
                     self.pages = pages
+                    self.owner_id = owner_id
                     self.current = 0
+
+                async def interaction_check(self, interaction: discord.Interaction) -> bool:
+                    if interaction.user.id != self.owner_id:
+                        await interaction.response.send_message(
+                            "❌ Only the person who ran this command can use these buttons.", ephemeral=True
+                        )
+                        return False
+                    return True
 
                 async def update_message(self, interaction):
                     await interaction.response.edit_message(content=self.pages[self.current], view=self)
@@ -428,7 +437,7 @@ class InfractionCommand(ModerationBase):
                     self.current = (self.current + 1) % len(self.pages)
                     await self.update_message(interaction)
 
-            await ctx.send(content=pages[0], view=PageView(pages))
+            await ctx.send(content=pages[0], view=PageView(pages, ctx.author.id))
             return
 
         elif action == "list":
@@ -582,10 +591,19 @@ class InfractionCommand(ModerationBase):
 
         # Pagination with buttons
         class PageView(discord.ui.View):
-            def __init__(self, pages):
+            def __init__(self, pages, owner_id):
                 super().__init__(timeout=180)
                 self.pages = pages
+                self.owner_id = owner_id
                 self.current = 0
+
+            async def interaction_check(self, interaction: discord.Interaction) -> bool:
+                if interaction.user.id != self.owner_id:
+                    await interaction.response.send_message(
+                        "❌ Only the person who ran this command can use these buttons.", ephemeral=True
+                    )
+                    return False
+                return True
 
             async def update_message(self, interaction):
                 await interaction.response.edit_message(content=self.pages[self.current], view=self)
@@ -600,7 +618,7 @@ class InfractionCommand(ModerationBase):
                 self.current = (self.current + 1) % len(self.pages)
                 await self.update_message(interaction)
 
-        await ctx.send(content=pages[0], view=PageView(pages))
+        await ctx.send(content=pages[0], view=PageView(pages, ctx.author.id))
 
 
 class InfractionDeleteView(discord.ui.View):

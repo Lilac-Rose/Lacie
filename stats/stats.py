@@ -23,11 +23,20 @@ DB_PATH = Path(__file__).parent.parent / "data" / "stats.db"
 
 
 class WordsView(View):
-    def __init__(self, embed_pages):
+    def __init__(self, embed_pages, owner_id: int):
         super().__init__(timeout=60)
         self.embed_pages = embed_pages
+        self.owner_id = owner_id
         self.current_page = 0
         self.update_button_states()
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message(
+                "❌ Only the person who ran this command can use these buttons.", ephemeral=True
+            )
+            return False
+        return True
 
     async def update_message(self, interaction: discord.Interaction):
         self.update_button_states()
@@ -538,7 +547,7 @@ class Stats(commands.Cog):
             await interaction.response.send_message(embed=embeds[0])
             return
 
-        view = WordsView(embeds)
+        view = WordsView(embeds, interaction.user.id)
         await interaction.response.send_message(embed=embeds[0], view=view)
         view.message = await interaction.original_response()
 

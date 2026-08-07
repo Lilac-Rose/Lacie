@@ -184,6 +184,38 @@ class SparkleCommands(commands.Cog):
 
         await interaction.followup.send(embed=embed)
 
+    # ========== /sparkle test ==========
+    @sparkle_group.command(name="test", description="Force a sparkle type for testing")
+    @app_commands.describe(
+        message_id="ID of the message to sparkle",
+        sparkle_type="The sparkle type to trigger",
+        gay="Also trigger a gay sparkle"
+    )
+    @app_commands.choices(sparkle_type=[
+        app_commands.Choice(name="Regular", value="regular"),
+        app_commands.Choice(name="Rare", value="rare"),
+        app_commands.Choice(name="Epic", value="epic"),
+    ])
+    async def sparkle_test(self, interaction: discord.Interaction, message_id: str, sparkle_type: app_commands.Choice[str], gay: bool = False):
+        if interaction.user.id != 252130669919076352:
+            await interaction.response.send_message("You don't have permission to use this command.", ephemeral=True)
+            return
+
+        sparkle_cog = self.bot.cogs.get("Sparkle")
+        if not sparkle_cog:
+            await interaction.response.send_message("Sparkle cog not loaded.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        try:
+            msg = await interaction.channel.fetch_message(int(message_id))
+        except (discord.NotFound, discord.HTTPException, ValueError):
+            await interaction.followup.send("Couldn't find that message in this channel.", ephemeral=True)
+            return
+
+        await sparkle_cog._add_sparkle(msg, sparkle_type.value, gay, save_to_db=False)
+        await interaction.followup.send("Done!", ephemeral=True)
+
     # ========== /sparkle stats ==========
     @sparkle_group.command(name="stats", description="View server sparkle statistics")
     async def sparkle_stats(self, interaction: discord.Interaction):
