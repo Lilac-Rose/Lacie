@@ -1,4 +1,6 @@
 import os
+import json
+from pathlib import Path
 from dotenv import load_dotenv
 import discord
 from discord.ext import commands
@@ -10,6 +12,7 @@ from moderation.loader import ModerationBase
 from sparkle.database import get_db as get_sparkle_db
 from xp.groups import xp_group, xp_admin_group
 from utils.logger import get_logger, setup_logging
+from utils.constants import LILAC_ID
 
 # --- Startup ---
 load_dotenv()
@@ -18,6 +21,8 @@ setup_logging()
 logger = get_logger(__name__)
 
 TOKEN = os.getenv("TOKEN")
+
+RESTART_MARKER_PATH = Path(__file__).parent / "data" / "restart_marker.json"
 
 # All cog folders to load on startup and reload
 COG_FOLDERS = [
@@ -98,6 +103,17 @@ async def on_ready():
     """
     logger.info(f"Logged in as {bot.user}!")
 
+    if RESTART_MARKER_PATH.exists():
+        try:
+            marker = json.loads(RESTART_MARKER_PATH.read_text())
+            channel = bot.get_channel(marker["channel_id"]) or await bot.fetch_channel(marker["channel_id"])
+            message = await channel.fetch_message(marker["message_id"])
+            await message.edit(content="✅ Bot restarted successfully!")
+        except Exception as e:
+            logger.error(f"Failed to update restart message: {e}")
+        finally:
+            RESTART_MARKER_PATH.unlink(missing_ok=True)
+
     for lifetime in (True, False):
         try:
             conn, cur = get_xp_db(lifetime)
@@ -143,6 +159,17 @@ async def reload(ctx):
         await ctx.send(f"Cogs reloaded successfully! Synced {len(synced)} slash commands.")
     except Exception as e:
         await ctx.send(f"Cogs reloaded but failed to sync slash commands: {e}")
+
+@bot.command(name="restart")
+async def restart(ctx):
+    """Restart the whole bot process via pm2 — for changes a cog reload can't pick up."""
+    if ctx.author.id != LILAC_ID:
+        await ctx.send("You don't have permission to use this command.")
+        return
+
+    sent = await ctx.send("🔄 Restarting the bot process via pm2...")
+    RESTART_MARKER_PATH.write_text(json.dumps({"channel_id": sent.channel.id, "message_id": sent.id}))
+    await asyncio.create_subprocess_exec("pm2", "restart", "Lacie")
 
 @bot.event
 async def on_message(message):
