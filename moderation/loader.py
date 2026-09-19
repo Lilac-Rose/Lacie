@@ -23,6 +23,44 @@ RESTRICTED_ROLE_IDS = {
     if role_id.strip().isdigit()
 }
 
+# The Ritual rank hierarchy, lowest to highest. Used for target protection —
+# stopping a mod from actioning (warn/mute/kick/ban/cleanban/purge-target) someone
+# who holds an equal or higher rank than them — not for command access, which is
+# still controlled by is_admin()/is_senior_admin() above.
+RANK_ORDER = [
+    "Ritual Candidate",
+    "Ritual Helper",
+    "Ritual Overseer",
+    "Ritual Leader",
+    "Ritual Owner",
+]
+RANK_LEVELS = {name: level for level, name in enumerate(RANK_ORDER, start=1)}
+
+RANK_ROLE_ENV_KEYS = {
+    "Ritual Candidate": "RANK_CANDIDATE_ROLE_ID",
+    "Ritual Helper": "RANK_HELPER_ROLE_ID",
+    "Ritual Overseer": "RANK_OVERSEER_ROLE_ID",
+    "Ritual Leader": "RANK_LEADER_ROLE_ID",
+    "Ritual Owner": "RANK_OWNER_ROLE_ID",
+}
+ROLE_ID_TO_RANK_LEVEL = {
+    int(os.environ[env_key]): RANK_LEVELS[name]
+    for name, env_key in RANK_ROLE_ENV_KEYS.items()
+    if os.getenv(env_key, "").strip().isdigit()
+}
+
+
+def get_rank_level(user) -> int:
+    """Return the highest Ritual rank level held by user's roles, or 0 if none.
+
+    Works for both discord.Member (has .roles) and discord.User (doesn't) —
+    a plain User (e.g. a ban target who isn't in the guild) always comes back 0.
+    """
+    roles = getattr(user, "roles", None)
+    if not roles:
+        return 0
+    return max((ROLE_ID_TO_RANK_LEVEL.get(role.id, 0) for role in roles), default=0)
+
 
 class ModerationBase(commands.Cog):
     """Base cog for all moderation commands.
@@ -144,6 +182,29 @@ class ModerationBase(commands.Cog):
         moderation commands via the shared staff role.
         """
         return ModerationBase._admin_check(require_senior=True)
+
+    async def enforce_target_rank(self, ctx, target) -> bool:
+        """Rank-protection check: stop a mod from actioning someone who holds an
+        equal or higher Ritual rank than them.
+
+        Sends a block message and returns False if the action isn't allowed;
+        returns True otherwise. The bot owner always passes. A target with no
+        recognized Ritual rank role (a regular member, or a raw User outside
+        the guild) never triggers a block.
+        """
+        author = ctx.author
+        if author.id == LILAC_ID:
+            return True
+
+        target_level = get_rank_level(target)
+        if target_level > 0 and target_level >= get_rank_level(author):
+            target_ref = getattr(target, "mention", str(target))
+            await ctx.send(
+                f"You can't do that to {target_ref} — they hold an equal or higher Ritual rank than you."
+            )
+            return False
+
+        return True
 
     async def log_infraction(
         self,

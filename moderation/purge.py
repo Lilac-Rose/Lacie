@@ -246,6 +246,9 @@ class Purge(ModerationBase):
         message_id:
             ID of the oldest message to include in the purge range.
         """
+        if not await self.enforce_target_rank(ctx, member):
+            return
+
         status_msg = await ctx.send(f"🗑️ Purge command received for member {member} up to message ID {message_id}...")
         after_message = await self.fetch_after_message(ctx, message_id)
         if not after_message:

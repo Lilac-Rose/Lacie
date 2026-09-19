@@ -51,6 +51,9 @@ class MuteCommand(ModerationBase):
         reason:
             Optional reason for the mute.
         """
+        if not await self.enforce_target_rank(ctx, user):
+            return
+
         match = re.match(r"(\d+)([wdhm])", duration.lower())
         if not match:
             await ctx.send("Invalid duration format. Use **1w**, **5d**, **12h**, **30m**, etc.")

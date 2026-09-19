@@ -48,6 +48,9 @@ class CleanBanCommand(ModerationBase):
                 await ctx.send("Could not find that user. Please provide a valid mention or ID.")
                 return
 
+        if not await self.enforce_target_rank(ctx, user):
+            return
+
         view = View(timeout=30)
         confirmed = {"value": False}
 

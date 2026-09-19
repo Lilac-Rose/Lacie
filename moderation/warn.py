@@ -22,6 +22,9 @@ class WarnCommand(ModerationBase):
         reason:
             Optional reason for the warning.
         """
+        if not await self.enforce_target_rank(ctx, user):
+            return
+
         view = View(timeout=30)
         confirmed = {"value": False}
 
