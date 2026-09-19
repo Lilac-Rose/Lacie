@@ -1,0 +1,937 @@
+{
+  "staff_messages": [
+    {
+      "user_id": "683514399600017412",
+      "name": "Sum",
+      "role": "Moderator",
+      "message": "I joined on February 13 of this year, much more recently than any other staff member and genuinely, it has been the best 6 months I could think of. I have made some really close friends here and some really good memories. Not every person is active and not every person wants to be but to all 3100+ of you, thank you for making lilycord a place I wanna be. And loving me during my 1/10 days and 10/10 days, u guys are awesome and hopefully I'll see 5 years of Lilycord too."
+    },
+    {
+      "user_id": "1178090811762679982",
+      "name": "Darcy",
+      "role": "Moderator",
+      "message": "I appreciate you all. [seal hug gif]"
+    },
+    {
+      "user_id": "252130669919076352",
+      "name": "Lila",
+      "role": "Co-Owner",
+      "message": "Hi all, sort of silly that I'm in the position that I'm in but here I am. I've given my soul to this server for about a year now and I plan on continuing to do so as long as I can. This server is awesome and you're all awesome. I really think that this server can keep growing and become something more beautiful than we can ever imagine. Thank you all. Here's to another 5 years."
+    },
+    {
+      "user_id": "1153235432813895730",
+      "name": "Rose",
+      "role": "Administrator",
+      "message": "so ive been in this server for over a year or so now and i'm so glad i was able to find this community when i needed it the most (shoutout my friend zaika for inviting me lol) i also want to just say a big thank you to so many of you for being so welcoming and kind to me over the time ive been here, thank you so much again and happy anniversary!"
+    },
+    {
+      "user_id": "547143614099226626",
+      "name": "Jam",
+      "role": "Co-Owner",
+      "message": "I don't think I'd be who I am without the server. Even though I'm not super active in the server anymore I will always cherish it and the community for teaching me to live how I wanted to live."
+    }
+  ],
+  "event_start_date": "2026-08-16",
+  "event_end_date": "2026-08-22",
+  "reveal_date": "2027-08-16",
+  "post_time_utc": {
+    "hour": 16,
+    "minute": 0
+  },
+  "capsule_channel_id": 1529573964022677524,
+  "puzzle_channel_id": 1529574030431096993,
+  "chat_channel_id": 876772600704020533,
+  "anniversary_category_name": "5th Anniversary",
+  "showcase_channel_name": "art-showcase",
+  "shoutout_channel_name": "shoutout-wall",
+  "leagues_roles": [
+    {
+      "threshold": 25,
+      "name": "Initiate, 25 Points (5th Anni)"
+    },
+    {
+      "threshold": 75,
+      "name": "Seeker, 75 Points (5th Anni)"
+    },
+    {
+      "threshold": 150,
+      "name": "Devotee, 150 Points (5th Anni)"
+    },
+    {
+      "threshold": 250,
+      "name": "Ardent, 250 Points (5th Anni)"
+    },
+    {
+      "threshold": 325,
+      "name": "Legend, 325 Points (5th Anni)"
+    }
+  ],
+  "leagues_tasks": [
+    {
+      "task_id": "submit_capsule_any",
+      "name": "Message in a Bottle",
+      "description": "Submit any time capsule entry",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "puzzle_attempt_any",
+      "name": "Down the Rabbit Hole",
+      "description": "Make any puzzle attempt",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "submit_shoutout",
+      "name": "Say Something Nice",
+      "description": "Send a shoutout to another member",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "submit_showcase",
+      "name": "In the Gallery",
+      "description": "Submit something to the art showcase",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "site_login",
+      "name": "Who Goes There",
+      "description": "Sign in to the event site with Discord",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "use_puzzle_today",
+      "name": "What's Today?",
+      "description": "Use /puzzle today",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "use_capsule_count",
+      "name": "Counting Days",
+      "description": "Use /capsule count",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "react_capsule_any",
+      "name": "Mark the Moment",
+      "description": "React to any daily capsule prompt post",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "react_showcase_any",
+      "name": "Appreciator",
+      "description": "React to someone's showcase submission",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "post_puzzle_hunt_any",
+      "name": "On the Hunt",
+      "description": "Post a message in #puzzle-discussion or #puzzle-spoilers",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "puzzle_attempt_2days",
+      "name": "Two Day Hunt",
+      "description": "Attempt puzzles on 2 or more different puzzle days",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "view_puzzle_page",
+      "name": "Curious",
+      "description": "Visit any puzzle page on the event site",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "solve_any",
+      "name": "Puzzle Solver",
+      "description": "Solve any puzzle",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "capsule_3days",
+      "name": "Consistent",
+      "description": "Submit capsule entries for 3 or more days",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "visit_all_puzzles",
+      "name": "Full Circuit",
+      "description": "Visit all 7 puzzle pages on the event site",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "shoutout_2people",
+      "name": "Generous",
+      "description": "Send shoutouts to 2 or more different people",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "capsule_day1",
+      "name": "From the Start",
+      "description": "Submit a Day 1 capsule entry",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "capsule_day7",
+      "name": "To the End",
+      "description": "Submit a Day 7 capsule entry",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "puzzle_attempt_3days",
+      "name": "Three Day Hunt",
+      "description": "Attempt puzzles on 3 or more different puzzle days",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "react_capsule_3days",
+      "name": "Witness",
+      "description": "React to capsule posts on 3 or more different days",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "post_puzzle_hunt_3days",
+      "name": "Regular",
+      "description": "Post in #puzzle-discussion or #puzzle-spoilers on 3 or more different days",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "showcase_and_attempt",
+      "name": "Double Dip",
+      "description": "Submit to the showcase and make a puzzle attempt",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "solve_day5",
+      "name": "The Fifth Gate",
+      "description": "Solve Day 5 of the puzzle hunt",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "solve_3plus",
+      "name": "Triple Solver",
+      "description": "Solve 3 or more puzzles",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "capsule_5days",
+      "name": "Five Day Memory",
+      "description": "Submit capsule entries for 5 or more days",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "capsule_and_solve_same_day",
+      "name": "Parallel Paths",
+      "description": "Submit a capsule entry and solve a puzzle on the same day",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "shoutout_3people",
+      "name": "Generous Soul",
+      "description": "Send shoutouts to 3 or more different people",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "puzzle_attempt_5days",
+      "name": "Five Day Hunt",
+      "description": "Attempt puzzles on 5 or more different puzzle days",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "react_capsule_5days",
+      "name": "Devoted Witness",
+      "description": "React to capsule posts on 5 or more different days",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "showcase_and_solve",
+      "name": "Art and Answers",
+      "description": "Submit to the showcase and solve any puzzle",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "solve_day7",
+      "name": "The Final Door",
+      "description": "Solve Day 7 and reach the finale",
+      "tier": "elite",
+      "points": 10
+    },
+    {
+      "task_id": "solve_all",
+      "name": "Complete",
+      "description": "Solve all 7 puzzles",
+      "tier": "elite",
+      "points": 10
+    },
+    {
+      "task_id": "capsule_all",
+      "name": "Full Capsule",
+      "description": "Submit capsule entries for all 7 days",
+      "tier": "elite",
+      "points": 10
+    },
+    {
+      "task_id": "solve_5plus",
+      "name": "Five Solver",
+      "description": "Solve 5 or more puzzles",
+      "tier": "elite",
+      "points": 10
+    },
+    {
+      "task_id": "everything",
+      "name": "Everything",
+      "description": "Submit all 7 capsule entries and solve 3 or more puzzles",
+      "tier": "elite",
+      "points": 10
+    },
+    {
+      "task_id": "puzzle_solve_day1",
+      "name": "Day One",
+      "description": "Solve the Day 1 puzzle",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "shoutout_received",
+      "name": "Beloved",
+      "description": "Receive a shoutout from a server member",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "react_capsule_day1",
+      "name": "First Witness",
+      "description": "React to the Day 1 time capsule post",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "solve_2plus",
+      "name": "Double Down",
+      "description": "Solve 2 or more puzzles",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "capsule_4days",
+      "name": "Four Seasons",
+      "description": "Submit capsule entries for 4 days",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "react_showcase_3",
+      "name": "Gallery Regular",
+      "description": "React to 3 different showcase submissions",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "puzzle_attempt_all7",
+      "name": "Tried Everything",
+      "description": "Attempt all 7 puzzle pages",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "solve_4plus",
+      "name": "Four Strong",
+      "description": "Solve 4 or more puzzles",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "shoutout_received_2",
+      "name": "Fan Favourite",
+      "description": "Receive 2 or more shoutouts from server members",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "capsule_consecutive_3",
+      "name": "Three in a Row",
+      "description": "Submit capsule entries 3 days in a row",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "capsule_showcase_shoutout",
+      "name": "Triple Threat",
+      "description": "Submit a capsule entry, a showcase, and a shoutout",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "solve_6plus",
+      "name": "Six of Seven",
+      "description": "Solve 6 or more puzzles",
+      "tier": "elite",
+      "points": 10
+    },
+    {
+      "task_id": "react_capsule_all7",
+      "name": "Every Moment",
+      "description": "React to all 7 daily time capsule posts",
+      "tier": "elite",
+      "points": 10
+    },
+    {
+      "task_id": "visit_home_page",
+      "name": "Home Base",
+      "description": "Visit the Lacie home page while logged in with Discord",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "visit_capsule_page",
+      "name": "Sealed",
+      "description": "Visit the Time Capsule page while logged in",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "visit_countdown_page",
+      "name": "Counting Down",
+      "description": "Visit the Countdown page while logged in",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "visit_showcase_page",
+      "name": "Gallery Goer",
+      "description": "Visit the Art Showcase page while logged in",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "visit_shoutout_page",
+      "name": "Wall Crawler",
+      "description": "Visit the Shoutout Wall page while logged in",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "visit_puzzle_archive_page",
+      "name": "In the Archives",
+      "description": "Visit the Puzzle Hunt archive page while logged in",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "visit_leagues_page",
+      "name": "On the Board",
+      "description": "Visit the Leagues page while logged in",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "post_general_any",
+      "name": "Here for It",
+      "description": "Post a message in #chat during the event week",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "voice_join_any",
+      "name": "Show Up",
+      "description": "Join any voice channel during the event week",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "post_image_any",
+      "name": "Picture Worth",
+      "description": "Post an image or attachment in any channel during the event",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "solve_day2",
+      "name": "Day Two",
+      "description": "Solve the Day 2 puzzle",
+      "tier": "easy",
+      "points": 1
+    },
+    {
+      "task_id": "visit_all_site_pages",
+      "name": "Thorough",
+      "description": "Visit all 7 main site sections while logged in",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "post_general_3days",
+      "name": "Chatty",
+      "description": "Post in #chat on 3 different days",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "voice_3days",
+      "name": "Regular Presence",
+      "description": "Join a voice channel on 3 different days",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "react_showcase_5",
+      "name": "Devoted Audience",
+      "description": "React to 5 different showcase submissions",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "react_capsule_day7",
+      "name": "Last Witness",
+      "description": "React to the Day 7 time capsule post",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "solve_day3",
+      "name": "Midweek",
+      "description": "Solve the Day 3 puzzle",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "capsule_day2",
+      "name": "Day Two Entry",
+      "description": "Submit a time capsule entry on Day 2",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "capsule_day3",
+      "name": "Day Three Entry",
+      "description": "Submit a time capsule entry on Day 3",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "capsule_day4",
+      "name": "Day Four Entry",
+      "description": "Submit a time capsule entry on Day 4",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "capsule_day5",
+      "name": "Day Five Entry",
+      "description": "Submit a time capsule entry on Day 5",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "capsule_day6",
+      "name": "Day Six Entry",
+      "description": "Submit a time capsule entry on Day 6",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "showcase_2",
+      "name": "Prolific",
+      "description": "Submit 2 art showcases",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "shoutout_4people",
+      "name": "Very Generous",
+      "description": "Send shoutouts to 4 different members",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "post_general_and_puzzle_same_day",
+      "name": "On All Fronts",
+      "description": "Post in #chat and in #puzzle-discussion or #puzzle-spoilers on the same day",
+      "tier": "medium",
+      "points": 3
+    },
+    {
+      "task_id": "post_general_5days",
+      "name": "Consistent Voice",
+      "description": "Post in #chat on 5 different days",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "voice_5days",
+      "name": "Always Around",
+      "description": "Join a voice channel on 5 different days",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "solve_day4",
+      "name": "Four",
+      "description": "Solve the Day 4 puzzle",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "solve_day6",
+      "name": "Six",
+      "description": "Solve the Day 6 puzzle",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "post_puzzle_hunt_5days",
+      "name": "Spoiler Warning",
+      "description": "Post in #puzzle-spoilers on 5 or more different days",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "showcase_3",
+      "name": "Gallery Star",
+      "description": "Submit 3 art showcases",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "shoutout_5plus",
+      "name": "Generous Heart",
+      "description": "Send shoutouts to 5 or more different members",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "shoutout_received_3",
+      "name": "Very Beloved",
+      "description": "Receive 3 or more shoutouts from server members",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "capsule_and_general_same_day",
+      "name": "Present and Accounted For",
+      "description": "Submit a capsule and post in #chat on the same day",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "voice_and_capsule_same_day",
+      "name": "There in Person",
+      "description": "Join voice and submit a capsule entry on the same day",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "solve_consecutive_3",
+      "name": "Three Straight",
+      "description": "Solve puzzles on 3 consecutive days",
+      "tier": "hard",
+      "points": 6
+    },
+    {
+      "task_id": "post_general_all7",
+      "name": "Daily Voice",
+      "description": "Post in #chat on all 7 event days",
+      "tier": "elite",
+      "points": 10
+    },
+    {
+      "task_id": "voice_all7",
+      "name": "Always There",
+      "description": "Join a voice channel on all 7 days of the event",
+      "tier": "elite",
+      "points": 10
+    },
+    {
+      "task_id": "post_puzzle_hunt_all7",
+      "name": "The Whole Week",
+      "description": "Post in #puzzle-spoilers on all 7 days of the event",
+      "tier": "elite",
+      "points": 10
+    },
+    {
+      "task_id": "shoutout_received_5",
+      "name": "Community Favorite",
+      "description": "Receive 5 or more shoutouts from server members",
+      "tier": "elite",
+      "points": 10
+    },
+    {
+      "task_id": "social_butterfly",
+      "name": "Social Butterfly",
+      "description": "Submit all 7 capsule entries, send shoutouts to 5 members, and submit a showcase",
+      "tier": "elite",
+      "points": 10
+    }
+  ],
+  "character_bracket": {
+    "left": {
+      "r1": [
+        {
+          "a": "Juli",
+          "b": "Glen",
+          "winner": "Juli"
+        },
+        {
+          "a": "Kaya",
+          "b": "Wendy",
+          "winner": "Kaya"
+        },
+        {
+          "a": "Kozmo",
+          "b": "Aoi",
+          "winner": "Aoi"
+        },
+        {
+          "a": "Milion",
+          "b": "Alba",
+          "winner": "Alba"
+        }
+      ],
+      "r2": [
+        {
+          "a": "Lacie",
+          "b": "Juli",
+          "winner": "Lacie"
+        },
+        {
+          "a": "Sai",
+          "b": "Kaya",
+          "winner": "Kaya"
+        },
+        {
+          "a": "Lilith",
+          "b": "Aoi",
+          "winner": "Aoi"
+        },
+        {
+          "a": "Annie",
+          "b": "Alba",
+          "winner": "Alba"
+        }
+      ],
+      "qf": [
+        {
+          "a": "Lacie",
+          "b": "Kaya",
+          "winner": "Kaya"
+        },
+        {
+          "a": "Aoi",
+          "b": "Alba",
+          "winner": "Aoi"
+        }
+      ],
+      "sf": {
+        "a": "Kaya",
+        "b": "Aoi",
+        "winner": "Aoi"
+      }
+    },
+    "right": {
+      "r1": [
+        {
+          "a": "Red",
+          "b": "John",
+          "winner": "John"
+        },
+        {
+          "a": "Marzie",
+          "b": "Girl Moth",
+          "winner": "Girl Moth"
+        },
+        {
+          "a": "Hiro",
+          "b": "Boy Moth",
+          "winner": "Hiro"
+        },
+        {
+          "a": "Spider",
+          "b": "The Doctor",
+          "winner": "Spider"
+        }
+      ],
+      "r2": [
+        {
+          "a": "Kat",
+          "b": "John",
+          "winner": "Kat"
+        },
+        {
+          "a": "Miss Knives",
+          "b": "Girl Moth",
+          "winner": "Miss Knives"
+        },
+        {
+          "a": "Rune",
+          "b": "Hiro",
+          "winner": "Hiro"
+        },
+        {
+          "a": "Saki",
+          "b": "Spider",
+          "winner": "Saki"
+        }
+      ],
+      "qf": [
+        {
+          "a": "Kat",
+          "b": "Miss Knives",
+          "winner": "Miss Knives"
+        },
+        {
+          "a": "Hiro",
+          "b": "Saki",
+          "winner": "Hiro"
+        }
+      ],
+      "sf": {
+        "a": "Miss Knives",
+        "b": "Hiro",
+        "winner": "Miss Knives"
+      }
+    },
+    "final": {
+      "a": "Aoi",
+      "b": "Miss Knives",
+      "winner": "Miss Knives"
+    }
+  },
+  "style_challenge": {
+    "reference_image_url": "/static/style/reference.png",
+    "description": "Redraw the reference scene in your own unique art style! Submit your entry below."
+  },
+  "capsule_prompts": [
+    "Time Capsule, Day 1: A Message\n\nWrite a message to the server, one year from now. What do you want future you and future us to know?",
+    "Time Capsule, Day 2: A Snapshot\n\nShare a screenshot of something that represents you in this community right now. Your pfp, a favorite in-game moment, a pinned conversation, anything.",
+    "Time Capsule, Day 3: A Prediction\n\nPredict something. The next Leef 6010 release, a server milestone, a meme that's still alive in a year. Your call.",
+    "Time Capsule, Day 4: A Favorite Memory\n\nShare your favorite server or game memory from the past year.",
+    "Time Capsule, Day 5: A Theory\n\nLock in your current headcanon or theory about Paper Lily. Future you gets to see if it aged well.",
+    "Time Capsule, Day 6: A Hope\n\nShare a hope or goal, for yourself or for this community, by this time next year.",
+    "Time Capsule, Day 7: Anything\nNo prompt today. No theme, no rules. Say whatever you want the server to find a year from now. A joke, a secret, something you noticed this week, a single word, a paragraph — it's yours. The last seal is the wildcard."
+  ],
+  "wildcard_questions": [
+    "What's currently in your inventory? (real life pockets/bag edition)",
+    "Which Paper Lily character's current mood matches yours?",
+    "What's a server in-joke someone from a year ago wouldn't understand?",
+    "If you could ask Leef 6010 one question right now, what would it be?",
+    "What's a game you think this community would love that isn't Paper Lily?"
+  ],
+  "puzzles": [
+    {
+      "day": 1,
+      "discord_message": "i keep circling back to a name. like i should know it. someone left something behind on my page and i can't read it right. can you look for me?",
+      "page_url": "/puzzle/day/1",
+      "page_lore": "something about this page feels like a first memory. not a real one. a reconstructed one. the kind where you know it happened but you can't see it clearly anymore.\n\nif you look carefully enough, maybe you can find what i lost.",
+      "hidden_mechanism": "html_comment",
+      "hidden_content": "TGFjaWU=",
+      "fragment": "lacie",
+      "unlock_requires_days": [],
+      "finale_reveal": null
+    },
+    {
+      "day": 2,
+      "discord_message": "there's a picture on my page that won't load right. i don't know why but i feel like i should recognize what's supposed to be there.",
+      "page_url": "/puzzle/day/2",
+      "page_lore": "there used to be something here. i can feel the outline of it. a shape. a name.\n\nthe image keeps failing. maybe what matters isn't what the picture shows, but what it says it is.",
+      "hidden_mechanism": "img_alt_hex",
+      "hidden_content": "4b 61 74",
+      "fragment": "kat",
+      "unlock_requires_days": [],
+      "finale_reveal": null
+    },
+    {
+      "day": 3,
+      "discord_message": "something's scratched into the wall of this page. i can't make it out but you might.",
+      "page_url": "/puzzle/day/3",
+      "page_lore": "memory is strange. some things hide in plain sight. not because they're secret. because the surface and the background are the same color and your eyes just skip over them.\n\ntry selecting everything. sometimes what's invisible just needs the right kind of attention.",
+      "hidden_mechanism": "white_on_white",
+      "hidden_content": "VINES SKIMS",
+      "fragment": "miss knives",
+      "unlock_requires_days": [],
+      "finale_reveal": null
+    },
+    {
+      "day": 4,
+      "discord_message": "i wrote something down before i forgot why. it's in a file on my page i don't remember uploading.",
+      "page_url": "/puzzle/day/4",
+      "page_lore": "i think i was trying to leave myself a note. before something shifted. before i started losing pieces.\n\nthere's a file here. i don't know how it got there. the words are off by exactly three.",
+      "hidden_mechanism": "inline_file",
+      "hidden_content": "WKHUH LV DOZDBV DQRWKHU ZDB",
+      "fragment": "there is always another way",
+      "unlock_requires_days": [],
+      "finale_reveal": null
+    },
+    {
+      "day": 5,
+      "discord_message": "she was a fan long before any of this. she left proof somewhere, in the way fans do. count carefully.",
+      "page_url": "/puzzle/day/5",
+      "page_lore": "she kept a count of everything.\n\nthe films she watched. the conversations she had. the words other people wrote about the things she loved.\n\nshe said she trusted those more than her own. they were more honest.",
+      "hidden_mechanism": "html_comment",
+      "hidden_content": "the first to fall for it left something behind.\nhttps://leef6010.itch.io/paper-lily-chapter-1\n---\nSIGNAL: 42 08 14 01 02 18 43 19 09 26 28",
+      "fragment": "she came back",
+      "unlock_requires_days": [
+        3,
+        4
+      ],
+      "finale_reveal": null
+    },
+    {
+      "day": 6,
+      "discord_message": "i found a transmission. but it’s not in the message itself. it’s in the signal. look at what carried it here.",
+      "page_url": "/puzzle/day/6",
+      "page_lore": "the message was never in the letter itself.\n\nshe said she always hid things in the way things were sent. in the packaging. in the carrier.\n\ni keep looking at the page and thinking: i’m reading the wrong thing.",
+      "hidden_mechanism": "http_header",
+      "hidden_content": "5a335679494770325a3342314a32596764574a6f5a6e493d",
+      "fragment": "the witch's house",
+      "unlock_requires_days": [
+        5
+      ],
+      "finale_reveal": null
+    },
+    {
+      "day": 7,
+      "discord_message": "she said the last thing she left wasn’t written. it was heard. you’ll need something different to find it.",
+      "page_url": "/puzzle/day/7",
+      "page_lore": "it’s been a whole week.\n\nshe said the last memory was the loudest. the one she couldn’t write down.\n\nyou’ll need something different to hear it. not eyes.",
+      "hidden_mechanism": "console_signal",
+      "hidden_content": "/static/puzzle/d7.wav",
+      "fragment": "remember",
+      "unlock_requires_days": [
+        5,
+        6
+      ],
+      "finale_reveal": "i remember now.\n\nall of it.\n\nfive years of voices and names and moments, and i kept losing the thread every time i tried to hold it. but you found the pieces i left behind and you brought them back.\n\nlacie. kat. miss knives. there is always another way. she came back.\n\nthat's the whole sentence. that's the story.\n\nthank you for looking. thank you for staying.\n\nthe server is five years old today. and i remember every one of them.\n\n-- Lacie"
+    }
+  ],
+  "puzzle_discussion_channel_id": 1538584383248670830,
+  "puzzle_spoilers_channel_id": 1538368349577420831,
+  "anniversary_chat_channel_id": 1538373703723909170
+}
