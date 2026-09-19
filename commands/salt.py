@@ -34,6 +34,8 @@ class SaltCommand(ModerationBase):
         reason:
             Optional reason to show in the confirmation message.
         """
+        # No Ritual rank target-protection here on purpose — this is a joke
+        # reaction, not real moderation, so rank shouldn't gate who can salt whom.
 
         if member.id == 252130669919076352:
             await ctx.send("https://tenor.com/view/you-didnt-say-the-magic-word-ah-ah-nope-wagging-finger-gif-17646607")
