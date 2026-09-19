@@ -12,11 +12,20 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 class LeaderboardView(View):
-    def __init__(self, embed_pages):
+    def __init__(self, embed_pages, owner_id: int):
         super().__init__(timeout=60)
         self.embed_pages = embed_pages
+        self.owner_id = owner_id
         self.current_page = 0
         self.update_button_states()
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message(
+                "❌ Only the person who ran this command can use these buttons.", ephemeral=True
+            )
+            return False
+        return True
 
     async def update_message(self, interaction: discord.Interaction):
         self.update_button_states()
@@ -140,7 +149,7 @@ class Leaderboard(commands.Cog):
                 embed.description = "\n".join(description_lines)
                 embeds.append(embed)
 
-            view = LeaderboardView(embeds)
+            view = LeaderboardView(embeds, interaction.user.id)
             await interaction.followup.send(embed=embeds[0], view=view)
 
             view.message = await interaction.original_response()

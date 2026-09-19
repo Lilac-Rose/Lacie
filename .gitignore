@@ -18,3 +18,6 @@ arg/
 
 # Personal mailbox integration — not part of the general bot
 mail/
+
+# 5th Anniversary event — keep out of public repo
+anniversary/

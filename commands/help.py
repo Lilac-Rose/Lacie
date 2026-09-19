@@ -135,9 +135,18 @@ class HelpSelect(discord.ui.Select):
 class HelpView(discord.ui.View):
     """View wrapping the HelpSelect dropdown. Times out after 2 minutes of inactivity."""
 
-    def __init__(self, color: discord.Color):
+    def __init__(self, color: discord.Color, owner_id: int):
         super().__init__(timeout=120)
+        self.owner_id = owner_id
         self.add_item(HelpSelect(embed_color=color))
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message(
+                "❌ Only the person who ran this command can use this menu.", ephemeral=True
+            )
+            return False
+        return True
 
 
 class Help(commands.Cog):
@@ -151,14 +160,14 @@ class Help(commands.Cog):
         """Show the interactive help menu via slash command."""
         color = get_embed_color(interaction.user.id)
         embed = build_overview_embed(color)
-        await interaction.response.send_message(embed=embed, view=HelpView(color))
+        await interaction.response.send_message(embed=embed, view=HelpView(color, interaction.user.id))
 
     @commands.command(name="help")
     async def help_prefix(self, ctx: commands.Context):
         """Show the interactive help menu via prefix command."""
         color = get_embed_color(ctx.author.id)
         embed = build_overview_embed(color)
-        await ctx.send(embed=embed, view=HelpView(color))
+        await ctx.send(embed=embed, view=HelpView(color, ctx.author.id))
 
 
 async def setup(bot: commands.Bot):

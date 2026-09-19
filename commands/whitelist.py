@@ -98,12 +98,21 @@ PAGE_SIZE = 10
 
 
 class WhitelistListView(discord.ui.View):
-    def __init__(self, rows: list, *, timeout: float = 120):
+    def __init__(self, rows: list, owner_id: int, *, timeout: float = 120):
         super().__init__(timeout=timeout)
         self.rows = rows
+        self.owner_id = owner_id
         self.page = 0
         self.total_pages = max(1, (len(rows) + PAGE_SIZE - 1) // PAGE_SIZE)
         self._sync_buttons()
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if interaction.user.id != self.owner_id:
+            await interaction.response.send_message(
+                "❌ Only the person who ran this command can use these buttons.", ephemeral=True
+            )
+            return False
+        return True
 
     def _sync_buttons(self):
         self.prev_button.disabled = self.page == 0
@@ -222,7 +231,7 @@ class Whitelist(commands.GroupCog, name="whitelist"):
                 await interaction.followup.send("No whitelist entries found.", ephemeral=True)
                 return
 
-            view = WhitelistListView(rows)
+            view = WhitelistListView(rows, interaction.user.id)
             await interaction.followup.send(embed=view.build_embed(), view=view, ephemeral=True)
         except Exception as e:
             await interaction.followup.send(f"❌ Error: `{e}`", ephemeral=True)
