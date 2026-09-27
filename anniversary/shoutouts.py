@@ -81,7 +81,8 @@ class Shoutouts(commands.Cog):
             return None
         return discord.utils.get(guild.text_channels, name=name)
 
-    @app_commands.command(name="shoutout", description="[Event Ended] Send a shoutout to a server member for the anniversary wall", default_member_permissions=discord.Permissions(administrator=True))
+    @app_commands.command(name="shoutout", description="[Event Ended] Send a shoutout to a server member for the anniversary wall")
+    @app_commands.default_permissions(administrator=True)
     @app_commands.describe(
         member="The member you want to shout out",
         message=f"Your message (max {MAX_LENGTH} characters)"

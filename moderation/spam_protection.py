@@ -90,6 +90,13 @@ class SpamProtection(commands.Cog):
             spam_type TEXT NOT NULL
         )
         """)
+
+        # Older installs have this column under its previous name, spam_data.
+        # CREATE TABLE IF NOT EXISTS is a no-op on those, so migrate it here.
+        existing_columns = {row[1] for row in c.execute("PRAGMA table_info(spam_actions)")}
+        if "spam_data" in existing_columns and "spam_type" not in existing_columns:
+            c.execute("ALTER TABLE spam_actions RENAME COLUMN spam_data TO spam_type")
+
         conn.commit()
         conn.close()
 

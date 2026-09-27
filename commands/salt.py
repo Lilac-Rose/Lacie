@@ -17,7 +17,7 @@ class SaltCommand(ModerationBase):
     """
 
     def __init__(self, bot):
-        self.bot = bot
+        super().__init__(bot)
         # tracks who's queued to be salted: {guild_id: {user_id: reason}}
         # only persists in memory, resets on restart which is fine
         self.salt_targets = {}

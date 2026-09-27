@@ -323,18 +323,21 @@ class Profiles(commands.GroupCog, name="profile"):
             
             # Parse background color - only accept hex with #
             base_color = "#0f1419"  # default
-            for color in bg_color.split(' '):
-                if bg_color and bg_color.startswith('#'):
+            valid_colors = []
+            for color in (bg_color.split(' ') if bg_color else []):
+                if color.startswith('#'):
                     try:
                         # Validate it's a proper hex color
-                        int(bg_color[1:], 16)
-                        base_color = bg_color
-                    except Exception:
-                        pass  # Use default if invalid
-            
+                        int(color[1:], 16)
+                        valid_colors.append(color)
+                    except ValueError:
+                        pass  # Skip invalid entries
+            if valid_colors:
+                base_color = valid_colors[0]
+
             img = Image.new("RGB", (img_width, img_height), base_color)
-            if len(bg_color.split(' ')) >= 2:
-                img.paste(generate_gradient_image(bg_color.split(' '), img_width, img_height))
+            if len(valid_colors) >= 2:
+                img.paste(generate_gradient_image(valid_colors, img_width, img_height))
             draw = ImageDraw.Draw(img)
             
             # Draw semi-transparent panel for avatar section

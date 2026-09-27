@@ -67,7 +67,8 @@ class Showcase(commands.Cog):
             return None
         return discord.utils.get(guild.text_channels, name=name)
 
-    @app_commands.command(name="showcase", description="[Event Ended] Submit your art or screenshot to the 5th Anniversary showcase", default_member_permissions=discord.Permissions(administrator=True))
+    @app_commands.command(name="showcase", description="[Event Ended] Submit your art or screenshot to the 5th Anniversary showcase")
+    @app_commands.default_permissions(administrator=True)
     @app_commands.describe(
         image="The image to submit",
         caption="Optional caption for your submission"
