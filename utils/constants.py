@@ -19,7 +19,7 @@ ADMIN_CHANNEL_ID = 1470441786810826884     # Staff-only admin channel
 APPROVAL_CHANNEL_ID = 1424145004976275617  # Where pending approval embeds (infractions, credits) are sent
 BACKUP_CHANNEL_ID = 946421558778417172     # Backup/archive channel
 NOTIFICATION_CHANNEL_ID = 1424145004976275617  # General notification channel (same as approval)
-COMMIT_CHANNEL_IDS = [876777562599194644, 1437941632849940563, 1470441786810826884]  # Git webhook targets
+COMMIT_CHANNEL_IDS = [1437941632849940563, 1562864780765692065]  # Git webhook targets
 
 # --- Roles ---
 BIRTHDAY_ROLE_ID = 1113751318918602762     # Temporary role assigned on a member's birthday
