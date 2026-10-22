@@ -140,7 +140,13 @@ class GitWebhook(commands.Cog):
         commits = data['commits']
         compare_url = data.get('compare', '')
 
+        # Tag pushes have no commits but carry the tagged commit as head_commit
+        if data['ref'].startswith('refs/tags/'):
+            await self.handle_github_tag(data, channels)
+            return
+
         if not commits:
+            logger.info(f"Skipping push to {data['ref']} with no commits")
             return
 
         if len(commits) == 1:
@@ -187,6 +193,42 @@ class GitWebhook(commands.Cog):
             embed.set_author(name=pusher, icon_url="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png")
             embed.set_footer(text="GitHub")
 
+        for channel in channels:
+            try:
+                await channel.send(embed=embed)
+            except Exception as e:
+                logger.error(f"Failed to send to channel {channel.id}: {e}")
+
+    async def handle_github_tag(self, data, channels):
+        """Announce a newly created version tag using the tagged commit's message.
+
+        Deleted tags and tags without a head_commit are skipped.
+        """
+        tag = data['ref'].split('/')[-1]
+        head_commit = data.get('head_commit')
+
+        if data.get('deleted') or not data.get('created') or not head_commit:
+            logger.info(f"Skipping tag event for {tag}")
+            return
+
+        repo_name = data['repository']['full_name']
+        repo_url = data['repository']['html_url']
+        message = head_commit['message']
+        if len(message) > 4000:
+            message = message[:3997] + "..."
+
+        embed = discord.Embed(
+            title=f"🏷️ [{repo_name}] {tag}",
+            url=f"{repo_url}/releases/tag/{tag}",
+            description=message,
+            color=discord.Color.purple()
+        )
+        embed.add_field(name="Commit", value=f"[`{head_commit['id'][:7]}`]({head_commit['url']})", inline=True)
+        embed.add_field(name="Author", value=head_commit['author']['name'], inline=True)
+        embed.set_author(name=data['pusher']['name'], icon_url="https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png")
+        embed.set_footer(text="GitHub")
+
+        logger.info(f"Announcing tag {tag} to {len(channels)} channel(s)")
         for channel in channels:
             try:
                 await channel.send(embed=embed)
