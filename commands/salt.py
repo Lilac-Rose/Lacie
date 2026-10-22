@@ -72,14 +72,19 @@ class SaltCommand(ModerationBase):
 
         guild_targets = self.salt_targets.get(message.guild.id, {})
         if message.author.id in guild_targets:
+            # remove them before reacting — one salt per queue
+            # we remove them before reacting to avoid the bot salting people multiple times while waiting
+            # for discord's servers to reply to the add_reaction() request
+            guild_targets.pop(message.author.id)
             emoji = self.bot.get_emoji(SALT_EMOJI_ID)
+
             if emoji:
                 try:
+                    # code does other stuff while waiting for the add_reaction() to finish
+                    # (it finishes when discord's servers reply)
                     await message.add_reaction(emoji)
                 except discord.HTTPException:
                     pass
-            # remove them after reacting — one salt per queue
-            guild_targets.pop(message.author.id)
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(SaltCommand(bot))

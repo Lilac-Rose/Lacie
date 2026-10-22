@@ -56,9 +56,16 @@ def get_rank_level(user) -> int:
     Works for both discord.Member (has .roles) and discord.User (doesn't) —
     a plain User (e.g. a ban target who isn't in the guild) always comes back 0.
     """
+
     roles = getattr(user, "roles", None)
+    if hasattr(user, "roles"):
+        roles = getattr(user, "roles", None)
+    else:
+        roles = None
+
     if not roles:
         return 0
+
     return max((ROLE_ID_TO_RANK_LEVEL.get(role.id, 0) for role in roles), default=0)
 
 
@@ -196,7 +203,15 @@ class ModerationBase(commands.Cog):
         if author.id == LILAC_ID:
             return True
 
-        target_level = get_rank_level(target)
+        if ctx.guild:
+            target_member = ctx.guild.get_member(target.id)
+            if target_member:
+                target_level = get_rank_level(target_member)
+            else:
+                target_level = get_rank_level(target)
+        else:
+            target_level = get_rank_level(target)
+
         if target_level > 0 and target_level >= get_rank_level(author):
             target_ref = getattr(target, "mention", str(target))
             await ctx.send(
