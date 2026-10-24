@@ -383,7 +383,8 @@ class Stats(commands.Cog):
                 'uptime': f"{hours}h {minutes}m {seconds}s",
                 'totalCommands': self.get_usage(),
                 'memberCount': guild.member_count,
-                'latency': round(self.bot.latency * 1000),
+                # latency is inf until the first heartbeat ack after a (re)connect
+                'latency': round(self.bot.latency * 1000) if math.isfinite(self.bot.latency) else None,
                 'developer': 'Lilac Aria Rose',
                 'lastUpdated': datetime.now(timezone.utc).isoformat()
             },
