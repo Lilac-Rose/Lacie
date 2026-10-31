@@ -156,8 +156,16 @@ class MuteCommand(ModerationBase):
 
         Also handles the case where the mute was manually removed before
         expiry — if the DB entry is already gone, this exits without action.
+
+        If the member has left, the mute role is dropped from their saved roles
+        instead, so rejoining after expiry doesn't restore it.
         """
         await asyncio.sleep(delay)
+
+        guild = self.bot.get_guild(guild_id)
+        if not guild:
+            # Keep the entry so check_mutes can retry once the guild is available
+            return
 
         conn = sqlite3.connect(DB_PATH)
         try:
@@ -166,28 +174,35 @@ class MuteCommand(ModerationBase):
             if not c.fetchone():
                 # Mute was manually removed before expiry
                 return
+        finally:
+            conn.close()
+
+        member = guild.get_member(user_id)
+        if not member:
+            role_track = self.bot.get_cog("RoleTrack")
+            if role_track:
+                await role_track.remove_saved_role(user_id, guild_id, MUTE_ROLE_ID)
+
+        conn = sqlite3.connect(DB_PATH)
+        try:
+            c = conn.cursor()
             c.execute("DELETE FROM mutes WHERE user_id = ? AND guild_id = ?", (user_id, guild_id))
             conn.commit()
         finally:
             conn.close()
 
-        guild = self.bot.get_guild(guild_id)
-        if not guild:
-            return
-        member = guild.get_member(user_id)
-        if not member:
-            return
-        mute_role = guild.get_role(MUTE_ROLE_ID)
-        if not mute_role:
-            return
-
         try:
-            await member.remove_roles(mute_role, reason="Mute duration expired")
+            if member:
+                mute_role = guild.get_role(MUTE_ROLE_ID)
+                if not mute_role:
+                    return
+                await member.remove_roles(mute_role, reason="Mute duration expired")
 
             log_cog = self.bot.get_cog("Logger")
             if log_cog:
+                user = member or await self.bot.fetch_user(user_id)
                 await log_cog.log_moderation_action(
-                    guild_id, "unmute", member, self.bot.user, "Mute duration expired"
+                    guild_id, "unmute", user, self.bot.user, "Mute duration expired"
                 )
         except Exception as e:
             _logger.error(f"Failed to remove mute role from {user_id}: {e}", exc_info=True)
@@ -214,6 +229,11 @@ class MuteCommand(ModerationBase):
         for user_id, guild_id, channel_id, _ in expired:
             # Delay of 0 so they run immediately on the next event loop iteration
             asyncio.create_task(self.schedule_unmute(user_id, guild_id, channel_id, 0))
+
+    @check_mutes.before_loop
+    async def before_check_mutes(self):
+        """Wait for the member cache so nobody looks absent during startup."""
+        await self.bot.wait_until_ready()
 
 
 async def setup(bot: commands.Bot):

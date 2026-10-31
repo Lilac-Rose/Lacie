@@ -83,6 +83,23 @@ class RoleTrack(commands.Cog):
                     return [int(role_id) for role_id in result[0].split(",")]
                 return []
 
+    async def remove_saved_role(self, user_id: int, guild_id: int, role_id: int):
+        """Drop one role from a member's snapshot so it isn't restored on rejoin."""
+        saved_role_ids = await self.get_saved_roles(user_id, guild_id)
+        if role_id not in saved_role_ids:
+            return
+
+        role_ids_str = ",".join(str(saved_id) for saved_id in saved_role_ids if saved_id != role_id)
+
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute('''
+                UPDATE tracked_roles
+                SET role_ids = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ? AND guild_id = ?
+            ''', (role_ids_str, user_id, guild_id))
+
+            await db.commit()
+
     @app_commands.command(name="syncroles", description="Manually sync your current roles to the role tracking system")
     async def syncroles(self, interaction: discord.Interaction):
         """Force a manual snapshot of the caller's current roles.
