@@ -63,6 +63,7 @@ class ModHelp(ModerationBase):
 
         e5 = embed("Moderation Commands — Tools", discord.Color.green())
         e5.add_field(name="!send_embed <#channel> <embed_string>", value="Send an embed (built with the embed builder) to a channel. Previews before sending. Requires confirmation.", inline=False)
+        e5.add_field(name="!random_member [count]", value="Pick a random member from the last `count` unique people who sent a message in this channel (bots excluded). `count` defaults to 10, max 50. Alias: `randommember`", inline=False)
         e5.set_footer(text="Arguments in <> are required. Arguments in [] are optional.")
         embeds.append(e5)
 
